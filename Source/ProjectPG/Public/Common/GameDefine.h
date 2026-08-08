@@ -32,3 +32,26 @@ enum class EAbilType : uint8
 
 	None,
 };
+
+UENUM(BlueprintType)
+enum class ETileType : uint8
+{
+	Spawn,
+	Exit,
+	Road,
+	Obstacle,
+	WarZone UMETA(DisplayName = "War Zone"),
+	None
+};
+
+namespace EMapDirection
+{
+	UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+	enum Type : uint8
+	{
+		Up = 1 << 0,
+		Down = 1 << 1,
+		Left = 1 << 2,
+		Right = 1 << 3,
+	};
+}
