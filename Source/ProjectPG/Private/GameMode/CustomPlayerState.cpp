@@ -13,4 +13,6 @@ void ACustomPlayerState::BeginPlay()
 {
 	Super::BeginPlay();
 	if (InvenComp) InvenComp->AddItemByID(FName("1001"));
+	if (InvenComp) InvenComp->AddItemByPosition(FName("1002"),1,FIntPoint(2,2));
+
 }

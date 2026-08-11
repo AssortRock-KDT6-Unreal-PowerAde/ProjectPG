@@ -159,7 +159,35 @@ bool UInventoryComponent::AddItemByID(FName ItemID, int32 Quantity)
 
 	return AddItem(NewItem);
 }
+//Test용
+bool UInventoryComponent::AddItemByPosition(FName ItemID, int32 Quantity, FIntPoint pos)
+{
+	if (ItemID.IsNone()) return false;
 
+	const FItemTableRow* ItemData = GetItemData(ItemID);
+	if (!ItemData) return false;
+
+	FItemInstance NewItem;
+	NewItem.ItemID = ItemID;
+	NewItem.StackCount = Quantity;
+	NewItem.GUID = FGuid::NewGuid();
+	NewItem.Position = pos; // 지정한 위치 설정
+	NewItem.bIsRotated = false;
+
+	// 1. 해당 위치(pos)에 아이템을 놓을 수 있는지 범위 및 충돌 검사
+	FIntPoint GridSize = NewItem.GetCurrentGridSize(ItemData);
+	if (!CanPlaceItem(NewItem.ItemID, pos, NewItem.bIsRotated))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AddItemByPosition 실패: (%d, %d) 위치에 놓을 수 없습니다."), pos.X, pos.Y);
+		return false; // 자리가 이미 차있거나 범위를 벗어남
+	}
+
+	// 2. AddItem(자동배치) 대신 직접 배열에 추가하고 델리게이트 호출
+	Items.Add(NewItem);
+	OnInventoryUpdated.Broadcast();
+
+	return true;
+}
 void UInventoryComponent::RebuildGridMap()
 {
 	GridMap.Init(-1, InventorySize.X * InventorySize.Y);

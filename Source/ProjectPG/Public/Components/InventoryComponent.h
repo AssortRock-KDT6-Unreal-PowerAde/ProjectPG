@@ -58,6 +58,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool AddItemByID(FName ItemID, int32 Quantity = 1);
 
+	bool AddItemByPosition(FName ItemID, int32 Quantity, FIntPoint pos);
+
 private:
 	void RebuildGridMap();
 	int32 GetGridIndex(int32 X, int32 Y) const { return Y * InventorySize.X + X; }

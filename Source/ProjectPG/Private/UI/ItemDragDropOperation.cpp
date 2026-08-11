@@ -21,3 +21,14 @@ void UItemDragDropOperation::RotateItem()
 		DragOffset = FVector2D(NewWidth * 0.5f, NewHeight * 0.5f);
 	}
 }
+
+void UItemDragDropOperation::DragCancelled_Implementation(const FPointerEvent& PointerEvent)
+{
+	Super::DragCancelled_Implementation(PointerEvent);
+	if (WidgetReference)
+	{
+		WidgetReference->SetRenderOpacity(1.0f);
+	}
+}
+
+

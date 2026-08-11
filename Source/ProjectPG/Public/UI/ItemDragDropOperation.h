@@ -16,6 +16,10 @@ class PROJECTPG_API UItemDragDropOperation : public UDragDropOperation
 	GENERATED_BODY()
 
 public:
+
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
+	class UUserWidget* WidgetReference;
+
 	UPROPERTY(BlueprintReadWrite)
 	FItemInstance DraggedItem;
 
@@ -26,4 +30,6 @@ public:
 	FVector2D DragOffset;
 	void RotateItem();
 
+public:
+	virtual void DragCancelled_Implementation(const FPointerEvent& PointerEvent) override;
 };

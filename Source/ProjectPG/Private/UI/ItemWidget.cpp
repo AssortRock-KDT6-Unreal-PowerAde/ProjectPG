@@ -52,6 +52,12 @@ FReply UItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const F
 	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
+bool UItemWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+	SetRenderOpacity(1.0f);
+	return Super::NativeOnDrop(MyGeometry, InDragDropEvent, InOperation);
+}
+
 // 2. 드래그 시작 시 Drag Visual 및 DragDropOperation 생성
 void UItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
 {
@@ -59,7 +65,7 @@ void UItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPoint
 
 	UItemDragDropOperation* DragOp = NewObject<UItemDragDropOperation>();
 	if (!DragOp) return;
-
+	DragOp->WidgetReference = this;
 	DragOp->DraggedItem = ItemInstance;
 	DragOp->bCurrentRotated = ItemInstance.bIsRotated;
 

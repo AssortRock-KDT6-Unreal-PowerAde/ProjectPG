@@ -270,8 +270,11 @@ FReply UInventoryGridWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const 
 
 bool UInventoryGridWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
-	UItemDragDropOperation* DragOp = Cast<UItemDragDropOperation>(InOperation);
-	if (!DragOp || !TargetInventoryComp || !BackGroundGrid) return false;
+	ClearSlotHighlights();
+	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
+	if (!ItemDragOp || !TargetInventoryComp || !BackGroundGrid) return false;
+
+
 
 	// 1. 전체 위젯 대신 BackGroundGrid의 Geometry 사용
 	FGeometry GridGeometry = BackGroundGrid->GetCachedGeometry();
@@ -280,7 +283,7 @@ bool UInventoryGridWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDrag
 	FVector2D LocalMousePos = GridGeometry.AbsoluteToLocal(InDragDropEvent.GetScreenSpacePosition());
 
 	// 3. 마우스 클릭 오프셋 감안한 좌표 계산
-	FVector2D AdjustedPos = LocalMousePos - DragOp->DragOffset;
+	FVector2D AdjustedPos = LocalMousePos - ItemDragOp->DragOffset;
 
 	int32 TargetTileX = FMath::FloorToInt(AdjustedPos.X / TileSize);
 	int32 TargetTileY = FMath::FloorToInt(AdjustedPos.Y / TileSize);
@@ -289,9 +292,9 @@ bool UInventoryGridWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDrag
 		*AdjustedPos.ToString(), TargetTileX, TargetTileY);
 
 	return TargetInventoryComp->MoveItem(
-		DragOp->DraggedItem.GUID,
+		ItemDragOp->DraggedItem.GUID,
 		FIntPoint(TargetTileX, TargetTileY),
-		DragOp->bCurrentRotated
+		ItemDragOp->bCurrentRotated
 	);
 }
 bool UInventoryGridWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
@@ -345,7 +348,7 @@ bool UInventoryGridWidget::NativeOnDragOver(const FGeometry& InGeometry, const F
 
 	return true;
 }
-/////////마우스 관련
+//
 void UInventoryGridWidget::NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
 	Super::NativeOnDragLeave(InDragDropEvent, InOperation);

@@ -32,6 +32,7 @@ public:
 	void InitWidget(const FItemInstance InItem, const FItemTableRow& InData, float InTileSize);
 
 	FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent);
+	virtual bool NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;//손땟을시
 
 	void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation);
 	void RefreshWidget();

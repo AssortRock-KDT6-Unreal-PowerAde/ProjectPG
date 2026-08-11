@@ -63,6 +63,13 @@ struct FItemTableRow : public FTableRowBase
 	UPROPERTY(EditAnywhere)
 	TSoftObjectPtr<UTexture2D> Icon;
 
+	UPROPERTY(EditAnywhere)
+	FString Description;
+
+public:
+	FString GetItemTypeString() const;
+
+
 };
 USTRUCT(BlueprintType)
 struct FDropTableaRow : public FTableRowBase
