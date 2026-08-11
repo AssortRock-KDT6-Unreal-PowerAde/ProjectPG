@@ -1,22 +1,57 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.6",
+	"EngineAssociation": "{940DCF1A-473C-107E-AD33-C8800A2C66E9}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
 		{
 			"Name": "ProjectPG",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine",
+				"UMG"
+			]
 		}
 	],
 	"Plugins": [
-		{
-			"Name": "ModelingToolsEditorMode",
-			"Enabled": true,
-			"TargetAllowList": [
-				"Editor"
-			]
-		}
-	]
+        {
+            "Name": "ModelingToolsEditorMode",
+            "Enabled": true,
+            "TargetAllowList": [
+                "Editor"
+            ]
+        },
+        {
+            "Name": "FastBuildController",
+            "Enabled": false
+        },
+        {
+            "Name": "XGEController",
+            "Enabled": false
+        },
+        {
+            "Name": "Bridge",
+            "Enabled": true,
+            "TargetAllowList": [
+                "Editor"
+            ]
+        },
+        {
+            "Name": "UbaController",
+            "Enabled": false
+        },
+        {
+            "Name": "PerforceSourceControl",
+            "Enabled": false
+        },
+        {
+            "Name": "PlatformCrypto",
+            "Enabled": false
+        },
+        {
+            "Name": "PlasticSourceControl",
+            "Enabled": false
+        }
+    ]
 }
