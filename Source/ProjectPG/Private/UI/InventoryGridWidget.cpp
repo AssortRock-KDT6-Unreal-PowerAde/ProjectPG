@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "Blueprint/WidgetBlueprintLibrary.h"
 #include "UI/InventoryGridWidget.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
 #include "UI/ItemWidget.h"
 #include "UI/SlotWidget.h"
 #include "UI/ItemDragDropOperation.h"
