@@ -16,21 +16,30 @@ class PROJECTPG_API UItemWidget : public UUserWidget
 {
 	GENERATED_BODY()
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float TileSize = 64.0f;
+
 	UPROPERTY(BlueprintReadOnly)
 	FItemInstance ItemInstance;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float TileSize = 64.0f;
 protected:
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<class USizeBox> RootSizeBox;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<class UImage> ItemIcon;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<class UTextBlock> TextStackCount;
 
 	FItemTableRow CachedItemData;
+
+	//TObjectPtr<class UItemTooltipWidget> _TooltipWidget;
+
+	UPROPERTY();
+	TObjectPtr<class UItemContextWidget> _ContextWidget;
+
+
+
 public:
 	UFUNCTION(BlueprintCallable)
 	void InitWidget(const FItemInstance InItem, const FItemTableRow& InData, float InTileSize);
-
+	void SetContextWidget(class UItemContextWidget* widget);
 	FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent);
 	virtual bool NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;//손땟을시
 

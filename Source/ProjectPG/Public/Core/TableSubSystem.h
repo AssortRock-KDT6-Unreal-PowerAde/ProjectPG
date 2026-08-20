@@ -27,6 +27,9 @@ protected:
 	TMap<FName, TObjectPtr<UDataTable>> _tables;
 
 public:
+
+
+
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 

@@ -3,6 +3,7 @@
 
 #include "Core/UIManagerSubSystem.h"
 #include "Blueprint/UserWidget.h"
+#include <Kismet/GameplayStatics.h>
 
 void UUIManagerSubSystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -13,7 +14,16 @@ void UUIManagerSubSystem::Deinitialize()
 {
 	Super::Deinitialize();
 }
+UUIManagerSubSystem* UUIManagerSubSystem::Get(const UObject* worldContext)
+{
+	if (nullptr == worldContext) return nullptr;
 
+	UGameInstance* inst = UGameplayStatics::GetGameInstance(worldContext);
+	if (nullptr == inst) return nullptr;
+
+
+	return inst->GetSubsystem<UUIManagerSubSystem>();
+}
 UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 {
 	if (UUserWidget** FoundWidget = ActiveWidgets.Find(UIType))
@@ -32,7 +42,6 @@ UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 {
 
 	if (UIType == EUIType::None) return nullptr;
-
 	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
 	if (!PC) return nullptr;
 
@@ -44,6 +53,8 @@ UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 	if (!TargetWidget)
 	{
 		TSubclassOf<UUserWidget>* TargetClass = UIClassMap.Find(UIType);
+		UE_LOG(LogTemp, Warning, TEXT("ClassMap %d"), UIClassMap.Num());
+
 		if (TargetClass && *TargetClass)
 		{
 			TargetWidget = CreateWidget<UUserWidget>(PC, *TargetClass);
@@ -60,7 +71,6 @@ UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 	if (TargetWidget && !TargetWidget->IsInViewport())
 	{
 		TargetWidget->AddToViewport();
-		UE_LOG(LogTemp, Warning, TEXT("Inventory Open"));
 		UpdateInputMode();
 	}
 
