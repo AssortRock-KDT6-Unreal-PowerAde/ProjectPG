@@ -16,7 +16,8 @@ class PROJECTPG_API ACustomGameMode : public AGameModeBase
 	GENERATED_BODY()
 
 public:
-	void ChangeScene(ESceneType scene);
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void BeginPlay() override;
+	
+	void ChangeScene(ESceneType scene);
 };
