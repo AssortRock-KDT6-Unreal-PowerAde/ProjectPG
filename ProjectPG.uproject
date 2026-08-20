@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{940DCF1A-473C-107E-AD33-C8800A2C66E9}",
+	"EngineAssociation": "5.6",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -15,43 +15,43 @@
 		}
 	],
 	"Plugins": [
-        {
-            "Name": "ModelingToolsEditorMode",
-            "Enabled": true,
-            "TargetAllowList": [
-                "Editor"
-            ]
-        },
-        {
-            "Name": "FastBuildController",
-            "Enabled": false
-        },
-        {
-            "Name": "XGEController",
-            "Enabled": false
-        },
-        {
-            "Name": "Bridge",
-            "Enabled": true,
-            "TargetAllowList": [
-                "Editor"
-            ]
-        },
-        {
-            "Name": "UbaController",
-            "Enabled": false
-        },
-        {
-            "Name": "PerforceSourceControl",
-            "Enabled": false
-        },
-        {
-            "Name": "PlatformCrypto",
-            "Enabled": false
-        },
-        {
-            "Name": "PlasticSourceControl",
-            "Enabled": false
-        }
-    ]
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "FastBuildController",
+			"Enabled": false
+		},
+		{
+			"Name": "XGEController",
+			"Enabled": false
+		},
+		{
+			"Name": "Bridge",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "UbaController",
+			"Enabled": false
+		},
+		{
+			"Name": "PerforceSourceControl",
+			"Enabled": false
+		},
+		{
+			"Name": "PlatformCrypto",
+			"Enabled": false
+		},
+		{
+			"Name": "PlasticSourceControl",
+			"Enabled": false
+		}
+	]
 }
