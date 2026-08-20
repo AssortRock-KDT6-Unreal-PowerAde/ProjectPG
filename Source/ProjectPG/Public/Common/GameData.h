@@ -29,6 +29,7 @@ struct FAbilData
 		Value = value;
 	}
 };
+
 USTRUCT(BlueprintType)
 struct FItemInstance
 {
@@ -37,6 +38,8 @@ struct FItemInstance
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGuid GUID;
 
+
+	FGuid inventory_guid;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName ItemID =TEXT("");//아이템 
 
@@ -50,15 +53,30 @@ struct FItemInstance
 	UPROPERTY(BlueprintReadOnly)
 	FIntPoint Position = FIntPoint();
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FGuid parent_inventory_guid;//어느 인벤토리로 들어갈지(가방,창고 등)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 inventory_id = 0;//어느 인벤토리로 들어갈지(가방,창고 등)
+
 	bool bIsRotated = false;//0~4 회전량 (90도 회전)
 	bool bEquip = false;//장착여부
-	int inventoryType = 0;// 0 ,1 인벤토리 종류(0 main, 1 sub) // 메인창고 인벤 , 인게임에서 사용할 인벤
 
 	// 회전 상태를 반영한 현재 격자 크기 반환 함수
 	FIntPoint GetCurrentGridSize(const FItemTableRow* ItemData) const;
 
-};
+	EItemType type = EItemType::ETC;
 
+};
+USTRUCT(BlueprintType)
+struct FItemArrayWrapper
+{
+	GENERATED_BODY()
+
+	// 블루프린트에서도 접근 가능하도록 UPROPERTY 설정
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FItemInstance> Items;
+};
 USTRUCT(BlueprintType)
 struct FEquipSlotData
 {

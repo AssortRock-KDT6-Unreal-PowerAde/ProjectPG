@@ -10,8 +10,11 @@
 #include "Components/SizeBox.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/InventoryComponent.h"
-
+#include "UI/ItemContextWidget.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "Core/UIManagerSubSystem.h"
 void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& InData, float InTileSize)
 {
 	ItemInstance = InItem;
@@ -23,12 +26,7 @@ void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& In
 	RootSizeBox->SetWidthOverride(EffectiveSize.X * TileSize);
 	RootSizeBox->SetHeightOverride(EffectiveSize.Y * TileSize);
 
-	UTexture2D* LoadedTex = InData.Icon.LoadSynchronous();
-
-	if (LoadedTex)
-	{
-		ItemIcon->SetBrushFromTexture(LoadedTex);
-	}
+	ItemIcon->SetBrushFromTexture(InData.Icon);
 	if (InItem.StackCount > 1)
 	{
 		TextStackCount->SetText(FText::AsNumber(InItem.StackCount));
@@ -41,6 +39,10 @@ void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& In
 	}
 	RefreshWidget();
 }
+void UItemWidget::SetContextWidget(UItemContextWidget* widget)
+{
+	 _ContextWidget = widget; 
+}
 // 1. 마우스 누름 감지
 FReply UItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
@@ -48,6 +50,24 @@ FReply UItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const F
 	{
 		// 드래그 감지 등록
 		return UWidgetBlueprintLibrary::DetectDragIfPressed(InMouseEvent, this, EKeys::LeftMouseButton).NativeReply;
+	}
+	else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		UUIManagerSubSystem* subsystem = UUIManagerSubSystem::Get(GetWorld());
+
+		_ContextWidget = Cast<UItemContextWidget>(subsystem->OpenUI(EUIType::ItemContext));
+		if (nullptr == _ContextWidget) return FReply::Handled();
+
+		_ContextWidget->SetItem(ItemInstance);
+		_ContextWidget->SetVisibility(ESlateVisibility::Visible);
+		_ContextWidget->UpdateButtonState(ItemInstance.type);
+		// 마우스 절대 위치 가져오기
+		FVector2D ScreenPosition = InMouseEvent.GetScreenSpacePosition();
+
+		// Viewport 스케일링(DPI)을 고려하여 위치 설정 (RemoveDPIScale = true)
+		_ContextWidget->SetPositionInViewport(ScreenPosition, true);
+
+		return FReply::Handled();
 	}
 	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
@@ -65,29 +85,24 @@ void UItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPoint
 
 	UItemDragDropOperation* DragOp = NewObject<UItemDragDropOperation>();
 	if (!DragOp) return;
+
 	DragOp->WidgetReference = this;
-	DragOp->DraggedItem = ItemInstance;
+	DragOp->DraggedItem = ItemInstance; // 현재 아이템 정보
 	DragOp->bCurrentRotated = ItemInstance.bIsRotated;
 
-	// 1. 현재 아이템 위젯의 회전 반영 격자 크기 가져오기
-	FIntPoint GridSize = ItemInstance.GetCurrentGridSize(&CachedItemData);
+	// 💡 [핵심 1] 클릭한 마우스 위치와 위젯 좌상단 간의 실제 상대 거리를 DragOffset으로 저장
+	FVector2D LocalMousePos = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+	DragOp->DragOffset = LocalMousePos;
 
-	// 2. 위젯의 전체 픽셀 크기 계산
-	float WidgetWidth = GridSize.X * TileSize;
-	float WidgetHeight = GridSize.Y * TileSize;
-
-	// 💡 3. 마우스 커서가 아이템 위젯의 정중앙에 오도록 오프셋 설정
-	DragOp->DragOffset = FVector2D(WidgetWidth * 0.5f, WidgetHeight * 0.5f);
-
-	// 4. Drag Visual 생성 및 설정
+	// Drag Visual 생성 및 설정
 	UItemWidget* DragVisual = CreateWidget<UItemWidget>(GetOwningPlayer(), GetClass());
 	if (DragVisual)
 	{
 		DragVisual->InitWidget(ItemInstance, CachedItemData, TileSize);
 		DragOp->DefaultDragVisual = DragVisual;
 
-		// Pivot 설정 (Visual 위젯 기준)
-		DragOp->Pivot = EDragPivot::CenterCenter;
+		// 💡 [핵심 2] DragOffset을 마우스 클릭 위치로 직접 지정했으므로 Pivot은 MouseDown을 사용합니다.
+		DragOp->Pivot = EDragPivot::MouseDown;
 	}
 
 	SetRenderOpacity(0.5f);
@@ -102,4 +117,6 @@ void UItemWidget::RefreshWidget()
 	RootSizeBox->SetWidthOverride(GridSize.X * TileSize);
 	RootSizeBox->SetHeightOverride(GridSize.Y * TileSize);
 }
+
+
 

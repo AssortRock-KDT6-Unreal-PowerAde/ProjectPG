@@ -34,6 +34,17 @@ struct FDefineTableRow : public FTableRowBase
 	UPROPERTY(EditAnywhere,BlueprintReadWrite)
 	FString StringValue = TEXT("");
 };
+USTRUCT(BlueprintType)
+struct FItemBackpackTable : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 BackpackID = 0; //아이템아이디가 들어감
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FIntPoint SlotSize = (0,0);
+};
 
 USTRUCT(BlueprintType)
 struct FItemTableRow : public FTableRowBase
@@ -53,6 +64,11 @@ struct FItemTableRow : public FTableRowBase
 	UPROPERTY(EditAnywhere)
 	EItemType ItemType = EItemType::ETC;
 
+
+
+	UPROPERTY(EditAnywhere)
+	EEquipSlot EquipSlot = EEquipSlot::MAX;
+
 	UPROPERTY(EditAnywhere)
 	int32 MaxStack = 1;
 
@@ -61,16 +77,39 @@ struct FItemTableRow : public FTableRowBase
 	FIntPoint GridSize = FIntPoint(1, 1);
 
 	UPROPERTY(EditAnywhere)
-	TSoftObjectPtr<UTexture2D> Icon;
+	UTexture2D* Icon;
 
 	UPROPERTY(EditAnywhere)
 	FString Description;
+
+	UPROPERTY(EditAnywhere)
+	UStaticMesh* WorldMesh;
 
 public:
 	FString GetItemTypeString() const;
 
 
 };
+
+
+USTRUCT(BlueprintType)
+struct FEquipTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)	int32 ItemID;
+
+	UPROPERTY(EditAnywhere)	EEquipSlot EquipType;
+
+	UPROPERTY(EditAnywhere)	FName SocketName;
+
+	//UPROPERTY(EditAnywhere)
+	//TArray<FAbilityData> Abilities;
+
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<AEquipActor> EquipActorClass;
+};
+
 USTRUCT(BlueprintType)
 struct FDropTableaRow : public FTableRowBase
 {

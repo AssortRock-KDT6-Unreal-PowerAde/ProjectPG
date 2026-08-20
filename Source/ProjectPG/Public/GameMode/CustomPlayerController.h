@@ -15,6 +15,7 @@ class PROJECTPG_API ACustomPlayerController : public APlayerController
 	GENERATED_BODY()
 	
 public:
+	virtual void BeginPlay() override;
 	void ToggleInventory();
 	void SetupInputComponent() override;
 	void OnRotateKey();
