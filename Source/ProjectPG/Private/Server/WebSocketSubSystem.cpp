@@ -166,6 +166,27 @@ void UWebSocketSubSystem::RequestGetInventory()
 	SendJsonMessage(TEXT("GET_INVENTORY"), Payload);
 }
 
+void UWebSocketSubSystem::RequestMoveItem(const FGuid& FromInventoryGuid, const FGuid& ToInventoryGuid, const FGuid& ItemGuid, const FIntPoint& TargetPosition, bool bIsRotated)
+{
+	if (!WebSocket.IsValid() || !WebSocket->IsConnected())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[WebSocket Subsystem] 웹소켓이 연결되어있지 않습니다."));
+		return;
+	}
+
+	TSharedPtr<FJsonObject> PayloadObject = MakeShared<FJsonObject>();
+
+	// Node.js 서버 핸들러(handleMoveItem) 파라미터 구조와 대소문자 일치
+	PayloadObject->SetStringField(TEXT("FromInventoryGuid"), FromInventoryGuid.ToString(EGuidFormats::DigitsWithHyphens));
+	PayloadObject->SetStringField(TEXT("ToInventoryGuid"), ToInventoryGuid.ToString(EGuidFormats::DigitsWithHyphens));
+	PayloadObject->SetStringField(TEXT("ItemGuid"), ItemGuid.ToString(EGuidFormats::DigitsWithHyphens));
+	PayloadObject->SetNumberField(TEXT("TargetX"), TargetPosition.X);
+	PayloadObject->SetNumberField(TEXT("TargetY"), TargetPosition.Y);
+	PayloadObject->SetBoolField(TEXT("bIsRotated"), bIsRotated);
+
+	SendJsonMessage(TEXT("REQ_MOVE_ITEM"), PayloadObject);
+}
+
 void UWebSocketSubSystem::OnConnected()
 {
 	UE_LOG(LogTemp, Log, TEXT("[WebSocket Subsystem] 로비 서버 연결 성공"));
@@ -276,20 +297,48 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 			}
 		}
 	}
-	// 5. 인벤토리 데이터 파싱
 	else if (UpperType == TEXT("INVENTORY_DATA"))
 	{
-		// KEY를 FGuid로 사용하는 맵으로 수정
-		TMap<FGuid, FItemArrayWrapper> InventoryItems;
+		FInventoryMapWrapper InventoryMapWrapper;
 
-		UItemSubSystem* subSystem = UItemSubSystem::Get(GetWorld());
-		if (subSystem == nullptr)
+		// 1) 최상위 인벤토리 GUID (Stash / Pocket)
+		if (PayloadObject->HasField(TEXT("stashGuid")))
 		{
-			UE_LOG(LogTemp, Error, TEXT("[Inventory] ItemSubSystem을 찾을 수 없습니다."));
-			return;
+			FGuid::Parse(PayloadObject->GetStringField(TEXT("stashGuid")), InventoryMapWrapper.StashGuid);
+		}
+		if (PayloadObject->HasField(TEXT("pocketGuid")))
+		{
+			FGuid::Parse(PayloadObject->GetStringField(TEXT("pocketGuid")), InventoryMapWrapper.PocketGuid);
 		}
 
-		// payload 내부의 "items" 배열 추출
+		// 2) DB(inventorycontainer) 기반 크기 데이터 파싱
+		const TArray<TSharedPtr<FJsonValue>>* InventoriesArray;
+		if (PayloadObject->TryGetArrayField(TEXT("inventories"), InventoriesArray))
+		{
+			for (const TSharedPtr<FJsonValue>& InvenValue : *InventoriesArray)
+			{
+				TSharedPtr<FJsonObject> InvenObj = InvenValue->AsObject();
+				if (!InvenObj.IsValid()) continue;
+
+				FGuid InvenGuid;
+				// inventory_id 또는 guid 필드
+				FString GuidStr = InvenObj->HasField(TEXT("inventory_id")) ? InvenObj->GetStringField(TEXT("inventory_id")) : InvenObj->GetStringField(TEXT("guid"));
+
+				if (FGuid::Parse(GuidStr, InvenGuid))
+				{
+					// DB 필드명(max_cols, max_rows)과 JSON Key 파싱 유연화
+					int32 Cols = InvenObj->HasField(TEXT("max_cols")) ? InvenObj->GetIntegerField(TEXT("max_cols")) : InvenObj->GetIntegerField(TEXT("cols"));
+					int32 Rows = InvenObj->HasField(TEXT("max_rows")) ? InvenObj->GetIntegerField(TEXT("max_rows")) : InvenObj->GetIntegerField(TEXT("rows"));
+
+					InventoryMapWrapper.InventorySizeMap.Add(InvenGuid, FIntPoint(Cols, Rows));
+				}
+			}
+		}
+
+		TMap<FGuid, FItemArrayWrapper> InventoryItems;
+		UItemSubSystem* subSystem = UItemSubSystem::Get(GetWorld());
+		if (subSystem == nullptr) return;
+
 		const TArray<TSharedPtr<FJsonValue>>* ItemsArray;
 		if (PayloadObject->TryGetArrayField(TEXT("items"), ItemsArray))
 		{
@@ -299,53 +348,62 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 				if (!ItemObject.IsValid()) continue;
 
 				FItemInstance Item;
+				FGuid::Parse(ItemObject->GetStringField(TEXT("guid")), Item.GUID);
+				FGuid::Parse(ItemObject->GetStringField(TEXT("parent_inventory_guid")), Item.parent_inventory_guid);
 
-				// 아이템 자체 GUID 파싱
-				FString GuidString = ItemObject->GetStringField(TEXT("guid"));
-				FGuid::Parse(GuidString, Item.GUID);
-
-				// 부모 인벤토리 GUID 파싱 (parent_inventory_guid)
-				FString ParentGuidString = ItemObject->GetStringField(TEXT("parent_inventory_guid"));
-				FGuid::Parse(ParentGuidString, Item.parent_inventory_guid);
-
-				// ItemID, StackCount, Durability, Position 파싱
 				Item.ItemID = FName(*ItemObject->GetStringField(TEXT("item_id")));
 				Item.StackCount = ItemObject->GetIntegerField(TEXT("stack_count"));
 				Item.Durability = ItemObject->GetNumberField(TEXT("current_durability"));
 				Item.Position.X = ItemObject->GetIntegerField(TEXT("pos_x"));
 				Item.Position.Y = ItemObject->GetIntegerField(TEXT("pos_y"));
 
-				// ItemData 테이블 정보 연결
+				// 회전 상태 파싱 (bool/int 유연 파싱)
+				if (ItemObject->HasField(TEXT("bIsRotated")))
+				{
+					Item.bIsRotated = ItemObject->GetBoolField(TEXT("bIsRotated"));
+				}
+				else if (ItemObject->HasField(TEXT("is_rotate")))
+				{
+					Item.bIsRotated = ItemObject->GetIntegerField(TEXT("is_rotate")) == 1;
+				}
+
 				const FItemTableRow* ItemInstance = subSystem->GetItem(Item.ItemID);
 				if (ItemInstance != nullptr)
 				{
 					Item.type = ItemInstance->ItemType;
 				}
-				else
-				{
-					UE_LOG(LogTemp, Warning, TEXT("[Inventory] 유효하지 않은 ItemID: %s"), *Item.ItemID.ToString());
-				}
 
-				// 내부 인벤토리 GUID가 있는 경우 (가방/상자 아이템 등)
-				if (ItemObject->HasField(TEXT("inventory_guid")))
-				{
-					FString InvenGuidStr = ItemObject->GetStringField(TEXT("inventory_guid"));
-					FGuid::Parse(InvenGuidStr, Item.inventory_guid);
-				}
-
-				// 파싱된 아이템을 부모 인벤토리 GUID 맵에 추가
 				InventoryItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);
 			}
 		}
 
-		UE_LOG(LogTemp, Log, TEXT("[Inventory] 인벤토리 데이터 수신 완료: 총 %d개 가방/보관함 분류됨"), InventoryItems.Num());
-
-		FInventoryMapWrapper InventoryMapWrapper;
 		InventoryMapWrapper.InventoryMap = InventoryItems;
+
+		UE_LOG(LogTemp, Log, TEXT("[Inventory] DB 수신 완료 - StashGUID(%s), PocketGUID(%s), 크기정보 %d개"),
+			*InventoryMapWrapper.StashGuid.ToString(),
+			*InventoryMapWrapper.PocketGuid.ToString(),
+			InventoryMapWrapper.InventorySizeMap.Num());
 
 		OnInventoryReceived.Broadcast(InventoryMapWrapper);
 	}
-	// 6. 매칭 취소
+	// 6. 아이템 이동 응답 (RES_MOVE_ITEM)
+	else if (UpperType == TEXT("RES_MOVE_ITEM"))
+	{
+		bool bSuccess = PayloadObject->GetBoolField(TEXT("success"));
+
+		if (bSuccess)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[WebSocket Subsystem] 아이템 이동 성공"));
+			// Node.js 서버에서 RES_MOVE_ITEM 직후 INVENTORY_DATA 패킷을 연속으로 보내줄 경우 
+			// 위 5번 분기(INVENTORY_DATA)에서 자동으로 최신 UI가 동기화됩니다.
+		}
+		else
+		{
+			FString Message = PayloadObject->HasField(TEXT("message")) ? PayloadObject->GetStringField(TEXT("message")) : TEXT("이동 실패");
+			UE_LOG(LogTemp, Error, TEXT("[WebSocket Subsystem] 아이템 이동 실패: %s"), *Message);
+		}
+	}
+	// 7. 매칭 취소
 	else if (UpperType == TEXT("MATCH_CANCELLED"))
 	{
 		FString Message = PayloadObject->GetStringField(TEXT("message"));

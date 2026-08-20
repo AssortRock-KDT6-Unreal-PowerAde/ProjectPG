@@ -103,6 +103,8 @@ public:
 	// 외부 저장 데이터 일괄 재할당
 	void AllocateItemDataByGuid(const TMap<FGuid, FItemArrayWrapper>& ItemData);
 
+	UFUNCTION()	void SetServerInventoryData(const FInventoryMapWrapper InWrapper);
+
 	int32 GetGridIndex(const FGuid& InvenGuid, int32 X, int32 Y) const;
 
 private:

@@ -1,14 +1,30 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "UI/InventoryWindow.h"
-#include "UI/InventoryGridWidget.h"
 #include "Components/Overlay.h"
-#include "Components/EquipComponent.h"
+#include "Components/OverlaySlot.h"
 #include "Components/InventoryComponent.h"
-#include "Core/TableSubSystem.h"
-#include "Core/ItemSubSystem.h"
-#include "Core/UIManagerSubSystem.h"
+#include "UI/InventoryGridWidget.h"
+#include "Server/WebSocketSubSystem.h"
+
+void UInventoryWindow::NativeConstruct()
+{
+	Super::NativeConstruct();
+
+	if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
+	{
+		WebSocketSub->OnInventoryReceived.RemoveDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
+		WebSocketSub->OnInventoryReceived.AddDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
+	}
+}
+
+void UInventoryWindow::NativeDestruct()
+{
+	if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
+	{
+		WebSocketSub->OnInventoryReceived.RemoveDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
+	}
+
+	Super::NativeDestruct();
+}
 
 void UInventoryWindow::InitWidget(UInventoryComponent* InvenComponent, UEquipComponent* EquipComponent)
 {
@@ -16,54 +32,115 @@ void UInventoryWindow::InitWidget(UInventoryComponent* InvenComponent, UEquipCom
 	EquipComp = EquipComponent;
 }
 
-void UInventoryWindow::SetChildEquipOverlay(UUserWidget* childWidget)
+// 메인 인벤토리(Stash) 위젯 동적 생성 및 배치
+void UInventoryWindow::SetupMainInventoryWidget(TSubclassOf<UUserWidget> InvenClass)
 {
-	if (EquipOverlay) EquipOverlay->AddChild(childWidget);
+	if (!InvenClass) return;
+
+	UUserWidget* MainInvenWidget = CreateWidget<UUserWidget>(this, InvenClass);
+	if (MainInvenWidget)
+	{
+		SetChildMainInvenOverlay(MainInvenWidget);
+	}
+}
+
+// 포켓(Sub) 인벤토리 위젯 동적 생성 및 배치
+void UInventoryWindow::SetupPocketInventoryWidget(TSubclassOf<UUserWidget> InvenClass)
+{
+	if (!InvenClass) return;
+
+	UUserWidget* PocketInvenWidget = CreateWidget<UUserWidget>(this, InvenClass);
+	if (PocketInvenWidget)
+	{
+		SetChildSubInvenOverlay(PocketInvenWidget);
+	}
+}
+
+void UInventoryWindow::SetChildMainInvenOverlay(UUserWidget* ChildWidget)
+{
+	if (MainInventoryOverlay && ChildWidget)
+	{
+		ChildWidget->RemoveFromParent();
+		MainInventoryOverlay->ClearChildren();
+
+		if (UOverlaySlot* OverlaySlot = MainInventoryOverlay->AddChildToOverlay(ChildWidget))
+		{
+			OverlaySlot->SetHorizontalAlignment(EHorizontalAlignment::HAlign_Fill);
+			OverlaySlot->SetVerticalAlignment(EVerticalAlignment::VAlign_Fill);
+		}
+		ChildWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
 }
 
 void UInventoryWindow::SetChildSubInvenOverlay(UUserWidget* childWidget)
 {
+	if (SubInventoryOverlay && childWidget)
+	{
+		childWidget->RemoveFromParent();
+		SubInventoryOverlay->ClearChildren();
 
-	if (SubInventoryOverlay) SubInventoryOverlay->AddChild(childWidget);
+		if (UOverlaySlot* OverlaySlot = SubInventoryOverlay->AddChildToOverlay(childWidget))
+		{
+			OverlaySlot->SetHorizontalAlignment(EHorizontalAlignment::HAlign_Fill);
+			OverlaySlot->SetVerticalAlignment(EVerticalAlignment::VAlign_Fill);
+		}
+		childWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
 }
 
-void UInventoryWindow::SetChildMainInvenOverlay(UUserWidget* childWidget)
+void UInventoryWindow::SetChildEquipOverlay(UUserWidget* childWidget)
 {
-	if (MainInventoryOverlay) MainInventoryOverlay->AddChild(childWidget);
+	if (EquipOverlay && childWidget)
+	{
+		childWidget->RemoveFromParent();
+		EquipOverlay->ClearChildren();
+		EquipOverlay->AddChild(childWidget);
+	}
 }
 
 void UInventoryWindow::SetChildBackpackInvenOverlay(UUserWidget* childWidget)
 {
-	if (BackPackInvenOverlay) BackPackInvenOverlay->AddChild(childWidget);
-
+	if (BackPackInvenOverlay && childWidget)
+	{
+		childWidget->RemoveFromParent();
+		BackPackInvenOverlay->ClearChildren();
+		BackPackInvenOverlay->AddChild(childWidget);
+	}
 }
 
 void UInventoryWindow::UpdateState()
 {
-	if (false == IsValid(EquipComp)) return;
-	if (false == IsValid(InvenComp)) return;
-	const FItemInstance* item  = EquipComp->GetEquipment(EEquipSlot::BackPack);
-	if (item)
+	if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
 	{
-		if (item->bEquip)
-		{
-			UTableSubSystem* subSystem = UTableSubSystem::Get(GetWorld());
-			if (nullptr == subSystem) return;
-			UItemSubSystem* Itemsubsystem = UItemSubSystem::Get(GetWorld());
-
-			if (nullptr == Itemsubsystem) return;
-
-			UUIManagerSubSystem* UIsubsystem = UUIManagerSubSystem::Get(GetWorld());
-			if (nullptr == UIsubsystem) return;
-			
-			const FItemBackpackTable* itemData = subSystem->FindTableRow<FItemBackpackTable>(TEXT("BackpackTable"), *item->ItemID.ToString());
-			UInventoryGridWidget* invenwidget = Cast<UInventoryGridWidget>(UIsubsystem->OpenUI(EUIType::Inventory));
-			if (nullptr == invenwidget) return;
-			
-			SetChildBackpackInvenOverlay(invenwidget);				
-			const FItemInstance* itemInstance  =InvenComp->GetItemInstance(*FString::FromInt(itemData->BackpackID));
-			
-		}
-
+		WebSocketSub->RequestGetInventory();
 	}
+}
+
+void UInventoryWindow::OnInventoryDataReceived(const FInventoryMapWrapper InventoryMapWrapper)
+{
+	// 1. InventoryComponent에 최신 서버 데이터 동기화
+	if (InvenComp)
+	{
+		InvenComp->SetServerInventoryData(InventoryMapWrapper);
+	}
+
+	// 2. Overlay 내부 자식 GridWidget을 찾아 바인딩
+	auto BindOverlayGrid = [this](UOverlay* TargetOverlay, const FGuid& TargetGUID)
+		{
+			if (!TargetOverlay || !TargetGUID.IsValid()) return;
+
+			for (UWidget* Child : TargetOverlay->GetAllChildren())
+			{
+				if (UInventoryGridWidget* GridWidget = Cast<UInventoryGridWidget>(Child))
+				{
+					GridWidget->SetInventoryGUID(TargetGUID);
+					GridWidget->BindInventoryComponent(InvenComp);
+					break;
+				}
+			}
+		};
+
+	// 3. Stash(Main) 및 Pocket(Sub) 각각 바인딩
+	BindOverlayGrid(MainInventoryOverlay, InventoryMapWrapper.StashGuid);
+	BindOverlayGrid(SubInventoryOverlay, InventoryMapWrapper.PocketGuid);
 }

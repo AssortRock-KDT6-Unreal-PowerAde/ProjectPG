@@ -80,6 +80,25 @@ struct FItemArrayWrapper
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FItemInstance> Items;
 };
+USTRUCT(BlueprintType)
+struct FInventoryMapWrapper
+{
+	GENERATED_BODY()
+
+	// 1. 최상위 인벤토리 GUID 추가
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid StashGuid;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid PocketGuid;
+
+	// 2. Parent Inventory GUID 기반 아이템 맵
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	TMap<FGuid, FItemArrayWrapper> InventoryMap;
+
+	UPROPERTY()
+	TMap<FGuid, FIntPoint> InventorySizeMap;
+};
 
 USTRUCT(BlueprintType)
 struct FEquipSlotData
