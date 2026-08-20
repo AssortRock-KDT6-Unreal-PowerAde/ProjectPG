@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Actor/EquipActor.h"
 #include "Engine/DataTable.h" 
 #include "Common/GameDefine.h"
 #include "Common/GameData.h"   
@@ -120,4 +121,16 @@ struct FDropTableaRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere)
 	TArray<FDropItemData> DropItems;
+};
+
+USTRUCT(BlueprintType)
+struct FPlayerDefaultActionTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	TArray<FTaggedInputAction> TaggedNativeActions;
+
+	UPROPERTY(EditAnywhere)
+	TArray<FTaggedAbility> TaggedAbilities;
 };

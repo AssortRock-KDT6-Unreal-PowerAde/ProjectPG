@@ -1,8 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "Components/Image.h"
 #include "UI/EquipmentWidget.h"
 #include "UI/EquipSlot.h"
+#include "Components/Image.h"
 
 void UEquipmentWidget::NativeConstruct()
 {
@@ -16,5 +16,4 @@ void UEquipmentWidget::NativeConstruct()
 	ShoesSlot->SetSlot(EEquipSlot::Shose);
 	SubWeaponSlot->SetSlot(EEquipSlot::SubWeapon);
 	BackPackSlot->SetSlot(EEquipSlot::BackPack);
-
 }

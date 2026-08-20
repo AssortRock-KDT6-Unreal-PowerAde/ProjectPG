@@ -2,6 +2,10 @@
 
 #include "UI/InventoryGridWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "UI/ItemWidget.h"
+#include "UI/SlotWidget.h"
+#include "UI/ItemDragDropOperation.h"
+
 #include "Core/ItemSubSystem.h"
 #include "Components/UniformGridSlot.h"
 #include "Components/InventoryComponent.h"
