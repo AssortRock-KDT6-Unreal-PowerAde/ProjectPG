@@ -8,10 +8,8 @@ public class ProjectPG : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput","WebSockets",
-            "Json",
-            "JsonUtilities" });
-    
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput","WebSockets","Json","JsonUtilities" });
+
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 		
 		PrivateIncludePaths.Add(ModuleDirectory);
