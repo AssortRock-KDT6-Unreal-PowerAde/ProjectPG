@@ -32,7 +32,16 @@ enum class EAbilType : uint8
 
 	None,
 };
-
+UENUM(BlueprintType)
+enum class EMessageType :uint8
+{
+	Default, oneButton
+};
+UENUM(BlueprintType)
+enum class ESceneType : uint8
+{
+	LobbyScene, InGameScene,
+};
 UENUM(BlueprintType)
 enum class EEquipSlot : uint8
 {
@@ -48,7 +57,7 @@ enum class EEquipSlot : uint8
 UENUM(BlueprintType)
 enum class EItemType : uint8
 {
-	Weapon, Armor, Consumable, Quest, ETC
+	Weapon, Armor, Consumable, Quest, Bag , ETC
 };
 
 UENUM(BlueprintType)

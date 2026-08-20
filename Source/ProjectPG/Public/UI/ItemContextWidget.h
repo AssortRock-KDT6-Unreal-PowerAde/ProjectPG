@@ -31,10 +31,34 @@ protected:
 	TObjectPtr<class UButton> DropButton;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<class UButton> CancelButton;
+	TObjectPtr<class UButton> CancleButton;
 private:
 	UPROPERTY()
 	TObjectPtr<class UInventoryComponent> InvenComp;
 
-	FItemInstance CurrnetItem;
+	UPROPERTY()
+	TObjectPtr<class UEquipComponent> EquipComp;
+
+	FItemInstance CurrentItem;
+public:
+	virtual void NativeConstruct() override;
+	void InitWidget(class UInventoryComponent* InInventory, class UEquipComponent* InEquip);
+	void SetItem(const FItemInstance& InItem);
+	void UpdateButtonState(EItemType type);
+private:
+	UFUNCTION()
+	void OnEquipClickedBtn();
+	UFUNCTION()
+	void OnUnEquipClickedBtn();
+
+	UFUNCTION()
+	void OnUsedClickedBtn();
+
+	UFUNCTION()
+	void OnDropClicked();
+
+	UFUNCTION()
+	void OnCancledClicked();
+
+	void InitButtonState();
 };

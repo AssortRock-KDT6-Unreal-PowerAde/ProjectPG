@@ -5,6 +5,25 @@
 #include "Core/UIManagerSubSystem.h"
 #include "UI/ItemDragDropOperation.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include <UI/Controller/LobbyUIFlowController.h>
+
+void ACustomPlayerController::BeginPlay()
+{
+	Super::BeginPlay();
+	if (IsLocalController())
+	{
+		// 0.01초 뒤에 UI 설정 시작 (GameInstance Init 및 Subsystem 등록 완료 대기)
+		FTimerHandle TimerHandle;
+		GetWorldTimerManager().SetTimer(TimerHandle, [this]()
+			{
+				ULobbyUIFlowController* FlowController = ULobbyUIFlowController::Get(this);
+				if (FlowController)
+				{
+					FlowController->BeginSetting();
+				}
+			}, 0.01f, false);
+	}
+}
 void ACustomPlayerController::ToggleInventory()
 {
 	if (UGameInstance* GI = GetGameInstance())
@@ -17,6 +36,7 @@ void ACustomPlayerController::ToggleInventory()
 		}
 	}
 }
+
 
 void ACustomPlayerController::SetupInputComponent()
 {

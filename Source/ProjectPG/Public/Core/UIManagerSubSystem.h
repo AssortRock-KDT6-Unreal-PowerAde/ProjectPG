@@ -7,15 +7,15 @@
 
 #include "UIManagerSubSystem.generated.h"
 
-/**
- * 
- */
 UENUM(BlueprintType)
 enum class EUIType : uint8
 {
-	None, Login, CreateUser,
-	Character, Inventory, EquipMent, Quest,
+	None,LoginWindow, Login, CreateUser,
+	Character, Inventory, EquipMent, Quest,MessagePopup, Lobby,ItemContext,
 };
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMessagePopupView, const FString&, Message, int32, Popuptype);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPopupClosed);
+
 UCLASS()
 class PROJECTPG_API UUIManagerSubSystem : public UGameInstanceSubsystem
 {
@@ -29,9 +29,13 @@ private:
 	UPROPERTY()
 	TMap<EUIType, TSubclassOf<UUserWidget>> UIClassMap;
 public:
+	FOnMessagePopupView OnMessagePopupEvent;
+	FOnPopupClosed OnPopupClosed;
+public:
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+
 
 	UFUNCTION(BlueprintCallable, Category = "UIManager")
 	class UUserWidget* ToggleUI(EUIType UIType);
@@ -52,6 +56,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "UI Manager")
 	void RegisterUIClass(EUIType UIType, TSubclassOf<UUserWidget> WidgetClass);
+	static UUIManagerSubSystem* Get(const UObject* worldContext);
+
 
 private:
 	void UpdateInputMode();
