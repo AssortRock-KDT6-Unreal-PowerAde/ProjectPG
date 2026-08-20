@@ -31,7 +31,7 @@ UTableSubSystem* UTableSubSystem::Get(const UObject* worldContext)
 
 bool UTableSubSystem::LoadTable()
 {
-	_tablePath = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *FString("/Game/Table/TableLoader")));
+	_tablePath = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *FString("/Game/PG/Table/TableLoader")));
 
 	if (false == IsValid(_tablePath)) return false;
 
