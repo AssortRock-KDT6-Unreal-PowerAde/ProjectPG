@@ -7,11 +7,11 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Camera/CameraComponent.h"
+#include "Components/NativeActionComponent.h"
 #include "Core/TableSubSystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilities/CustomAbilitySystemComponent.h"
-#include "Input/DefaultInput.h"
 
 ACustomPlayerCharacter::ACustomPlayerCharacter()
 {
@@ -40,6 +40,10 @@ ACustomPlayerCharacter::ACustomPlayerCharacter()
 	cameraAdditiveLocation.Y += 30.;
 	CameraComp->AddRelativeLocation(cameraAdditiveLocation);
 
+	NativeActionComp = CreateDefaultSubobject<UNativeActionComponent>(TEXT("NativeAction"));
+	if (!IsValid(NativeActionComp))
+		return;
+
 	AbilitySystemComp = CreateDefaultSubobject<UCustomAbilitySystemComponent>(TEXT("AbilitySystem"));
 	if (!IsValid(AbilitySystemComp))
 		return;
@@ -52,10 +56,6 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	DefaultInput = NewObject<UDefaultInput>(this);
-	if (!DefaultInput)
-		return;
-
 	APlayerController* controller = Cast<APlayerController>(GetController());
 	if (!IsValid(controller))
 		return;
@@ -65,14 +65,9 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 	if (!IsValid(inputSubsystem))
 		return;
 
-	inputSubsystem->AddMappingContext(DefaultInput->InputMappingContext.Get(), 0);
-
 	UEnhancedInputComponent* inputComp = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	if (!IsValid(inputComp))
 		return;
-
-	inputComp->BindAction(DefaultInput->IA_Move, ETriggerEvent::Triggered, this, &ACustomPlayerCharacter::MoveAction);
-	inputComp->BindAction(DefaultInput->IA_Look, ETriggerEvent::Triggered, this, &ACustomPlayerCharacter::LookAction);
 
 	UTableSubSystem* tableSubSystem = UTableSubSystem::Get(this);
 	if (!IsValid(tableSubSystem))
@@ -84,13 +79,45 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 	if (nullptr == playerDefaultActionRow)
 		return;
 
+	inputSubsystem->AddMappingContext(playerDefaultActionRow->InputMappingContext.Get(), 0);
+
+	if (!IsValid(NativeActionComp))
+		return;
+
+	for (auto& TaggedNativeAction : playerDefaultActionRow->TaggedNativeActions)
+	{
+		UNativeAction* nativeAction = NativeActionComp->RegisterNativeAction(TaggedNativeAction.NativeActionClass);
+
+		if (nativeAction->ShouldRegisterTriggerEvent(ETriggerEvent::Started))
+			inputComp->BindAction(TaggedNativeAction.InputAction, ETriggerEvent::Started,
+			                      nativeAction, &UNativeAction::Started, this);
+
+		if (nativeAction->ShouldRegisterTriggerEvent(ETriggerEvent::Triggered))
+			inputComp->BindAction(TaggedNativeAction.InputAction, ETriggerEvent::Triggered,
+			                      nativeAction, &UNativeAction::Triggered, this);
+
+		if (nativeAction->ShouldRegisterTriggerEvent(ETriggerEvent::Ongoing))
+			inputComp->BindAction(TaggedNativeAction.InputAction, ETriggerEvent::Ongoing,
+			                      nativeAction, &UNativeAction::Ongoing, this);
+
+		if (nativeAction->ShouldRegisterTriggerEvent(ETriggerEvent::Completed))
+			inputComp->BindAction(TaggedNativeAction.InputAction, ETriggerEvent::Completed,
+			                      nativeAction, &UNativeAction::Completed, this);
+
+		if (nativeAction->ShouldRegisterTriggerEvent(ETriggerEvent::Canceled))
+			inputComp->BindAction(TaggedNativeAction.InputAction, ETriggerEvent::Canceled,
+			                      nativeAction, &UNativeAction::Canceled, this);
+	}
+
+	UCustomAbilitySystemComponent* abilitySystemComp = GetCustomAbilitySystemComponent();
+	if (!IsValid(abilitySystemComp))
+		return;
+
 	for (auto& TaggedInputAction : playerDefaultActionRow->TaggedAbilities)
 	{
-		inputComp->BindAction(TaggedInputAction.InputAction, ETriggerEvent::Started,
-		                      GetCustomAbilitySystemComponent(),
+		inputComp->BindAction(TaggedInputAction.InputAction, ETriggerEvent::Started, abilitySystemComp,
 		                      &UCustomAbilitySystemComponent::AbilityInputPressed, TaggedInputAction.Tag);
-		inputComp->BindAction(TaggedInputAction.InputAction, ETriggerEvent::Completed,
-		                      GetCustomAbilitySystemComponent(),
+		inputComp->BindAction(TaggedInputAction.InputAction, ETriggerEvent::Completed, abilitySystemComp,
 		                      &UCustomAbilitySystemComponent::AbilityInputReleased, TaggedInputAction.Tag);
 	}
 }
@@ -100,54 +127,9 @@ UCustomAbilitySystemComponent* ACustomPlayerCharacter::GetCustomAbilitySystemCom
 	return Cast<UCustomAbilitySystemComponent>(AbilitySystemComp);
 }
 
-void ACustomPlayerCharacter::MoveAction(const FInputActionValue& InputActionValue)
+USpringArmComponent* ACustomPlayerCharacter::GetCameraArm() const
 {
-	FVector2D value = InputActionValue.Get<FVector2D>();
-	value = value.GetClampedToMaxSize(1.0f);
-
-	FRotator cameraArmRotation = CameraArmComp->GetComponentRotation();
-	FRotator actorRotation = FRotator(0, cameraArmRotation.Yaw, 0);
-	SetActorRotation(actorRotation);
-	CameraArmComp->SetRelativeRotation(FRotator(cameraArmRotation.Pitch, 0, 0));
-
-	UCharacterMovementComponent* movementComp = GetCharacterMovement();
-	if (!IsValid(movementComp))
-		return;
-
-	FVector inputVector = FVector(value.X, value.Y, 0);
-	inputVector = actorRotation.RotateVector(inputVector);
-	movementComp->AddInputVector(inputVector);
-}
-
-void ACustomPlayerCharacter::LookAction(const FInputActionValue& InputActionValue)
-{
-	FVector2D value = InputActionValue.Get<FVector2D>();
-
-	FRotator rotator = CameraArmComp->GetRelativeRotation();
-	rotator.Yaw += value.X;
-	rotator.Pitch = FMath::Clamp(rotator.Pitch + value.Y, -89.f, 89.f);
-
-	CameraArmComp->SetRelativeRotation(rotator);
-}
-
-void ACustomPlayerCharacter::JumpAction(const FInputActionValue& InputActionValue)
-{
-}
-
-void ACustomPlayerCharacter::CrouchAction(const FInputActionValue& InputActionValue)
-{
-}
-
-void ACustomPlayerCharacter::InteractionAction(const FInputActionValue& InputActionValue)
-{
-}
-
-void ACustomPlayerCharacter::FireAction(const FInputActionValue& InputActionValue)
-{
-}
-
-void ACustomPlayerCharacter::ReloadAction(const FInputActionValue& InputActionValue)
-{
+	return CameraArmComp;
 }
 
 void ACustomPlayerCharacter::BeginPlay()

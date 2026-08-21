@@ -1,10 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InputMappingContext.h"
 #include "Actor/EquipActor.h"
-#include "Engine/DataTable.h" 
+#include "Engine/DataTable.h"
 #include "Common/GameDefine.h"
-#include "Common/GameData.h"   
+#include "Common/GameData.h"
 #include "TableData.generated.h"
 
 USTRUCT(BlueprintType)
@@ -21,20 +22,22 @@ struct FTablePathRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool UseThis = true;
 };
+
 USTRUCT(BlueprintType)
 struct FDefineTableRow : public FTableRowBase
 {
 	GENERATED_BODY()
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int IntValue = 0;
-	
-	UPROPERTY(EditAnywhere,BlueprintReadWrite)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float FloatValue = 0.0f;
 
-	UPROPERTY(EditAnywhere,BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString StringValue = TEXT("");
 };
+
 USTRUCT(BlueprintType)
 struct FItemBackpackTable : public FTableRowBase
 {
@@ -44,7 +47,7 @@ struct FItemBackpackTable : public FTableRowBase
 	int32 BackpackID = 0; //아이템아이디가 들어감
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FIntPoint SlotSize = (0,0);
+	FIntPoint SlotSize = (0, 0);
 };
 
 USTRUCT(BlueprintType)
@@ -64,7 +67,6 @@ struct FItemTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere)
 	EItemType ItemType = EItemType::ETC;
-
 
 
 	UPROPERTY(EditAnywhere)
@@ -88,8 +90,6 @@ struct FItemTableRow : public FTableRowBase
 
 public:
 	FString GetItemTypeString() const;
-
-
 };
 
 
@@ -98,11 +98,14 @@ struct FEquipTableRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere)	int32 ItemID;
+	UPROPERTY(EditAnywhere)
+	int32 ItemID;
 
-	UPROPERTY(EditAnywhere)	EEquipSlot EquipType;
+	UPROPERTY(EditAnywhere)
+	EEquipSlot EquipType;
 
-	UPROPERTY(EditAnywhere)	FName SocketName;
+	UPROPERTY(EditAnywhere)
+	FName SocketName;
 
 	//UPROPERTY(EditAnywhere)
 	//TArray<FAbilityData> Abilities;
@@ -129,7 +132,10 @@ struct FPlayerDefaultActionTableRow : public FTableRowBase
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere)
-	TArray<FTaggedInputAction> TaggedNativeActions;
+	TObjectPtr<UInputMappingContext> InputMappingContext;
+
+	UPROPERTY(EditAnywhere)
+	TArray<FTaggedNativeAction> TaggedNativeActions;
 
 	UPROPERTY(EditAnywhere)
 	TArray<FTaggedAbility> TaggedAbilities;

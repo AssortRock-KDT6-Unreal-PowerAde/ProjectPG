@@ -4,6 +4,7 @@
 #include "GameDefine.h"
 #include "GameplayTagContainer.h"
 #include "InputAction.h"
+#include "Input/NativeAction.h"
 #include "Abilities/GameplayAbility.h"
 #include "GameData.generated.h"
 
@@ -112,7 +113,7 @@ struct FDropItemData
 };
 
 USTRUCT(BlueprintType)
-struct FTaggedInputAction
+struct FTaggedNativeAction
 {
 	GENERATED_BODY()
 
@@ -121,6 +122,9 @@ struct FTaggedInputAction
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UInputAction> InputAction;
+
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<UNativeAction> NativeActionClass;
 };
 
 USTRUCT(BlueprintType)

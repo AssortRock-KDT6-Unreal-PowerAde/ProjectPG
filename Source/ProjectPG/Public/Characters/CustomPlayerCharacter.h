@@ -28,20 +28,13 @@ protected:
 	TObjectPtr<class USpringArmComponent> CameraArmComp;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<class UDefaultInput> DefaultInput;
+	TObjectPtr<class UNativeActionComponent> NativeActionComp;
 
 public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-	
-	UCustomAbilitySystemComponent* GetCustomAbilitySystemComponent() const;
 
-	void MoveAction(const FInputActionValue& InputActionValue);
-	void LookAction(const FInputActionValue& InputActionValue);
-	void JumpAction(const FInputActionValue& InputActionValue);
-	void CrouchAction(const FInputActionValue& InputActionValue);
-	void InteractionAction(const FInputActionValue& InputActionValue);
-	void FireAction(const FInputActionValue& InputActionValue);
-	void ReloadAction(const FInputActionValue& InputActionValue);
+	UCustomAbilitySystemComponent* GetCustomAbilitySystemComponent() const;
+	USpringArmComponent* GetCameraArm() const;
 
 protected:
 	virtual void BeginPlay() override;

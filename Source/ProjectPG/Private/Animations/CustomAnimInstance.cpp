@@ -31,14 +31,13 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	if (nullptr == characterAttributeSet)
 		return;
 
+	float walkSpeed = characterAttributeSet->GetWalkSpeed();
 
-	if (velocity.Size() < characterAttributeSet->GetWalkSpeed())
-		Speed = FMath::Lerp(0.f, 0.5f,
-		                    velocity.Size() / characterAttributeSet->GetWalkSpeed());
+	if (velocity.Size() < walkSpeed)
+		Speed = FMath::Lerp(0.f, 0.5f, velocity.Size() / walkSpeed);
 	else
 		Speed = FMath::Lerp(0.5f, 1.f,
-		                    (velocity.Size() - characterAttributeSet->GetWalkSpeed())
-		                    / characterAttributeSet->GetSprintSpeed());
+		                    (velocity.Size() - walkSpeed) / (characterAttributeSet->GetSprintSpeed() - walkSpeed));
 
 	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Blue, FString::Printf(TEXT("%f"), Speed));
 }
