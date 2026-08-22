@@ -31,6 +31,7 @@ protected:
 	TObjectPtr<class UNativeActionComponent> NativeActionComp;
 
 public:
+	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	UCustomAbilitySystemComponent* GetCustomAbilitySystemComponent() const;

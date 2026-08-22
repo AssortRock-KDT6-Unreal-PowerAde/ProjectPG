@@ -19,8 +19,9 @@ public:
 	UNativeActionComponent();
 
 protected:
+	UPROPERTY(VisibleAnywhere)
 	TArray<TObjectPtr<UNativeAction>> Actions;
 
 public:
-	UNativeAction* RegisterNativeAction(TSubclassOf<UNativeAction> NativeActionClass); 
+	UNativeAction* RegisterNativeAction(TSubclassOf<UNativeAction> NativeActionClass);
 };
