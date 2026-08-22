@@ -161,7 +161,7 @@ void ACustomPlayerCharacter::BeginPlay()
 			return;
 
 		movementComp->MaxWalkSpeed = 300.f;
-		// TODO: Table로 옮기기
+		// ~TODO: Table로 옮기기
 
 		UTableSubSystem* tableSubSystem = UTableSubSystem::Get(this);
 		if (!IsValid(tableSubSystem))

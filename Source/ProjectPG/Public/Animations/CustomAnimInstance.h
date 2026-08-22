@@ -27,6 +27,15 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float Direction;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsIronSighted;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsCrouched;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsProne;
+
 public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 };

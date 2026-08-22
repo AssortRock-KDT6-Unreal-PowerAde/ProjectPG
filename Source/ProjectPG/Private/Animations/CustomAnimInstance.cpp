@@ -18,6 +18,8 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	if (!IsValid(character))
 		return;
 
+	bIsCrouched = character->IsCrouched();
+
 	USpringArmComponent* cameraArm = character->GetCameraArm();
 	if (!IsValid(cameraArm))
 		return;
