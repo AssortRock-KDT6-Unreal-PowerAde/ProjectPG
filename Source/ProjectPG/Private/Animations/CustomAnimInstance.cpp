@@ -4,6 +4,7 @@
 #include "Animations/CustomAnimInstance.h"
 
 #include "Characters/CustomCharacter.h"
+#include "Characters/CustomPlayerCharacter.h"
 
 UCustomAnimInstance::UCustomAnimInstance()
 {
@@ -13,31 +14,35 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
 
-	ACustomCharacter* owner = Cast<ACustomCharacter>(TryGetPawnOwner());
-	if (!IsValid(owner))
+	ACustomPlayerCharacter* character = Cast<ACustomPlayerCharacter>(TryGetPawnOwner());
+	if (!IsValid(character))
 		return;
 
-	UCharacterMovementComponent* movementComp = owner->GetCharacterMovement();
+	USpringArmComponent* cameraArm = character->GetCameraArm();
+	if (!IsValid(cameraArm))
+		return;
+
+	UCharacterMovementComponent* movementComp = character->GetCharacterMovement();
 	if (!IsValid(movementComp))
 		return;
 
 	if (!movementComp->IsWalking())
 		return;
 
-	FVector velocity = movementComp->Velocity;
-	velocity.Z = 0;
-
-	UCharacterAttributeSet* characterAttributeSet = owner->GetCharacterAttributeSet();
+	UCharacterAttributeSet* characterAttributeSet = character->GetCharacterAttributeSet();
 	if (nullptr == characterAttributeSet)
 		return;
 
-	float walkSpeed = characterAttributeSet->GetWalkSpeed();
+	FRotator rotation = character->GetActorRotation();
+	FVector velocity = rotation.UnrotateVector(movementComp->Velocity);
+	velocity.Z = 0;
 
-	if (velocity.Size() < walkSpeed)
-		Speed = FMath::Lerp(0.f, 0.5f, velocity.Size() / walkSpeed);
-	else
-		Speed = FMath::Lerp(0.5f, 1.f,
-		                    (velocity.Size() - walkSpeed) / (characterAttributeSet->GetSprintSpeed() - walkSpeed));
+	Direction = velocity.Rotation().Yaw;
+	Speed = velocity.Size() / characterAttributeSet->GetWalkSpeed();
+
+	FRotator cameraRotation = cameraArm->GetRelativeRotation();
+	Aim.X = cameraRotation.Yaw;
+	Aim.Y = cameraRotation.Pitch;
 
 	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Blue, FString::Printf(TEXT("%f"), Speed));
 }

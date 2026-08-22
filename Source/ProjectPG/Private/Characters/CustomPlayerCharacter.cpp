@@ -52,6 +52,11 @@ ACustomPlayerCharacter::ACustomPlayerCharacter()
 	AbilitySystemComp->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 }
 
+void ACustomPlayerCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+}
+
 void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
