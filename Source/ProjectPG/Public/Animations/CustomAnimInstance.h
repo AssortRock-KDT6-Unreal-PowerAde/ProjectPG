@@ -19,10 +19,22 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector2D Aim;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float Speed;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	FVector SightDirection;
+	float Direction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsIronSighted;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsCrouched;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsProne;
 
 public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;

@@ -28,7 +28,6 @@ ACustomCharacter::ACustomCharacter()
 	meshRotator.Yaw = -90.;
 	meshComp->SetRelativeRotation(meshRotator);
 
-	// TODO: Table로 옮기기
 	ConstructorHelpers::FObjectFinder<USkeletalMesh> skeletalMesh(
 		TEXT("/Script/Engine.SkeletalMesh'/Game/ControlRig/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny'"));
 	if (!skeletalMesh.Succeeded())
@@ -42,6 +41,7 @@ ACustomCharacter::ACustomCharacter()
 
 	meshComp->SetSkeletalMesh(skeletalMesh.Object);
 	meshComp->SetAnimInstanceClass(AnimInstance.Class);
+	// ~TODO: Table로 옮기기
 
 	// AbilitySystemComp = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));
 	// if (!IsValid(AbilitySystemComp))
@@ -49,6 +49,12 @@ ACustomCharacter::ACustomCharacter()
 	//
 	// AbilitySystemComp->SetIsReplicated(true);
 	// AbilitySystemComp->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
+
+	UCharacterMovementComponent* movementComp = GetCharacterMovement();
+	if (!IsValid(movementComp))
+		return;
+
+	movementComp->NavAgentProps.bCanCrouch = true;
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
