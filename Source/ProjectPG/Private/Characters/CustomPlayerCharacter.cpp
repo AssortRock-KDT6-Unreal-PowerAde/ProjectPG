@@ -6,14 +6,19 @@
 #include "AbilitySystemComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Animations/CustomAnimInstance.h"
 #include "Camera/CameraComponent.h"
+#include "Characters/CustomCharacterMovementComponent.h"
 #include "Components/NativeActionComponent.h"
 #include "Core/TableSubSystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilities/CustomAbilitySystemComponent.h"
+#include "Net/UnrealNetwork.h"
 
-ACustomPlayerCharacter::ACustomPlayerCharacter()
+ACustomPlayerCharacter::ACustomPlayerCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomCharacterMovementComponent>(
+		ACharacter::CharacterMovementComponentName))
 {
 	USceneComponent* rootComp = GetRootComponent();
 	if (!IsValid(rootComp))
@@ -24,6 +29,10 @@ ACustomPlayerCharacter::ACustomPlayerCharacter()
 		return;
 
 	CameraArmComp->SetupAttachment(rootComp);
+	CameraArmComp->bUsePawnControlRotation = true;
+	CameraArmComp->bInheritYaw = true;
+	CameraArmComp->bInheritPitch = true;
+	CameraArmComp->bInheritRoll = false;
 
 	FVector cameraArmAdditiveLocation = FVector::ZeroVector;
 	cameraArmAdditiveLocation.Z += 50.;
@@ -127,6 +136,11 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 	}
 }
 
+void ACustomPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+}
+
 UCustomAbilitySystemComponent* ACustomPlayerCharacter::GetCustomAbilitySystemComponent() const
 {
 	return Cast<UCustomAbilitySystemComponent>(AbilitySystemComp);
@@ -135,6 +149,56 @@ UCustomAbilitySystemComponent* ACustomPlayerCharacter::GetCustomAbilitySystemCom
 USpringArmComponent* ACustomPlayerCharacter::GetCameraArm() const
 {
 	return CameraArmComp;
+}
+
+void ACustomPlayerCharacter::OnReq_SyncAimRotation_Implementation(FVector2D AimDirection)
+{
+	if (!HasAuthority())
+		return;
+
+	OnRep_SyncAimRotation(AimDirection);
+}
+
+void ACustomPlayerCharacter::OnRep_SyncAimRotation_Implementation(FVector2D AimDirection)
+{
+	if (IsLocallyControlled())
+		return;
+
+	USkeletalMeshComponent* mesh = GetMesh();
+	if (!IsValid(mesh))
+		return;
+
+	UCustomAnimInstance* animInstance = Cast<UCustomAnimInstance>(mesh->GetAnimInstance());
+	if (!IsValid(animInstance))
+		return;
+
+	animInstance->SyncAim(AimDirection.X, AimDirection.Y);
+}
+
+void ACustomPlayerCharacter::OnReq_SyncCharacterRotation_Implementation(FVector2D AimDirection,
+                                                                        FRotator ActorRotation)
+{
+	if (!HasAuthority())
+		return;
+
+	SetActorRotation(ActorRotation);
+	OnRep_SyncCharacterRotation(AimDirection);
+}
+
+void ACustomPlayerCharacter::OnRep_SyncCharacterRotation_Implementation(FVector2D AimDirection)
+{
+	if (IsLocallyControlled())
+		return;
+
+	USkeletalMeshComponent* mesh = GetMesh();
+	if (!IsValid(mesh))
+		return;
+
+	UCustomAnimInstance* animInstance = Cast<UCustomAnimInstance>(mesh->GetAnimInstance());
+	if (!IsValid(animInstance))
+		return;
+
+	animInstance->SyncAim(AimDirection.X, AimDirection.Y);
 }
 
 void ACustomPlayerCharacter::BeginPlay()

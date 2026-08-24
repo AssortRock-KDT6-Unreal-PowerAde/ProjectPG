@@ -3,6 +3,7 @@
 
 #include "Input/NA_Move.h"
 
+#include "Animations/CustomAnimInstance.h"
 #include "Characters/CustomPlayerCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -17,21 +18,47 @@ bool UNA_Move::ShouldRegisterTriggerEvent(ETriggerEvent TriggerEvent) const
 
 void UNA_Move::Triggered(const FInputActionValue& InputActionValue, ACustomPlayerCharacter* PlayerCharacter)
 {
+	if (!IsValid(PlayerCharacter))
+		return;
+
+	APlayerController* controller = Cast<APlayerController>(PlayerCharacter->GetController());
+	if (!IsValid(controller))
+		return;
+
 	USpringArmComponent* cameraArmComp = PlayerCharacter->GetCameraArm();
+	if (!IsValid(cameraArmComp))
+		return;
 
 	FVector2D value = InputActionValue.Get<FVector2D>();
 	value = value.GetClampedToMaxSize(1.0f);
 
-	FRotator cameraArmRotation = cameraArmComp->GetComponentRotation();
-	FRotator actorRotation = FRotator(0, cameraArmRotation.Yaw, 0);
-	PlayerCharacter->SetActorRotation(actorRotation);
-	cameraArmComp->SetRelativeRotation(FRotator(cameraArmRotation.Pitch, 0, 0));
+	FRotator controlRotation = PlayerCharacter->GetControlRotation();
+	FRotator actorRotation = FRotator(0, controlRotation.Yaw, 0);
 
-	UCharacterMovementComponent* movementComp = PlayerCharacter->GetCharacterMovement();
-	if (!IsValid(movementComp))
+	USkeletalMeshComponent* mesh = PlayerCharacter->GetMesh();
+	if (!IsValid(mesh))
 		return;
 
-	FVector inputVector = FVector(value.X, value.Y, 0);
-	inputVector = actorRotation.RotateVector(inputVector);
-	movementComp->AddInputVector(inputVector);
+	FRotator aimRotation = (controlRotation - actorRotation).GetNormalized();
+	aimRotation.Roll = 0.f;
+
+	if (PlayerCharacter->IsLocallyControlled())
+	{
+		UCustomAnimInstance* animInstance = Cast<UCustomAnimInstance>(mesh->GetAnimInstance());
+		if (!IsValid(animInstance))
+			return;
+
+		PlayerCharacter->SetActorRotation(actorRotation);
+		animInstance->SyncAim(aimRotation.Yaw, aimRotation.Pitch);
+
+		UCharacterMovementComponent* movementComp = PlayerCharacter->GetCharacterMovement();
+		if (!IsValid(movementComp))
+			return;
+
+		FVector inputVector = FVector(value.X, value.Y, 0);
+		inputVector = actorRotation.RotateVector(inputVector);
+		movementComp->AddInputVector(inputVector);
+	}
+
+	PlayerCharacter->OnReq_SyncCharacterRotation({aimRotation.Yaw, aimRotation.Pitch}, actorRotation);
 }

@@ -22,27 +22,33 @@ class PROJECTPG_API UCharacterAttributeSet : public UAttributeSet
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(BlueprintReadOnly)
+	UCharacterAttributeSet();
+	
+public:
+	UPROPERTY(BlueprintReadOnly, Replicated)
 	FGameplayAttributeData Health;
 	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, Health)
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Replicated)
 	FGameplayAttributeData MaxHealth;
 	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, MaxHealth)
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Replicated)
 	FGameplayAttributeData Stamina;
 	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, Stamina)
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Replicated)
 	FGameplayAttributeData MaxStamina;
 	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, MaxStamina)
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Replicated)
 	FGameplayAttributeData WalkSpeed;
 	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, WalkSpeed)
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Replicated)
 	FGameplayAttributeData SprintSpeed;
 	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, SprintSpeed)
+	
+public:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

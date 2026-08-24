@@ -141,3 +141,27 @@ struct FTaggedAbility
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<UGameplayAbility> GameAbilityClass;
 };
+
+USTRUCT(BlueprintType)
+struct FCharacterAnimData
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector2D Aim;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float Speed;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float Direction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsIronSighted;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsCrouched;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsProne;
+};

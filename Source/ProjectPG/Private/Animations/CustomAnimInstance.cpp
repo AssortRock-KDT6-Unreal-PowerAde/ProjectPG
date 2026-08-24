@@ -5,6 +5,7 @@
 
 #include "Characters/CustomCharacter.h"
 #include "Characters/CustomPlayerCharacter.h"
+#include "Net/UnrealNetwork.h"
 
 UCustomAnimInstance::UCustomAnimInstance()
 {
@@ -41,10 +42,16 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	Direction = velocity.Rotation().Yaw;
 	Speed = velocity.Size() / characterAttributeSet->GetWalkSpeed();
+}
 
-	FRotator cameraRotation = cameraArm->GetRelativeRotation();
-	Aim.X = cameraRotation.Yaw;
-	Aim.Y = cameraRotation.Pitch;
+void UCustomAnimInstance::SyncAim(FRotator rotation)
+{
+	Aim.X = rotation.Yaw;
+	Aim.Y = rotation.Pitch;
+}
 
-	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Blue, FString::Printf(TEXT("%f"), Speed));
+void UCustomAnimInstance::SyncAim(float Yaw, float Pitch)
+{
+	Aim.X = Yaw;
+	Aim.Y = Pitch;
 }

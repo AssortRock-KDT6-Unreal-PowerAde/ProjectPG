@@ -5,10 +5,13 @@
 
 #include "AbilitySystemComponent.h"
 #include "Animations/CustomAnimInstance.h"
+#include "Characters/CustomCharacterMovementComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Net/UnrealNetwork.h"
 
-// Sets default values
-ACustomCharacter::ACustomCharacter()
+ACustomCharacter::ACustomCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomCharacterMovementComponent>(
+		ACharacter::CharacterMovementComponentName))
 {
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
@@ -55,6 +58,7 @@ ACustomCharacter::ACustomCharacter()
 		return;
 
 	movementComp->NavAgentProps.bCanCrouch = true;
+	bCanProne = true;
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -93,9 +97,154 @@ void ACustomCharacter::PossessedBy(AController* NewController)
 	}
 }
 
+void ACustomCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ACustomCharacter, CharacterAttributeSet);
+	DOREPLIFETIME(ACustomCharacter, bIsProne);
+}
+
 UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComp;
+}
+
+void ACustomCharacter::RecalculateBaseEyeHeight()
+{
+	if (IsProne())
+		BaseEyeHeight = ProneEyeHeight;
+	else
+		Super::RecalculateBaseEyeHeight();
+}
+
+bool ACustomCharacter::CanEnterProne() const
+{
+	UCustomCharacterMovementComponent* customCharacterMovement = GetCustomCharacterMovement();
+	if (!IsValid(customCharacterMovement))
+		return false;
+
+	return !IsProne() && customCharacterMovement->CanEverEnterProne() && GetRootComponent() && !GetRootComponent()->
+		IsSimulatingPhysics();
+}
+
+void ACustomCharacter::OnEndProne(float HeightAdjust, float ScaledHeightAdjust)
+{
+	RecalculateBaseEyeHeight();
+
+	const ACustomCharacter* DefaultChar = GetDefault<ACustomCharacter>(GetClass());
+	if (!IsValid(DefaultChar))
+		return;
+
+	USkeletalMeshComponent* thisMesh = GetMesh();
+	USkeletalMeshComponent* defaultMesh = DefaultChar->GetMesh();
+	if (thisMesh && defaultMesh)
+	{
+		FVector& MeshRelativeLocation = thisMesh->GetRelativeLocation_DirectMutable();
+		MeshRelativeLocation.Z = defaultMesh->GetRelativeLocation().Z;
+		BaseTranslationOffset.Z = MeshRelativeLocation.Z;
+	}
+	else
+	{
+		BaseTranslationOffset.Z = DefaultChar->BaseTranslationOffset.Z;
+	}
+
+	// K2_OnEndProne(HeightAdjust, ScaledHeightAdjust);
+}
+
+void ACustomCharacter::OnStartProne(float HeightAdjust, float ScaledHeightAdjust)
+{
+	RecalculateBaseEyeHeight();
+
+	const ACustomCharacter* DefaultChar = GetDefault<ACustomCharacter>(GetClass());
+	if (!IsValid(DefaultChar))
+		return;
+
+	USkeletalMeshComponent* thisMesh = GetMesh();
+	USkeletalMeshComponent* defaultMesh = DefaultChar->GetMesh();
+	if (thisMesh && defaultMesh)
+	{
+		FVector& MeshRelativeLocation = thisMesh->GetRelativeLocation_DirectMutable();
+		MeshRelativeLocation.Z = defaultMesh->GetRelativeLocation().Z + HeightAdjust;
+		BaseTranslationOffset.Z = MeshRelativeLocation.Z;
+	}
+	else
+	{
+		BaseTranslationOffset.Z = DefaultChar->BaseTranslationOffset.Z + HeightAdjust;
+	}
+
+	// K2_OnStartProne(HeightAdjust, ScaledHeightAdjust);
+}
+
+void ACustomCharacter::EnterProne(bool bClientSimulation)
+{
+	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
+	if (!IsValid(movementComp))
+		return;
+
+	if (movementComp && CanEnterProne())
+		movementComp->bWantsToEnterProne = true;
+}
+
+void ACustomCharacter::ExitProne(bool bClientSimulation)
+{
+	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
+	if (!IsValid(movementComp))
+		return;
+
+	if (movementComp)
+		movementComp->bWantsToEnterProne = false;
+}
+
+void ACustomCharacter::OnRep_IsProne()
+{
+	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
+	if (!IsValid(movementComp))
+		return;
+
+	if (movementComp)
+	{
+		if (IsProne())
+		{
+			movementComp->bWantsToEnterProne = true;
+			movementComp->EnterProne(true);
+		}
+		else
+		{
+			movementComp->bWantsToEnterProne = false;
+			movementComp->ExitProne(true);
+		}
+		movementComp->bNetworkUpdateReceived = true;
+	}
+}
+
+class UCustomCharacterMovementComponent* ACustomCharacter::GetCustomCharacterMovement() const
+{
+	return Cast<UCustomCharacterMovementComponent>(GetMovementComponent());
+}
+
+bool ACustomCharacter::IsProne() const
+{
+	return bIsProne;
+}
+
+void ACustomCharacter::SetIsProne(const bool bInIsProne)
+{
+	bIsProne = bInIsProne;
+}
+
+void ACustomCharacter::RecalculateProneEyeHeight()
+{
+	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
+	if (!IsValid(movementComp))
+		return;
+
+	if (movementComp != nullptr)
+	{
+		constexpr float EyeHeightRatio = 0.8f;
+
+		ProneEyeHeight = movementComp->GetProneHalfHeight() * EyeHeightRatio;
+	}
 }
 
 void ACustomCharacter::EquipItem(const FString& SocketName, UObject* Item)

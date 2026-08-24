@@ -4,6 +4,7 @@
 
 #include "EngineMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Common/GameData.h"
 #include "CustomAnimInstance.generated.h"
 
 /**
@@ -38,4 +39,7 @@ protected:
 
 public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+	
+	void SyncAim(FRotator rotation);
+	void SyncAim(float Yaw, float Pitch);
 };
