@@ -8,7 +8,7 @@
 #include "ItemDragDropOperation.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
 class PROJECTPG_API UItemDragDropOperation : public UDragDropOperation
@@ -20,14 +20,23 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	class UUserWidget* WidgetReference;
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	FItemInstance DraggedItem;
 
-	UPROPERTY(BlueprintReadWrite)
+	// [추가] 드래그를 시작한 출발지 인벤토리의 GUID
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
+	FGuid SourceInventoryGUID;
+
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	bool bCurrentRotated = false;
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	FVector2D DragOffset;
+
+	// 드래그 출처가 장착 슬롯인지 여부
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
+	bool bFromEquip = false;
+
 	void RotateItem();
 
 public:

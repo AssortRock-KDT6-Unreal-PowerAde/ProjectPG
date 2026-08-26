@@ -58,6 +58,9 @@ public:
 	void RegisterUIClass(EUIType UIType, TSubclassOf<UUserWidget> WidgetClass);
 	static UUIManagerSubSystem* Get(const UObject* worldContext);
 
+	// 등록된 EUIType의 TSubclassOf<UUserWidget> 클래스를 반환
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	TSubclassOf<UUserWidget> GetUIClass(EUIType UIType) const;
 
 private:
 	void UpdateInputMode();

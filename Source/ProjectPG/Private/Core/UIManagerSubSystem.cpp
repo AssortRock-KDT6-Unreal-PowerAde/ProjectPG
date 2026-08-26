@@ -24,6 +24,14 @@ UUIManagerSubSystem* UUIManagerSubSystem::Get(const UObject* worldContext)
 
 	return inst->GetSubsystem<UUIManagerSubSystem>();
 }
+TSubclassOf<UUserWidget> UUIManagerSubSystem::GetUIClass(EUIType UIType) const
+{
+	if (const TSubclassOf<UUserWidget>* FoundClass = UIClassMap.Find(UIType))
+	{
+		return *FoundClass;
+	}
+	return nullptr;
+}
 UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 {
 	if (UUserWidget** FoundWidget = ActiveWidgets.Find(UIType))

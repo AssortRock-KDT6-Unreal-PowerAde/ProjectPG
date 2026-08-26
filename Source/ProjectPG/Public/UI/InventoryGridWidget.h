@@ -23,10 +23,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
 	FIntPoint SlotSize = FIntPoint(10, 15);
 
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	UPROPERTY(EditAnywhere, Category = "Inventory")
 	TSubclassOf<class USlotWidget> SlotWidgetClass;
 
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	UPROPERTY(EditAnywhere, Category = "Inventory")
 	TSubclassOf<class UItemWidget> ItemWidgetClass;
 
 	UPROPERTY(meta = (BindWidget))
@@ -51,15 +51,15 @@ protected:
 	virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 public:
-	// GUID 기반 초기화 함수
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void InitWidget(const FGuid& InvenGuid, FIntPoint GridSize);
+
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void BindInventoryComponent(class UInventoryComponent* InComp);
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void RefreshGridUI();
+
+	void RenderItems();
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void CreateBackGroundGrid(int32 Columns, int32 Rows);
@@ -74,5 +74,6 @@ public:
 	FORCEINLINE FGuid GetInventoryGUID() const { return InventoryGUID; }
 	FORCEINLINE void SetInventoryGUID(const FGuid& InGuid) { InventoryGUID = InGuid; }
 
-
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void RefreshGrid(class UInventoryComponent* InComp, const FGuid& InvenGuid);
 };

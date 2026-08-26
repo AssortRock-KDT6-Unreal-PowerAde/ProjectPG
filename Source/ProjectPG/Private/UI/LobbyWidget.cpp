@@ -1,23 +1,25 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "UI/LobbyWidget.h"
 #include "Components/Button.h"
-#include "UI/InventoryGridWidget.h"
 #include "UI/InventoryWindow.h"
-
+#include "UI/InventoryGridWidget.h"
 #include "Core/UIManagerSubSystem.h"
-#include <GameMode/CustomPlayerState.h>
+#include "Components/InventoryComponent.h"
+#include "Server/WebSocketSubSystem.h"
+#include "GameMode/CustomPlayerState.h"
 
 void ULobbyWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+
 	if (CharacterBtn)
 	{
 		CharacterBtn->OnClicked.RemoveDynamic(this, &ULobbyWidget::OnClickedCharacterButton);
 		CharacterBtn->OnClicked.AddDynamic(this, &ULobbyWidget::OnClickedCharacterButton);
 	}
-	if (GameStartBtn) {
+	if (GameStartBtn)
+	{
 		GameStartBtn->OnClicked.RemoveDynamic(this, &ULobbyWidget::OnClickedGameStartButton);
 		GameStartBtn->OnClicked.AddDynamic(this, &ULobbyWidget::OnClickedGameStartButton);
 	}
@@ -31,49 +33,46 @@ void ULobbyWidget::NativeConstruct()
 		ExitBtn->OnClicked.RemoveDynamic(this, &ULobbyWidget::OnClickedExitButton);
 		ExitBtn->OnClicked.AddDynamic(this, &ULobbyWidget::OnClickedExitButton);
 	}
-
 }
 
 void ULobbyWidget::OnClickedCharacterButton()
 {
-	UUIManagerSubSystem* subsystem = UUIManagerSubSystem::Get(GetWorld());
-	if (!IsValid(subsystem)) return;
+	UUIManagerSubSystem* UISubsystem = UUIManagerSubSystem::Get(GetWorld());
+	if (!IsValid(UISubsystem)) return;
 
-	UUserWidget * widget = subsystem->OpenUI(EUIType::Character);
-	UInventoryWindow* window = Cast<UInventoryWindow>(widget);
-	if (widget)
-	{	
-		UUserWidget* mainInven = subsystem->OpenUI(EUIType::Inventory);
-		if (mainInven)
+	UUserWidget* CharacterWidget = UISubsystem->OpenUI(EUIType::Character);
+	UInventoryWindow* Window = Cast<UInventoryWindow>(CharacterWidget);
+
+	if (Window)
+	{
+		APlayerController* PC = GetOwningPlayer();
+		if (PC)
 		{
-			UInventoryGridWidget* InvenWidget = Cast<UInventoryGridWidget>(mainInven);
-			if (nullptr == InvenWidget ) return;
-
-		}
-
-		if (window) {
-			APlayerController* PC = GetOwningPlayer();
-			if (PC)
+			if (ACustomPlayerState* MyPS = PC->GetPlayerState<ACustomPlayerState>())
 			{
-				// 2. 컨트롤러에서 템플릿 Cast 방식(UE5 권장)으로 PlayerState를 가져옵니다.
-				ACustomPlayerState* MyPlayerState = PC->GetPlayerState<ACustomPlayerState>();
-				if (nullptr == MyPlayerState) return;
+				UInventoryComponent* InvenComp = MyPS->GetComponentByClass<UInventoryComponent>();
+				UEquipComponent* EquipComp = MyPS->GetComponentByClass<UEquipComponent>();
 
-				window->SetChildMainInvenOverlay(mainInven);
-				window->UpdateState();
+				// 1. 컴포넌트 초기화
+				Window->InitWidget(InvenComp, EquipComp);
+
+				// 2. Main / Pocket 인벤토리 UI 생성 호출
+				TSubclassOf<UUserWidget> InvenClass = UISubsystem->GetUIClass(EUIType::Inventory);
+				if (InvenClass)
+				{
+					Window->SetupMainInventoryWidget(InvenClass);
+					Window->SetupPocketInventoryWidget(InvenClass); // 포켓 UI도 필요한 경우 연달아 호출 가능
+					Window->SetupBackPackInventoryWidget(InvenClass);
+
+				}
 			}
 		}
+
+		// 3. 서버에 인벤토리 데이터 요청 및 상태 Update
+		Window->UpdateState();
 	}
 }
 
-void ULobbyWidget::OnClickedGameStartButton()
-{
-}
-
-void ULobbyWidget::OnClickedOptionButton()
-{
-}
-
-void ULobbyWidget::OnClickedExitButton()
-{
-}
+void ULobbyWidget::OnClickedGameStartButton() {}
+void ULobbyWidget::OnClickedOptionButton() {}
+void ULobbyWidget::OnClickedExitButton() {}
