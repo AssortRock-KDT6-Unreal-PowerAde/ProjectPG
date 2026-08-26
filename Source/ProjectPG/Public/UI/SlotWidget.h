@@ -32,6 +32,5 @@ public:
 	// 하이라이트 색상 적용 (EHighlightState: None, Valid, Invalid 등)
 	void SetHighlightState(EBorderHighlightState InState);
 
-private:
 
 };

@@ -2,15 +2,19 @@
 
 #include "UI/ItemWidget.h"
 #include "UI/ItemDragDropOperation.h"
+#include "UI/ItemContextWidget.h"
+
 #include "Blueprint/WidgetBlueprintLibrary.h"
-#include "GameMode/CustomPlayerState.h"
+
 
 #include "Components/SizeBox.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/InventoryComponent.h"
-#include "UI/ItemContextWidget.h"
+#include "Components/EquipComponent.h"
+
+
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Core/UIManagerSubSystem.h"
 
@@ -75,10 +79,11 @@ FReply UItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const F
 
 		_ContextWidget = Cast<UItemContextWidget>(subsystem->OpenUI(EUIType::ItemContext));
 		if (!_ContextWidget) return FReply::Handled();
-
+		APlayerController* PC = GetOwningPlayer();
 		_ContextWidget->SetItem(ItemInstance);
 		_ContextWidget->SetVisibility(ESlateVisibility::Visible);
 		_ContextWidget->UpdateButtonState(ItemInstance.type);
+		
 
 		// 마우스 절대 위치 가져오기
 		FVector2D ScreenPosition = InMouseEvent.GetScreenSpacePosition();
@@ -107,11 +112,14 @@ void UItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPoint
 
 	DragOp->WidgetReference = this;
 	DragOp->DraggedItem = ItemInstance;
-	DragOp->SourceInventoryGUID = OwnerInventoryGUID; // 💡 출발지 인벤토리 GUID 전달!
+	DragOp->SourceInventoryGUID = OwnerInventoryGUID; // 출발지 인벤토리 GUID 전달
 	DragOp->bCurrentRotated = ItemInstance.bIsRotated;
 
-	// 클릭한 마우스 위치와 위젯 좌상단 간의 상대 거리를 DragOffset으로 저장
-	FVector2D LocalMousePos = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+	// ★ [수정] DPI Scale이 반영된 위젯 내부 클릭 좌표 계산
+	FVector2D ScreenSpacePosition = InMouseEvent.GetScreenSpacePosition();
+	FVector2D LocalMousePos = InGeometry.AbsoluteToLocal(ScreenSpacePosition);
+
+	// DragOffset 세팅 (TileSize 기준 정확한 상대 좌표 저장)
 	DragOp->DragOffset = LocalMousePos;
 
 	// Drag Visual 생성 및 설정

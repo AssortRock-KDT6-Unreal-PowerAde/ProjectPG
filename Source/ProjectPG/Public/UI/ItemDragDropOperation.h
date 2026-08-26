@@ -33,6 +33,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	FVector2D DragOffset;
 
+	// 드래그 출처가 장착 슬롯인지 여부
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
+	bool bFromEquip = false;
+
 	void RotateItem();
 
 public:

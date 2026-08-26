@@ -12,7 +12,8 @@ class UOverlay;
 class UInventoryComponent;
 class UEquipComponent;
 class UInventoryGridWidget;
-
+class UEquipmentWidget;
+class UButton;
 /**
  * 캐릭터 장비 및 인벤토리 창 통합 윈도우 UI
  */
@@ -33,6 +34,13 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	UOverlay* BackPackInvenOverlay;
 
+	UPROPERTY(meta = (BindWidgetOptional))
+	UButton* BackBtn;
+
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UEquipmentWidget* EquipmentWidget;
+
 	UPROPERTY()
 	UInventoryComponent* InvenComp;
 
@@ -49,16 +57,21 @@ public:
 	void SetupMainInventoryWidget(TSubclassOf<UUserWidget> InvenClass);
 	void SetupPocketInventoryWidget(TSubclassOf<UUserWidget> InvenClass);
 
+	void SetupBackPackInventoryWidget(TSubclassOf<UUserWidget> InvenClass);
+
 	void SetChildEquipOverlay(UUserWidget* childWidget);
 	void SetChildSubInvenOverlay(UUserWidget* childWidget);
 	void SetChildMainInvenOverlay(UUserWidget* ChildWidget);
 	void SetChildBackpackInvenOverlay(UUserWidget* childWidget);
-
 	void UpdateState();
 
-private:
 	UFUNCTION()
-	void OnInventoryDataReceived(const FInventoryMapWrapper InventoryMapWrapper);
+	void OnClickedBackBtn();
+
+private:
+	UFUNCTION()	void OnInventoryDataReceived(const FInventoryMapWrapper InventoryMapWrapper);
+
+	UFUNCTION() void RefreshAllGrids();
 
 
 };

@@ -134,18 +134,48 @@ void UWebSocketSubSystem::RequestCreateID(const FString& UserId)
 		return;
 	}
 	CurrentUserId = UserId;
-
+	// 1. GUID 생성 (기존 포켓, 창고 + 나머지 장비 슬롯)
 	FGuid NewPocketGUID = FGuid::NewGuid();
-	FGuid NewStashGUID = FGuid::NewGuid();
+	FGuid NewStashGUID	= FGuid::NewGuid();
+	FGuid NewMainWeapon = FGuid::NewGuid();
+	FGuid NewSubWeapon	= FGuid::NewGuid();
+	FGuid NewHelMet		= FGuid::NewGuid();
+	FGuid NewCloth		= FGuid::NewGuid();
+	FGuid NewPants		= FGuid::NewGuid();
+	FGuid NewShose		= FGuid::NewGuid();
+	FGuid NewBackPack	= FGuid::NewGuid();
+	FGuid NewAccuracy1	= FGuid::NewGuid();
+	FGuid NewAccuracy2	= FGuid::NewGuid();
 
-	// 언리얼 GUID를 표준 문자열 형태(DigitsWithHyphens)로 변환
+	// 2. 언리얼 GUID를 표준 문자열 형태(DigitsWithHyphens)로 변환
 	FString PocketGuidStr = NewPocketGUID.ToString(EGuidFormats::DigitsWithHyphens);
 	FString StashGuidStr = NewStashGUID.ToString(EGuidFormats::DigitsWithHyphens);
+	FString MainWeaponStr = NewMainWeapon.ToString(EGuidFormats::DigitsWithHyphens);
+	FString SubWeaponStr = NewSubWeapon.ToString(EGuidFormats::DigitsWithHyphens);
+	FString HelMetStr = NewHelMet.ToString(EGuidFormats::DigitsWithHyphens);
+	FString ClothStr = NewCloth.ToString(EGuidFormats::DigitsWithHyphens);
+	FString PantsStr = NewPants.ToString(EGuidFormats::DigitsWithHyphens);
+	FString ShoseStr = NewShose.ToString(EGuidFormats::DigitsWithHyphens);
+	FString BackPackStr = NewBackPack.ToString(EGuidFormats::DigitsWithHyphens);
+	FString Accuracy1Str = NewAccuracy1.ToString(EGuidFormats::DigitsWithHyphens);
+	FString Accuracy2Str = NewAccuracy2.ToString(EGuidFormats::DigitsWithHyphens);
 
+	// 3. JSON Payload 객체 생성 및 데이터 세팅
 	TSharedPtr<FJsonObject> Payload = MakeShared<FJsonObject>();
 	Payload->SetStringField(TEXT("userId"), UserId);
 	Payload->SetStringField(TEXT("pocketGuid"), PocketGuidStr);
 	Payload->SetStringField(TEXT("stashGuid"), StashGuidStr);
+
+	// Node.js 서버 카멜케이스(camelCase) 변수명에 맞춰 JSON 필드 추가
+	Payload->SetStringField(TEXT("MainWeapon"), MainWeaponStr);
+	Payload->SetStringField(TEXT("SubWeapon"), SubWeaponStr);
+	Payload->SetStringField(TEXT("HelMet"), HelMetStr);
+	Payload->SetStringField(TEXT("Cloth"), ClothStr);
+	Payload->SetStringField(TEXT("Pants"), PantsStr);
+	Payload->SetStringField(TEXT("Shose"), ShoseStr);
+	Payload->SetStringField(TEXT("BackPack"), BackPackStr);
+	Payload->SetStringField(TEXT("Accuracy1"), Accuracy1Str);
+	Payload->SetStringField(TEXT("Accuracy2"), Accuracy2Str);
 
 	UE_LOG(LogTemp, Log, TEXT("[RequestCreateID] 전송 데이터 - userId: %s | pocketGuid: %s | stashGuid: %s"),
 		*UserId, *PocketGuidStr, *StashGuidStr);
@@ -300,18 +330,67 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 	else if (UpperType == TEXT("INVENTORY_DATA"))
 	{
 		FInventoryMapWrapper InventoryMapWrapper;
-
-		// 1) 최상위 인벤토리 GUID (Stash / Pocket)
-		if (PayloadObject->HasField(TEXT("stashGuid")))
+		FInventoryMapWrapper EquipMapWrapper;
+		FString TempGuidStr;
+		if (PayloadObject->TryGetStringField(TEXT("stashGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
 		{
-			FGuid::Parse(PayloadObject->GetStringField(TEXT("stashGuid")), InventoryMapWrapper.StashGuid);
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.StashGuid);
 		}
-		if (PayloadObject->HasField(TEXT("pocketGuid")))
+		if (PayloadObject->TryGetStringField(TEXT("pocketGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
 		{
-			FGuid::Parse(PayloadObject->GetStringField(TEXT("pocketGuid")), InventoryMapWrapper.PocketGuid);
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.PocketGuid);
 		}
 
-		// 2) DB(inventorycontainer) 기반 크기 데이터 파싱
+		if (PayloadObject->TryGetStringField(TEXT("MainWeaponGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.MainWeapon);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.MainWeapon);
+		}
+		if (PayloadObject->TryGetStringField(TEXT("SubWeaponGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.SubWeapon);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.SubWeapon);
+		}
+		if (PayloadObject->TryGetStringField(TEXT("HelMetGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.HelMet);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.HelMet);
+		}
+		if (PayloadObject->TryGetStringField(TEXT("ClothGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.Cloth);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.Cloth);
+		}
+		if (PayloadObject->TryGetStringField(TEXT("PantsGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.Pants);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.Pants);
+		}
+		if (PayloadObject->TryGetStringField(TEXT("ShoseGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.Shose);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.Shose);
+		}
+		if (PayloadObject->TryGetStringField(TEXT("BackPackGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.BackPack);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.BackPack);
+		}
+		if (PayloadObject->TryGetStringField(TEXT("Accuracy1Guid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.Accuracy1);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.Accuracy1);
+		}
+		if (PayloadObject->TryGetStringField(TEXT("Accuracy2Guid"), TempGuidStr) && !TempGuidStr.IsEmpty())
+		{
+			FGuid::Parse(TempGuidStr, InventoryMapWrapper.Accuracy2);
+			FGuid::Parse(TempGuidStr, EquipMapWrapper.Accuracy2);
+		}
+
+		TMap<FGuid, FItemArrayWrapper> InventoryItems;
+		TMap<FGuid, FItemArrayWrapper> EquipItems;
+
+		// 1) 인벤토리 컨테이너 크기 파싱 및 빈 InventoryMap Key 사전 생성
 		const TArray<TSharedPtr<FJsonValue>>* InventoriesArray;
 		if (PayloadObject->TryGetArrayField(TEXT("inventories"), InventoriesArray))
 		{
@@ -321,25 +400,38 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 				if (!InvenObj.IsValid()) continue;
 
 				FGuid InvenGuid;
-				// inventory_id 또는 guid 필드
-				FString GuidStr = InvenObj->HasField(TEXT("inventory_id")) ? InvenObj->GetStringField(TEXT("inventory_id")) : InvenObj->GetStringField(TEXT("guid"));
-
-				if (FGuid::Parse(GuidStr, InvenGuid))
+				FString GuidStr;
+				if (InvenObj->TryGetStringField(TEXT("inventory_id"), GuidStr) || InvenObj->TryGetStringField(TEXT("guid"), GuidStr))
 				{
-					// DB 필드명(max_cols, max_rows)과 JSON Key 파싱 유연화
-					int32 Cols = InvenObj->HasField(TEXT("max_cols")) ? InvenObj->GetIntegerField(TEXT("max_cols")) : InvenObj->GetIntegerField(TEXT("cols"));
-					int32 Rows = InvenObj->HasField(TEXT("max_rows")) ? InvenObj->GetIntegerField(TEXT("max_rows")) : InvenObj->GetIntegerField(TEXT("rows"));
+					if (FGuid::Parse(GuidStr, InvenGuid))
+					{
+						int32 Cols = 0;
+						int32 Rows = 0;
 
-					InventoryMapWrapper.InventorySizeMap.Add(InvenGuid, FIntPoint(Cols, Rows));
+						if (!InvenObj->TryGetNumberField(TEXT("max_cols"), Cols))
+						{
+							InvenObj->TryGetNumberField(TEXT("cols"), Cols);
+						}
+
+						if (!InvenObj->TryGetNumberField(TEXT("max_rows"), Rows))
+						{
+							InvenObj->TryGetNumberField(TEXT("rows"), Rows);
+						}
+
+						if (Cols > 0 && Rows > 0)
+						{
+							InventoryMapWrapper.InventorySizeMap.Add(InvenGuid, FIntPoint(Cols, Rows));
+						}
+
+						InventoryItems.FindOrAdd(InvenGuid);
+					}
 				}
 			}
 		}
 
-		TMap<FGuid, FItemArrayWrapper> InventoryItems;
-		UItemSubSystem* subSystem = UItemSubSystem::Get(GetWorld());
-		if (subSystem == nullptr) return;
-
+		// 2) 아이템 배열 파싱
 		const TArray<TSharedPtr<FJsonValue>>* ItemsArray;
+
 		if (PayloadObject->TryGetArrayField(TEXT("items"), ItemsArray))
 		{
 			for (const TSharedPtr<FJsonValue>& ItemValue : *ItemsArray)
@@ -348,43 +440,78 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 				if (!ItemObject.IsValid()) continue;
 
 				FItemInstance Item;
-				FGuid::Parse(ItemObject->GetStringField(TEXT("guid")), Item.GUID);
-				FGuid::Parse(ItemObject->GetStringField(TEXT("parent_inventory_guid")), Item.parent_inventory_guid);
 
-				Item.ItemID = FName(*ItemObject->GetStringField(TEXT("item_id")));
-				Item.StackCount = ItemObject->GetIntegerField(TEXT("stack_count"));
-				Item.Durability = ItemObject->GetNumberField(TEXT("current_durability"));
-				Item.Position.X = ItemObject->GetIntegerField(TEXT("pos_x"));
-				Item.Position.Y = ItemObject->GetIntegerField(TEXT("pos_y"));
+				// GUID 파싱
+				FString ItemGuidStr;
+				if (ItemObject->TryGetStringField(TEXT("guid"), ItemGuidStr))
+				{
+					FGuid::Parse(ItemGuidStr, Item.GUID);
+				}
 
-				// 회전 상태 파싱 (bool/int 유연 파싱)
+				// ★ Parent GUID 파싱 (Null 사용 시 Warning 방지)
+				FString ParentGuidStr;
+				if (ItemObject->TryGetStringField(TEXT("parent_inventory_guid"), ParentGuidStr) && !ParentGuidStr.IsEmpty())
+				{
+					FGuid::Parse(ParentGuidStr, Item.parent_inventory_guid);
+				}
+
+				// ItemID 파싱
+				FString ItemIdStr;
+				if (ItemObject->TryGetStringField(TEXT("item_id"), ItemIdStr))
+				{
+					Item.ItemID = FName(*ItemIdStr);
+				}
+
+				// 수량 및 내구도 파싱
+				ItemObject->TryGetNumberField(TEXT("stack_count"), Item.StackCount);
+
+				double TempDurability = 0.0;
+				if (ItemObject->TryGetNumberField(TEXT("current_durability"), TempDurability))
+				{
+					Item.Durability = TempDurability;
+				}
+
+				ItemObject->TryGetNumberField(TEXT("pos_x"), Item.Position.X);
+				ItemObject->TryGetNumberField(TEXT("pos_y"), Item.Position.Y);
+
+				// is_equipped 파싱
+				int32 IsEquippedInt = 0;
+				if (ItemObject->TryGetNumberField(TEXT("is_equipped"), IsEquippedInt))
+				{
+					Item.bEquip = (IsEquippedInt == 1);
+						
+				}	
 				if (ItemObject->HasField(TEXT("bIsRotated")))
 				{
 					Item.bIsRotated = ItemObject->GetBoolField(TEXT("bIsRotated"));
 				}
-				else if (ItemObject->HasField(TEXT("is_rotate")))
+
+				if (UItemSubSystem* subSystem = UItemSubSystem::Get(GetWorld()))
 				{
-					Item.bIsRotated = ItemObject->GetIntegerField(TEXT("is_rotate")) == 1;
+					const FItemTableRow* ItemInstance = subSystem->GetItem(Item.ItemID);
+					if (ItemInstance != nullptr)
+					{
+						Item.type = ItemInstance->ItemType;
+					}
 				}
 
-				const FItemTableRow* ItemInstance = subSystem->GetItem(Item.ItemID);
-				if (ItemInstance != nullptr)
+				// ★ 장착 상태가 아니고 부모 인벤토리 GUID가 유효할 때만 슬롯 리스트에 등록
+				if (!Item.bEquip && Item.parent_inventory_guid.IsValid())
 				{
-					Item.type = ItemInstance->ItemType;
+					InventoryItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);				
 				}
-
-				InventoryItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);
+				else if (Item.bEquip) 
+				{
+					EquipItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);
+					UE_LOG(LogTemp, Warning, TEXT("장착 guid 저장: %s"), *Item.parent_inventory_guid.ToString());
+				}
 			}
 		}
 
 		InventoryMapWrapper.InventoryMap = InventoryItems;
-
-		UE_LOG(LogTemp, Log, TEXT("[Inventory] DB 수신 완료 - StashGUID(%s), PocketGUID(%s), 크기정보 %d개"),
-			*InventoryMapWrapper.StashGuid.ToString(),
-			*InventoryMapWrapper.PocketGuid.ToString(),
-			InventoryMapWrapper.InventorySizeMap.Num());
-
+		EquipMapWrapper.InventoryMap = EquipItems;
 		OnInventoryReceived.Broadcast(InventoryMapWrapper);
+		OnEquipRecived.Broadcast(EquipMapWrapper);
 	}
 	// 6. 아이템 이동 응답 (RES_MOVE_ITEM)
 	else if (UpperType == TEXT("RES_MOVE_ITEM"))
@@ -393,14 +520,18 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 
 		if (bSuccess)
 		{
-			UE_LOG(LogTemp, Log, TEXT("[WebSocket Subsystem] 아이템 이동 성공"));
-			// Node.js 서버에서 RES_MOVE_ITEM 직후 INVENTORY_DATA 패킷을 연속으로 보내줄 경우 
-			// 위 5번 분기(INVENTORY_DATA)에서 자동으로 최신 UI가 동기화됩니다.
+			UE_LOG(LogTemp, Log, TEXT("[WebSocket Subsystem] 아이템 이동 성공 - 최신 인벤토리 재요청"));
+
+			// ★ [수정] 이동 성공 시 서버로부터 최신 인벤토리 데이터를 다시 받아와 UI/메모리 동기화
+			RequestGetInventory();
 		}
 		else
 		{
 			FString Message = PayloadObject->HasField(TEXT("message")) ? PayloadObject->GetStringField(TEXT("message")) : TEXT("이동 실패");
 			UE_LOG(LogTemp, Error, TEXT("[WebSocket Subsystem] 아이템 이동 실패: %s"), *Message);
+
+			// ★ [수정] 실패 시에도 기존 위치로 UI 원복을 위해 인벤토리 재요청
+			RequestGetInventory();
 		}
 	}
 	// 7. 매칭 취소
@@ -428,4 +559,16 @@ void UWebSocketSubSystem::SendJsonMessage(const FString& Type, TSharedPtr<FJsonO
 	{
 		UE_LOG(LogTemp, Error, TEXT("[WebSocket Subsystem] JSON 직렬화 실패"));
 	}
+}
+
+void UWebSocketSubSystem::RequestEquipItem(const FGuid& ItemGuid, const FGuid& TargetParentGuid, bool bIsEquipped) 
+{
+	if (!WebSocket.IsValid() || !WebSocket->IsConnected()) return;
+	UE_LOG(LogTemp, Warning, TEXT("server %s"), *TargetParentGuid.ToString());
+	TSharedPtr<FJsonObject> PayloadObject = MakeShared<FJsonObject>();
+	PayloadObject->SetStringField(TEXT("ItemGuid"), ItemGuid.ToString(EGuidFormats::DigitsWithHyphens));
+	PayloadObject->SetStringField(TEXT("TargetParentGuid"), TargetParentGuid.ToString(EGuidFormats::DigitsWithHyphens));
+	PayloadObject->SetBoolField(TEXT("bIsEquipped"), bIsEquipped);
+
+	SendJsonMessage(TEXT("REQ_EQUIP_ITEM"), PayloadObject);
 }

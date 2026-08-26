@@ -12,6 +12,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnLoginStatusChanged, bool, bIsL
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMatchStatusChanged, const FString&, StatusType, const FString&, Message);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCreateIDStatusChanged, bool, bSuccess, const FString&, UserId, const FString&, Message);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryReceived, FInventoryMapWrapper, ItemsWrapper);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEquipReceived, FInventoryMapWrapper, ItemsWrapper);
 
 UCLASS()
 class PROJECTPG_API UWebSocketSubSystem : public UGameInstanceSubsystem
@@ -34,6 +35,8 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "WebSocket|Events")
 	FOnInventoryReceived OnInventoryReceived;
+	UPROPERTY(BlueprintAssignable, Category = "WebSocket|Events")
+	FOnEquipReceived OnEquipRecived;
 
 public:
 	static UWebSocketSubSystem* Get(const UObject* worldContext);
@@ -63,6 +66,8 @@ public:
 	FString GetCurrentUserID() { return CurrentUserId; }
 	UFUNCTION(BlueprintCallable, Category = "Lobby WebSocket")
 	void RequestMoveItem(const FGuid& FromInventoryGuid, const FGuid& ToInventoryGuid, const FGuid& ItemGuid, const FIntPoint& TargetPosition, bool bIsRotated);
+	void RequestEquipItem(const FGuid& ItemGuid, const FGuid& TargetParentGuid, bool bIsEquipped);
+
 private:
 	void OnConnected();
 	void OnConnectionError(const FString& Error);

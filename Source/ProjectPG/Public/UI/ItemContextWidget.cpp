@@ -5,6 +5,7 @@
 #include "Components/Button.h"
 
 #include "Core/UIManagerSubSystem.h"
+#include "GameMode/CustomPlayerState.h"
 
 void UItemContextWidget::NativeConstruct()
 {
@@ -77,18 +78,35 @@ void UItemContextWidget::UpdateButtonState(EItemType type)
 
 void UItemContextWidget::OnEquipClickedBtn()
 {
-	if (EquipComp)
-	{
-		EquipComp->Equip(CurrentItem);
-	}
+	UE_LOG(LogTemp, Warning, TEXT("장착버튼 누름"));
 
-	UUIManagerSubSystem* UIMgr = UUIManagerSubSystem::Get(GetWorld());
-	if (UIMgr)
+	APlayerController* PC = GetOwningPlayer();
+	if (PC)
 	{
-		//        UIMgr->UpdatePreview(); // ★ 여기서 호출!
-	}
+		ACustomPlayerState* PS = Cast<ACustomPlayerState>(PC->PlayerState);
+		if (IsValid(PS))
+		{
+			EquipComp = PS->GetComponentByClass<UEquipComponent>();
+			InvenComp = PS->GetComponentByClass<UInventoryComponent>();
 
-	SetVisibility(ESlateVisibility::Collapsed);
+			if (EquipComp && InvenComp)
+			{
+				if (EquipComp->Equip(CurrentItem))
+				{
+					// TODO: 장착 성공 시 기존 인벤토리 그리드 배열에서 해당 아이템 제거 처리 필요
+					// InvenComp->RemoveItemByGuid(CurrentItem.parent_inventory_guid, CurrentItem.GUID);
+				}
+			}
+		}
+
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		PC->SetInputMode(InputMode);
+		PC->bShowMouseCursor = true;
+
+		FSlateApplication::Get().ClearKeyboardFocus();
+		SetVisibility(ESlateVisibility::Collapsed);
+	}
 }
 
 void UItemContextWidget::OnUnEquipClickedBtn()
@@ -119,12 +137,12 @@ void UItemContextWidget::OnUsedClickedBtn()
 
 void UItemContextWidget::OnDropClicked()
 {
-	//장착중인 아이템은 드랍안됌
-	if (EquipComp->IsEquipped(CurrentItem.GUID)) return;
+	// Null Check 추가 (크래시 방지)
+	if (EquipComp && EquipComp->IsEquipped(CurrentItem.GUID)) return;
 
 	if (InvenComp)
 	{
-		//  InvenComp->DropItem(CurrentItem);
+		// InvenComp->DropItem(CurrentItem);
 	}
 
 	SetVisibility(ESlateVisibility::Collapsed);

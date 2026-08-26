@@ -46,19 +46,14 @@ public:
 	void SetItem(const FItemInstance& InItem);
 	void UpdateButtonState(EItemType type);
 private:
-	UFUNCTION()
-	void OnEquipClickedBtn();
-	UFUNCTION()
-	void OnUnEquipClickedBtn();
+	UFUNCTION()	void OnEquipClickedBtn();
+	UFUNCTION()	void OnUnEquipClickedBtn();
 
-	UFUNCTION()
-	void OnUsedClickedBtn();
+	UFUNCTION()	void OnUsedClickedBtn();
 
-	UFUNCTION()
-	void OnDropClicked();
+	UFUNCTION()	void OnDropClicked();
 
-	UFUNCTION()
-	void OnCancledClicked();
+	UFUNCTION()	void OnCancledClicked();
 
 	void InitButtonState();
 };

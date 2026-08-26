@@ -62,6 +62,8 @@ void ULobbyWidget::OnClickedCharacterButton()
 				{
 					Window->SetupMainInventoryWidget(InvenClass);
 					Window->SetupPocketInventoryWidget(InvenClass); // 포켓 UI도 필요한 경우 연달아 호출 가능
+					Window->SetupBackPackInventoryWidget(InvenClass);
+
 				}
 			}
 		}

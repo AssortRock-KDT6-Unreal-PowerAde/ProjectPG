@@ -52,8 +52,6 @@ struct FItemTableRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere)
-	FName UniqueID = TEXT("");
 
 	UPROPERTY(EditAnywhere)
 	FName ItemID = TEXT("");
@@ -68,7 +66,7 @@ struct FItemTableRow : public FTableRowBase
 
 
 	UPROPERTY(EditAnywhere)
-	EEquipSlot EquipSlot = EEquipSlot::MAX;
+	EEquipSlot EquipSlotType = EEquipSlot::MAX;
 
 	UPROPERTY(EditAnywhere)
 	int32 MaxStack = 1;
@@ -78,13 +76,13 @@ struct FItemTableRow : public FTableRowBase
 	FIntPoint GridSize = FIntPoint(1, 1);
 
 	UPROPERTY(EditAnywhere)
-	UTexture2D* Icon;
+	UTexture2D* Icon = nullptr;
 
 	UPROPERTY(EditAnywhere)
 	FString Description;
 
 	UPROPERTY(EditAnywhere)
-	UStaticMesh* WorldMesh;
+	UStaticMesh* WorldMesh = nullptr;
 
 public:
 	FString GetItemTypeString() const;
@@ -100,7 +98,7 @@ struct FEquipTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere)	int32 ItemID;
 
-	UPROPERTY(EditAnywhere)	EEquipSlot EquipType;
+	UPROPERTY(EditAnywhere)	EEquipSlot EquipType = EEquipSlot::MAX;
 
 	UPROPERTY(EditAnywhere)	FName SocketName;
 

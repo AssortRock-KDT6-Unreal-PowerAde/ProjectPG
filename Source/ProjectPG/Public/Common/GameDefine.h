@@ -42,7 +42,7 @@ enum class ESceneType : uint8
 {
 	LobbyScene, InGameScene,
 };
-UENUM(BlueprintType)
+UENUM(BlueprintType, meta = (ScriptName = "EquipSlotType"))
 enum class EEquipSlot : uint8
 {
 	MainWeapon,

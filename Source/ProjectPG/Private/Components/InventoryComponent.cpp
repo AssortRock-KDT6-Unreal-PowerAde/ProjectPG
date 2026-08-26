@@ -10,12 +10,47 @@ UInventoryComponent::UInventoryComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+bool UInventoryComponent::AddItemAt(FItemInstance NewItem, FIntPoint TargetPos)
+{
+	const FGuid TargetGuid = NewItem.parent_inventory_guid;
+	if (!TargetGuid.IsValid()) return false;
+
+	const FItemTableRow* Data = GetItemData(NewItem.ItemID);
+	if (!Data) return false;
+
+	// 배치 가능 여부 검사
+	if (!CanPlaceItemByGuid(TargetGuid, NewItem.ItemID, TargetPos, NewItem.bIsRotated))
+	{
+		return false;
+	}
+
+	// GUID 보정
+	if (!NewItem.GUID.IsValid())
+	{
+		NewItem.GUID = FGuid::NewGuid();
+	}
+
+	NewItem.Position = TargetPos;
+
+	ItemsMap.FindOrAdd(TargetGuid).Items.Add(NewItem);
+	RebuildGridMapByGuid(TargetGuid);
+
+	// 서버 통신은 호출자(Equip/Inventory UI)가 담당하도록 하며, 로컬 상태만 즉시 반영
+	OnInventoryUpdated.Broadcast();
+	return true;
+}
+
 void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 💡 DataComponent가 수신받아 SetServerInventoryData를 호출하므로 
-	// BeginPlay의 Direct 웹소켓 바인딩은 중복 방지를 위해 제거합니다.
+	// WebSocketSubsystem 가져오기 및 서버 수신 델리게이트 바인딩
+	if (UWebSocketSubSystem* Subsystem = UWebSocketSubSystem::Get(GetWorld()))
+	{
+		Subsystem->OnInventoryReceived.RemoveDynamic(this, &UInventoryComponent::HandleInventoryReceived);
+
+		Subsystem->OnInventoryReceived.AddDynamic(this, &UInventoryComponent::HandleInventoryReceived);
+	}
 }
 
 int32 UInventoryComponent::GetColumns(const FGuid& InvenGuid) const
@@ -31,8 +66,52 @@ int32 UInventoryComponent::GetRows(const FGuid& InvenGuid) const
 int32 UInventoryComponent::GetGridIndex(const FGuid& InvenGuid, int32 X, int32 Y) const
 {
 	int32 Cols = GetColumns(InvenGuid);
-	if (Cols <= 0) return -1;
+	int32 Rows = GetRows(InvenGuid);
+
+	// X, Y 좌표가 실제 인벤토리 범위 내에 있는지 엄격 검사 (다음 줄 오염 방지)
+	if (Cols <= 0 || Rows <= 0 || X < 0 || X >= Cols || Y < 0 || Y >= Rows)
+	{
+		return -1;
+	}
+
 	return (Y * Cols) + X;
+}
+
+void UInventoryComponent::RegisterContainer(const FGuid& ContainerGUID, FIntPoint ContainerSize)
+{
+	if (!ContainerGUID.IsValid() || ContainerSize.X <= 0 || ContainerSize.Y <= 0) return;
+
+	// 💡 [추가된 방어 코드] 이미 동일한 가방이 같은 크기로 등록되어 있다면 중복 브로드캐스트를 막고 리턴합니다.
+	if (InventorySizeMap.Contains(ContainerGUID) && InventorySizeMap[ContainerGUID] == ContainerSize)
+	{
+		return;
+	}
+
+	InventorySizeMap.FindOrAdd(ContainerGUID) = ContainerSize;
+	ItemsMap.FindOrAdd(ContainerGUID);
+	RebuildGridMapByGuid(ContainerGUID);
+
+	OnInventoryUpdated.Broadcast();
+}
+
+void UInventoryComponent::UnregisterContainer(const FGuid& ContainerGUID)
+{
+	if (!ContainerGUID.IsValid()) return;
+
+	InventorySizeMap.Remove(ContainerGUID);
+	ItemsMap.Remove(ContainerGUID);
+	InvenGridMap.Remove(ContainerGUID);
+
+	OnInventoryUpdated.Broadcast();
+}
+
+FIntPoint UInventoryComponent::GetInventorySizeByGuid(const FGuid& InvenGuid) const
+{
+	if (const FIntPoint* FoundSize = InventorySizeMap.Find(InvenGuid))
+	{
+		return *FoundSize;
+	}
+	return FIntPoint::ZeroValue;
 }
 
 const FItemTableRow* UInventoryComponent::GetItemData(FName ItemID) const
@@ -68,11 +147,14 @@ const TArray<FItemInstance>& UInventoryComponent::GetItems(const FGuid& InvenGui
 
 bool UInventoryComponent::CanPlaceItemByGuid(const FGuid& InvenGuid, const FName& ItemID, FIntPoint TargetPos, bool bRotated, FGuid IgnoreItemGUID)
 {
+	if (InvenGuid == IgnoreItemGUID) return false;
+
 	const FIntPoint InvenSize = GetInventorySizeByGuid(InvenGuid);
 	if (InvenSize.X <= 0 || InvenSize.Y <= 0) return false;
 
 	const FItemTableRow* Data = GetItemData(ItemID);
 	if (!Data) return false;
+
 
 	FIntPoint ItemSize = bRotated ? FIntPoint(Data->GridSize.Y, Data->GridSize.X) : Data->GridSize;
 
@@ -83,9 +165,9 @@ bool UInventoryComponent::CanPlaceItemByGuid(const FGuid& InvenGuid, const FName
 	}
 
 	const FIntArrayWrapper* GridWrapper = InvenGridMap.Find(InvenGuid);
+	
 
-	// 💡 [수정 포인트] 해당 인벤토리 그리드가 아직 없거나 비어있는 경우:
-	// 경계 검사(1번)를 통과했고 아이템이 전혀 없는 인벤토리라면 배치가 가능한 상태입니다!
+	// 해당 인벤토리 그리드가 비어있다면 배치가 가능한 상태
 	if (!GridWrapper || GridWrapper->Grid.Num() == 0)
 	{
 		return true;
@@ -99,17 +181,17 @@ bool UInventoryComponent::CanPlaceItemByGuid(const FGuid& InvenGuid, const FName
 		for (int32 y = 0; y < ItemSize.Y; ++y)
 		{
 			int32 Idx = GetGridIndex(InvenGuid, TargetPos.X + x, TargetPos.Y + y);
-			if (GridWrapper->Grid.IsValidIndex(Idx))
+			if (Idx != -1 && GridWrapper->Grid.IsValidIndex(Idx))
 			{
 				int32 OccupiedItemIdx = GridWrapper->Grid[Idx];
 				if (OccupiedItemIdx >= 0 && ItemList.IsValidIndex(OccupiedItemIdx))
 				{
-					// 동일 인벤토리 내 이동 시 자기 자신 영역 제외
+					// 동일 인벤토리 내 이동 시 자기 자신 영역 무시
 					if (IgnoreItemGUID.IsValid() && ItemList[OccupiedItemIdx].GUID == IgnoreItemGUID)
 					{
 						continue;
 					}
-					return false; // 이미 다른 아이템이 차지하고 있음 (빨간색)
+					return false; // 다른 아이템과 충돌
 				}
 			}
 		}
@@ -182,27 +264,35 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	}
 
 	if (ItemIndex == -1) return false;
-
+	// 배치 가능 검사
 	FItemInstance Item = ItemsMap[SourceGuid].Items[ItemIndex];
-
-	// 배치 검사
 	if (!CanPlaceItemByGuid(TargetInvenGuid, Item.ItemID, NewPos, bNewRotated, ItemGUID))
 	{
 		return false;
 	}
 
-	// 기존 위치에서 제거
+	// 1. 기존 위치에서 삭제
 	ItemsMap[SourceGuid].Items.RemoveAt(ItemIndex);
-	RebuildGridMapByGuid(SourceGuid);
 
-	// 새 위치 업데이트 및 추가
+	// 2. 값 수정 (parent_inventory_guid 필수 변경)
 	Item.Position = NewPos;
 	Item.bIsRotated = bNewRotated;
-	Item.parent_inventory_guid = TargetInvenGuid;
+	Item.parent_inventory_guid = TargetInvenGuid; // ★ GUID 갱신
 
+	// 3. 타겟 위치에 추가
 	ItemsMap.FindOrAdd(TargetInvenGuid).Items.Add(Item);
+
+	// 4. 소스/타겟 그리드 지도 재구축
+	RebuildGridMapByGuid(SourceGuid);
 	RebuildGridMapByGuid(TargetInvenGuid);
 
+	// 5. 서버 패킷 전송
+	if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
+	{
+		WebSocketSub->RequestMoveItem(SourceGuid, TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
+	}
+
+	// 6. UI 동기화 델리게이트 알림 -> UI가 다시 그려지면서 RenderItems()가 호출됨
 	OnInventoryUpdated.Broadcast();
 	return true;
 }
@@ -234,33 +324,50 @@ void UInventoryComponent::AllocateItemDataByGuid(const TMap<FGuid, FItemArrayWra
 
 void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWrapper)
 {
+	// ★ 수정: 크기 데이터(InventorySizeMap)마저 완전히 없다면 잘못된 데이터로 판단하여 리턴합니다.
+		// (아이템이 0개인 빈 인벤토리도 정상 데이터이므로 처리를 진행해야 합니다)
+	if (InWrapper.InventorySizeMap.Num() == 0 && InWrapper.InventoryMap.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[SetServerInventoryData] 수신된 인벤토리 크기 및 아이템 정보가 모두 비어있습니다."));
+		return;
+	}
+
+	// 1. 크기 데이터가 존재할 때 크기 맵 갱신
+	if (InWrapper.InventorySizeMap.Num() > 0)
+	{
+		InventorySizeMap = InWrapper.InventorySizeMap;
+	}
+
+	// 2. 기존 메모리 초기화
 	ItemsMap.Empty();
+	InvenGridMap.Empty();
 
-	StashInventoryID = InWrapper.StashGuid;
-	PocketInventoryID = InWrapper.PocketGuid;
-	InventorySizeMap = InWrapper.InventorySizeMap;
-
-	// 💡 아이템 목록에 없는 인벤토리(비어있는 Pocket 등)도 그리드를 미리 0(-1)으로 초기화
+	if (InWrapper.StashGuid.IsValid()) StashInventoryID = InWrapper.StashGuid;
+	if (InWrapper.PocketGuid.IsValid()) PocketInventoryID = InWrapper.PocketGuid;
+	// 3. 등록된 모든 컨테이너 GUID에 대해 빈 그리드 배열 생성
 	for (const auto& SizePair : InventorySizeMap)
 	{
+		// 빈 아이템 배열 등록 (아이템이 없어도 Key 등록)
+		ItemsMap.FindOrAdd(SizePair.Key);
 		RebuildGridMapByGuid(SizePair.Key);
 	}
 
+	// 4. 수신된 아이템 복사 및 그리드 매핑
 	for (const auto& Pair : InWrapper.InventoryMap)
 	{
 		const FGuid& TargetGuid = Pair.Key;
 		const FItemArrayWrapper& Wrapper = Pair.Value;
 
-		ItemsMap.Add(TargetGuid, Wrapper);
+		ItemsMap.FindOrAdd(TargetGuid) = Wrapper;
 		RebuildGridMapByGuid(TargetGuid);
 	}
 
+	// 5. UI 갱신 알림
 	OnInventoryUpdated.Broadcast();
 }
 
 void UInventoryComponent::RebuildGridMapByGuid(const FGuid& InvenGuid)
 {
-	// SizeMap 존재 여부 안전 검사
 	if (!InventorySizeMap.Contains(InvenGuid))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[RebuildGridMap] InventorySizeMap에서 GUID(%s)를 찾을 수 없습니다."), *InvenGuid.ToString());
@@ -291,16 +398,19 @@ void UInventoryComponent::RebuildGridMapByGuid(const FGuid& InvenGuid)
 				int32 TargetX = Item.Position.X + x;
 				int32 TargetY = Item.Position.Y + y;
 
-				// 💡 2D 그리드 범위 내 위치인지 엄격 검사하여 다음 줄 오염 방지
-				if (TargetX >= 0 && TargetX < InvenSize.X && TargetY >= 0 && TargetY < InvenSize.Y)
+				int32 MapIdx = GetGridIndex(InvenGuid, TargetX, TargetY);
+				if (MapIdx != -1 && TargetGrid.IsValidIndex(MapIdx))
 				{
-					int32 MapIdx = GetGridIndex(InvenGuid, TargetX, TargetY);
-					if (TargetGrid.IsValidIndex(MapIdx))
-					{
-						TargetGrid[MapIdx] = i;
-					}
+					TargetGrid[MapIdx] = i;
 				}
 			}
 		}
 	}
 }
+
+void UInventoryComponent::HandleInventoryReceived(const FInventoryMapWrapper InventoryMapWrapper)
+{
+	// SetServerInventoryData 하나만 호출하면 내부에서 그리드 생성과 Broadcast가 모두 완료됩니다.
+	SetServerInventoryData(InventoryMapWrapper);
+}
+

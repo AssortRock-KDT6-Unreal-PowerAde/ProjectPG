@@ -92,12 +92,35 @@ struct FInventoryMapWrapper
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
 	FGuid PocketGuid;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid MainWeapon;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid SubWeapon;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid HelMet;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid Cloth;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid Pants;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid Shose;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid BackPack;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid Accuracy1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+	FGuid Accuracy2;
+
 	// 2. Parent Inventory GUID 기반 아이템 맵
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
 	TMap<FGuid, FItemArrayWrapper> InventoryMap;
 
 	UPROPERTY()
 	TMap<FGuid, FIntPoint> InventorySizeMap;
+
+	UPROPERTY()
+	TArray<FItemArrayWrapper> EquipItem;
+
 };
 
 USTRUCT(BlueprintType)

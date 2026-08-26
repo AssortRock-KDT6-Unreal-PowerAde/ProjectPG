@@ -48,6 +48,8 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Inventory|GUID")
 	FGuid StashInventoryID;
 
+	UPROPERTY(VisibleAnywhere, Category = "Inventory|GUID")
+	TMap<EEquipSlot, FGuid> EquipSlotID;
 public:
 	UInventoryComponent();
 
@@ -62,8 +64,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void SetInventorySizeByGuid(const FGuid& InvenGuid, FIntPoint Size) { InventorySizeMap.FindOrAdd(InvenGuid) = Size; }
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	FIntPoint GetInventorySizeByGuid(const FGuid& InvenGuid) const { return InventorySizeMap.Contains(InvenGuid) ? InventorySizeMap[InvenGuid] : FIntPoint::ZeroValue; }
 
 	const FItemTableRow* GetItemData(FName ItemID) const;
 	const FItemInstance* GetItemInstance(FName ItemID) const;
@@ -92,6 +92,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool AddItem(FItemInstance NewItem);
 
+	// 아이템을 특정 위치에 강제로 추가합니다 (장비 해제 시 사용)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool AddItemAt(FItemInstance NewItem, FIntPoint TargetPos);
+
 	// ItemID 및 수량을 전달받아 지정한 인벤토리에 추가
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool AddItemByID(FName ItemID, const FGuid& TargetInvenGuid, int32 Quantity = 1);
@@ -107,7 +111,16 @@ public:
 
 	int32 GetGridIndex(const FGuid& InvenGuid, int32 X, int32 Y) const;
 
+	void RegisterContainer(const FGuid& ContainerGUID, FIntPoint ContainerSize);
+
+	// 동적 컨테이너(가방 등) 해제
+	void UnregisterContainer(const FGuid& ContainerGUID);
+
+	// GUID로 인벤토리 크기 가져오는 보조 함수
+	FIntPoint GetInventorySizeByGuid(const FGuid& InvenGuid) const;
+
+	UFUNCTION()	void HandleInventoryReceived(const FInventoryMapWrapper InventoryMapWrapper);
 private:
-	// 특정 가방의 GridMap 재구성
 	void RebuildGridMapByGuid(const FGuid& InvenGuid);
+	void UpdateInventoryData(const TMap<FGuid, FItemArrayWrapper>& NewInventoryItems);
 };
