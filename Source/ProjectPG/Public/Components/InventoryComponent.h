@@ -104,8 +104,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID, FIntPoint NewPos, bool bNewRotated);
 
-	// 외부 저장 데이터 일괄 재할당
-	void AllocateItemDataByGuid(const TMap<FGuid, FItemArrayWrapper>& ItemData);
 
 	UFUNCTION()	void SetServerInventoryData(const FInventoryMapWrapper InWrapper);
 
@@ -122,5 +120,4 @@ public:
 	UFUNCTION()	void HandleInventoryReceived(const FInventoryMapWrapper InventoryMapWrapper);
 private:
 	void RebuildGridMapByGuid(const FGuid& InvenGuid);
-	void UpdateInventoryData(const TMap<FGuid, FItemArrayWrapper>& NewInventoryItems);
 };

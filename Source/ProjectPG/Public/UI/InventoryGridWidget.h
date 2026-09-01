@@ -58,7 +58,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void RefreshGridUI();
-
+	
 	void RenderItems();
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -76,4 +76,5 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void RefreshGrid(class UInventoryComponent* InComp, const FGuid& InvenGuid);
+	
 };

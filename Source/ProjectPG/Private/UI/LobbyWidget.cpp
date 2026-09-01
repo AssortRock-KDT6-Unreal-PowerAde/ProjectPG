@@ -1,12 +1,14 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UI/LobbyWidget.h"
-#include "Components/Button.h"
 #include "UI/InventoryWindow.h"
 #include "UI/InventoryGridWidget.h"
 #include "Core/UIManagerSubSystem.h"
-#include "Components/InventoryComponent.h"
 #include "Server/WebSocketSubSystem.h"
+#include "Components/Button.h"
+#include "Components/InventoryComponent.h"
+#include "Components/EquipComponent.h"
+
 #include "GameMode/CustomPlayerState.h"
 
 void ULobbyWidget::NativeConstruct()
@@ -73,6 +75,12 @@ void ULobbyWidget::OnClickedCharacterButton()
 	}
 }
 
-void ULobbyWidget::OnClickedGameStartButton() {}
+void ULobbyWidget::OnClickedGameStartButton() {
+
+	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
+	if (nullptr == subSystem) return;
+
+	subSystem->RequestGameStart();
+}
 void ULobbyWidget::OnClickedOptionButton() {}
 void ULobbyWidget::OnClickedExitButton() {}

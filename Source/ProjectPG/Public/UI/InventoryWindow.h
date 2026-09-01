@@ -10,7 +10,6 @@
 // 전방 선언 (Forward Declaration)
 class UOverlay;
 class UInventoryComponent;
-class UEquipComponent;
 class UInventoryGridWidget;
 class UEquipmentWidget;
 class UButton;
@@ -23,35 +22,37 @@ class PROJECTPG_API UInventoryWindow : public UUserWidget
 	GENERATED_BODY()
 protected:
 	UPROPERTY(meta = (BindWidgetOptional))
-	UOverlay* MainInventoryOverlay;
+	TObjectPtr<class UCanvasPanel> MainCanvas;
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UOverlay> MainInventoryOverlay;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UOverlay* SubInventoryOverlay;
+	TObjectPtr<UOverlay> SubInventoryOverlay;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UOverlay* EquipOverlay;
+	TObjectPtr<UOverlay> EquipOverlay;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UOverlay* BackPackInvenOverlay;
+	TObjectPtr<UOverlay> BackPackInvenOverlay;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UButton* BackBtn;
+	TObjectPtr<UButton> BackBtn;
 
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UEquipmentWidget* EquipmentWidget;
+	TObjectPtr<UEquipmentWidget> EquipmentWidget;
 
 	UPROPERTY()
-	UInventoryComponent* InvenComp;
+	TObjectPtr<UInventoryComponent> InvenComp;
 
 	UPROPERTY()
-	UEquipComponent* EquipComp;
+	TObjectPtr<class UEquipComponent> EquipComp;
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
 public:
-	void InitWidget(UInventoryComponent* InvenComponent, UEquipComponent* EquipComponent);
+	void InitWidget(UInventoryComponent* InvenComponent, class UEquipComponent* EquipComponent);
 
 	// 외부(LobbyWidget 등)에서 호출하는 인벤토리 초기 세팅용 함수
 	void SetupMainInventoryWidget(TSubclassOf<UUserWidget> InvenClass);
@@ -63,6 +64,8 @@ public:
 	void SetChildSubInvenOverlay(UUserWidget* childWidget);
 	void SetChildMainInvenOverlay(UUserWidget* ChildWidget);
 	void SetChildBackpackInvenOverlay(UUserWidget* childWidget);
+	void SetChildMainCanvas(UUserWidget* childWidget);
+
 	void UpdateState();
 
 	UFUNCTION()

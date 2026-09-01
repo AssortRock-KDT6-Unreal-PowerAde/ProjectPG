@@ -47,6 +47,7 @@ void UInventoryGridWidget::BindInventoryComponent(UInventoryComponent* InComp)
 	if (TargetInventoryComp)
 	{
 		TargetInventoryComp->OnInventoryUpdated.AddDynamic(this, &UInventoryGridWidget::RefreshGridUI);
+		UE_LOG(LogTemp, Warning, TEXT("[BindInventoryComponent] GridWidget=%s this=%p BoundToComp=%p"), *GetName(), this, TargetInventoryComp);
 	}
 }
 
@@ -74,7 +75,8 @@ void UInventoryGridWidget::CreateBackGroundGrid(int32 Columns, int32 Rows)
 			USlotWidget* SlotWidget = CreateWidget<USlotWidget>(this, SlotWidgetClass);
 			if (!SlotWidget) continue;
 
-			UUniformGridSlot* GridSlot = BackGroundGrid->AddChildToUniformGrid(SlotWidget, r, c);
+			// AddChildToUniformGrid takes (Content, Column, Row) so pass column first then row
+			UUniformGridSlot* GridSlot = BackGroundGrid->AddChildToUniformGrid(SlotWidget, c, r);
 			if (GridSlot)
 			{
 				GridSlot->SetHorizontalAlignment(EHorizontalAlignment::HAlign_Fill);
@@ -86,18 +88,23 @@ void UInventoryGridWidget::CreateBackGroundGrid(int32 Columns, int32 Rows)
 
 void UInventoryGridWidget::RefreshGridUI()
 {
-	if (!TargetInventoryComp) return;
-
+	if (!TargetInventoryComp) {
+		UE_LOG(LogTemp, Warning, TEXT("TargetInventoryComp none"));
+		return;
+	}
 	// 1. GUID가 지정되지 않은 경우 기본 창고(Stash) GUID 가져오기 시도
 	if (!InventoryGUID.IsValid())
 	{
 		InventoryGUID = TargetInventoryComp->GetStashInventoryID();
 	}
 
-	if (!InventoryGUID.IsValid()) return;
-
+	if (!InventoryGUID.IsValid()) {
+		UE_LOG(LogTemp, Warning, TEXT("InventoryGuid none"));
+		return;
+	}
 	int32 GridColumns = TargetInventoryComp->GetColumns(InventoryGUID);
 	int32 GridRows = TargetInventoryComp->GetRows(InventoryGUID);
+	UE_LOG(LogTemp, Warning, TEXT("슬롯생성 %d %d"),GridColumns, GridRows);
 
 	// 2. 크기가 0이면 가방(Backpack) 장착 데이터 자동 복구 시도
 	if (GridColumns <= 0 || GridRows <= 0)
@@ -105,6 +112,7 @@ void UInventoryGridWidget::RefreshGridUI()
 		APlayerController* PC = GetOwningPlayer();
 		if (PC && PC->GetPawn())
 		{
+			//가방 장착시 
 			if (UEquipComponent* EquipComp = PC->GetPawn()->FindComponentByClass<UEquipComponent>())
 			{
 				const FItemInstance* BackpackItem = EquipComp->GetEquipment(EEquipSlot::BackPack);
@@ -132,7 +140,12 @@ void UInventoryGridWidget::RefreshGridUI()
 		UE_LOG(LogTemp, Verbose, TEXT("[RefreshGridUI] 인벤토리 정보 동기화 대기 중... (GUID: %s)"), *InventoryGUID.ToString());
 		return;
 	}
+	if (GridColumns == 0 && GridRows == 0) {
+		FIntPoint size = TargetInventoryComp->GetInventorySizeByGuid(InventoryGUID);
+		GridColumns = size.X;
+		GridRows = size.Y;
 
+	}
 	// 4. 정상 크기 수신 확인 후 배경 슬롯 및 아이템 렌더링
 	CreateBackGroundGrid(GridColumns, GridRows);
 	RenderItems();
@@ -148,8 +161,18 @@ void UInventoryGridWidget::RenderItems()
 
 	const TArray<FItemInstance>& ItemList = TargetInventoryComp->GetItems(InventoryGUID);
 
+	// 진단 로그: 렌더링 대상 아이템 수 및 인벤토리 GUID
+	UE_LOG(LogTemp, Warning, TEXT("[RenderItems] InventoryGUID=%s ItemCount=%d"), *InventoryGUID.ToString(), ItemList.Num());
+
 	for (const FItemInstance& Item : ItemList)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[RenderItems] Item GUID=%s Pos=(%d,%d) parent_guid=%s"), *Item.GUID.ToString(), Item.Position.X, Item.Position.Y, *Item.parent_inventory_guid.ToString());
+		// 방어 코드: Item의 parent_inventory_guid가 현재 그리드의 InventoryGUID와 다르면 렌더링하지 않음
+		if (Item.parent_inventory_guid.IsValid() && Item.parent_inventory_guid != InventoryGUID)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[RenderItems] Skipping item %s because parent_guid %s != InventoryGUID %s"), *Item.GUID.ToString(), *Item.parent_inventory_guid.ToString(), *InventoryGUID.ToString());
+			continue;
+		}
 		const FItemTableRow* ItemData = ItemSubSystem->GetItem(Item.ItemID);
 		if (!ItemData) continue;
 
@@ -502,6 +525,8 @@ bool UInventoryGridWidget::NativeOnDragOver(const FGeometry& InGeometry, const F
 
 	// 배치 검사 실행
 	bool bCanPlace = CanPlaceItemAt(TempInstance, TargetTile, GridSize);
+
+	UE_LOG(LogTemp, Warning, TEXT("[NativeOnDrop] CanPlaceCheck GUID=%s Columns=%d Rows=%d GridSize=(%d,%d) Target=(%d,%d) Result=%d"), *InventoryGUID.ToString(), Columns, Rows, GridSize.X, GridSize.Y, TargetTile.X, TargetTile.Y, bCanPlace);
 	EBorderHighlightState HighlightState = bCanPlace ? EBorderHighlightState::Valid : EBorderHighlightState::Invalid;
 
 	for (int32 x = 0; x < GridSize.X; ++x)

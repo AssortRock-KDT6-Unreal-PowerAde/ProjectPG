@@ -3,9 +3,13 @@
 #include "Components/EquipComponent.h"
 #include "Components/InventoryComponent.h"
 #include "Components/Button.h"
-
+#include "UI/InventoryWindow.h"
 #include "Core/UIManagerSubSystem.h"
 #include "GameMode/CustomPlayerState.h"
+#include "InventoryGridWidget.h"
+#include "GameFrameWork/Actor.h"
+#include "BagPopupWindow.h"
+#include "Core/TableSubSystem.h"
 
 void UItemContextWidget::NativeConstruct()
 {
@@ -24,6 +28,10 @@ void UItemContextWidget::NativeConstruct()
 
 	if (CancleButton)
 		CancleButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnCancledClicked);
+
+	if(OpenButton)
+		OpenButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnOpenClickBtn);
+
 }
 
 void UItemContextWidget::InitWidget(UInventoryComponent* InInventory, UEquipComponent* InEquip)
@@ -44,6 +52,8 @@ void UItemContextWidget::InitButtonState()
 	UseButton->SetVisibility(ESlateVisibility::Visible);
 	DropButton->SetVisibility(ESlateVisibility::Visible);
 	CancleButton->SetVisibility(ESlateVisibility::Visible);
+	OpenButton->SetVisibility(ESlateVisibility::Visible);
+
 }
 
 void UItemContextWidget::UpdateButtonState(EItemType type)
@@ -52,21 +62,29 @@ void UItemContextWidget::UpdateButtonState(EItemType type)
 	switch (type)
 	{
 	case EItemType::Weapon:
+		OpenButton->SetVisibility(ESlateVisibility::Collapsed);
 		UseButton->SetVisibility(ESlateVisibility::Collapsed);
 		break;
 	case EItemType::Armor:
+		OpenButton->SetVisibility(ESlateVisibility::Collapsed);
 		UseButton->SetVisibility(ESlateVisibility::Collapsed);
 		break;
 	case EItemType::Consumable:
+		OpenButton->SetVisibility(ESlateVisibility::Collapsed);
 		EquipButton->SetVisibility(ESlateVisibility::Collapsed);
 		UnEquipButton->SetVisibility(ESlateVisibility::Collapsed);
 		break;
 	case EItemType::Quest:
+		OpenButton->SetVisibility(ESlateVisibility::Collapsed);
 		EquipButton->SetVisibility(ESlateVisibility::Collapsed);
 		UnEquipButton->SetVisibility(ESlateVisibility::Collapsed);
 		UseButton->SetVisibility(ESlateVisibility::Collapsed);
 		break;
+	case EItemType::Bag:
+		UseButton->SetVisibility(ESlateVisibility::Collapsed);
+		break;
 	case EItemType::ETC:
+		OpenButton->SetVisibility(ESlateVisibility::Collapsed);
 		EquipButton->SetVisibility(ESlateVisibility::Collapsed);
 		UnEquipButton->SetVisibility(ESlateVisibility::Collapsed);
 		UseButton->SetVisibility(ESlateVisibility::Collapsed);
@@ -150,5 +168,76 @@ void UItemContextWidget::OnDropClicked()
 
 void UItemContextWidget::OnCancledClicked()
 {
+	SetVisibility(ESlateVisibility::Collapsed);
+}
+
+void UItemContextWidget::OnOpenClickBtn()
+{
+	FItemInstance LocalItem = CurrentItem;
+	if (LocalItem.ItemID.IsNone()) return;
+
+	// 진단 로그: 선택된 아이템 정보 출력
+	UE_LOG(LogTemp, Warning, TEXT("[OnOpenClickBtn] Item GUID=%s ItemID=%s parent_inventory_guid=%s inventory_guid=%s OwnerIsValid=%d"), *LocalItem.GUID.ToString(), *LocalItem.ItemID.ToString(), *LocalItem.parent_inventory_guid.ToString(), *LocalItem.inventory_guid.ToString(), LocalItem.Owner.IsValid());
+
+	UUIManagerSubSystem* UIMgr = UUIManagerSubSystem::Get(GetWorld());
+	if (!IsValid(UIMgr)) return;
+
+	if (LocalItem.type == EItemType::Bag)
+	{
+		if (LocalItem.GUID.IsValid())
+		{
+			UUserWidget* Popup = UIMgr->OpenDynamicUI(EUIType::BackPackPopup, LocalItem.GUID);
+			if (!IsValid(Popup)) return;
+
+			APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+			if (!PC) return;
+
+
+			UBagPopupWindow* Backpopup = Cast<UBagPopupWindow>(Popup);
+			if (IsValid(Backpopup))
+			{
+
+				// 1순위: LocalItem.Owner가 유효한지 안전 검사
+				AActor* TargetOwner = LocalItem.Owner.Get();
+
+				// 만약 아이템 데이터 세팅 과정에서 Owner가 누락되었다면 플레이어 컨트롤러의 폰(Pawn)을 차선책으로 사용
+				if (!IsValid(TargetOwner) && PC)
+				{
+					TargetOwner = PC->GetPawn();
+				}
+
+				if (!IsValid(TargetOwner))
+				{
+					UE_LOG(LogTemp, Error, TEXT("OnOpenClickBtn: 가방을 연 오너 액터를 찾을 수 없습니다! (Item.Owner 및 PlayerPawn 모두 유효하지 않음)"));
+					Backpopup->RemoveFromParent();
+					SetVisibility(ESlateVisibility::Collapsed);
+					return;
+				}
+
+				// 안전하게 인벤토리 컴포넌트 추출
+				UInventoryComponent* Comp = TargetOwner->GetComponentByClass<UInventoryComponent>();
+
+				// 컴포넌트가 없다면 PlayerState 쪽도 한 번 더 탐색 (커스텀 플레이어 스테이트 구조 대응)
+				if (!IsValid(Comp))
+				{
+					if (ACustomPlayerState* PS = Cast<ACustomPlayerState>(PC->PlayerState))
+					{
+						Comp = PS->GetComponentByClass<UInventoryComponent>();
+					}
+				}
+
+				if (!IsValid(Comp))
+				{
+					UE_LOG(LogTemp, Error, TEXT("OnOpenClickBtn: Owner 및 PlayerState에 UInventoryComponent가 존재하지 않습니다!"));
+					Backpopup->RemoveFromParent();
+					SetVisibility(ESlateVisibility::Collapsed);
+					return;
+				}
+
+				Backpopup->Init(Comp, LocalItem);
+			}
+		}
+	}
+
 	SetVisibility(ESlateVisibility::Collapsed);
 }

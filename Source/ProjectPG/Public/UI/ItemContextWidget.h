@@ -18,6 +18,9 @@ class PROJECTPG_API UItemContextWidget : public UUserWidget
 	
 protected:
 	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UButton> OpenButton;
+
+	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UButton> EquipButton;
 
 	UPROPERTY(meta = (BindWidget))
@@ -54,6 +57,8 @@ private:
 	UFUNCTION()	void OnDropClicked();
 
 	UFUNCTION()	void OnCancledClicked();
+
+	UFUNCTION() void OnOpenClickBtn(); //가방열때만나옴
 
 	void InitButtonState();
 };

@@ -21,6 +21,21 @@ UWebSocketSubSystem* UWebSocketSubSystem::Get(const UObject* worldContext)
 void UWebSocketSubSystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("========== NETWORK VERSION =========="));
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("NetworkVersion: %u"),
+		FNetworkVersion::GetLocalNetworkVersion());
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("IsDedicatedServer: %s"),
+		IsRunningDedicatedServer() ? TEXT("TRUE") : TEXT("FALSE"));
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("====================================="));
+
 	if (IsRunningDedicatedServer())
 	{
 		UE_LOG(LogTemp, Log, TEXT("[WebSocket Subsystem] Dedicated Server Detected. Skipping Lobby Connect."));
@@ -38,26 +53,21 @@ void UWebSocketSubSystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UWebSocketSubSystem::Deinitialize()
 {
-	if (!WebSocket.IsValid())
+	if (WebSocket.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[WebSocket Subsystem] 웹소켓이 연결되어있지 않습니다."));
-		return;
-	}
-	else
-	{
-		if (WebSocket.IsValid())
-		{
-			WebSocket->OnConnected().RemoveAll(this);
-			WebSocket->OnConnectionError().RemoveAll(this);
-			WebSocket->OnClosed().RemoveAll(this);
-			WebSocket->OnMessage().RemoveAll(this);
-		}
-		// 소켓 연결이 열려있다면 Close() 호출로 명시적 종료
+		WebSocket->OnConnected().RemoveAll(this);
+		WebSocket->OnConnectionError().RemoveAll(this);
+		WebSocket->OnClosed().RemoveAll(this);
+		WebSocket->OnMessage().RemoveAll(this);
+
 		if (WebSocket->IsConnected())
 		{
 			WebSocket->Close();
 		}
+
+		WebSocket.Reset();
 	}
+
 	Super::Deinitialize();
 }
 
@@ -495,12 +505,38 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 					}
 				}
 
+				// 중복 제거: 같은 GUID가 다른 컨테이너에 이미 들어있다면 제거
+				for (auto& Pair : InventoryItems)
+				{
+					TArray<FItemInstance>& ListRef = Pair.Value.Items;
+					for (int32 idx = ListRef.Num() - 1; idx >= 0; --idx)
+					{
+						if (ListRef[idx].GUID == Item.GUID)
+						{
+							UE_LOG(LogTemp, Warning, TEXT("[WebSocket] Removing duplicate item %s from container %s"), *Item.GUID.ToString(), *Pair.Key.ToString());
+							ListRef.RemoveAt(idx);
+						}
+					}
+				}
+				for (auto& Pair : EquipItems)
+				{
+					TArray<FItemInstance>& ListRef = Pair.Value.Items;
+					for (int32 idx = ListRef.Num() - 1; idx >= 0; --idx)
+					{
+						if (ListRef[idx].GUID == Item.GUID)
+						{
+							UE_LOG(LogTemp, Warning, TEXT("[WebSocket] Removing duplicate equip item %s from container %s"), *Item.GUID.ToString(), *Pair.Key.ToString());
+							ListRef.RemoveAt(idx);
+						}
+					}
+				}
+
 				// ★ 장착 상태가 아니고 부모 인벤토리 GUID가 유효할 때만 슬롯 리스트에 등록
 				if (!Item.bEquip && Item.parent_inventory_guid.IsValid())
 				{
-					InventoryItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);				
+					InventoryItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);
 				}
-				else if (Item.bEquip) 
+				else if (Item.bEquip)
 				{
 					EquipItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);
 					UE_LOG(LogTemp, Warning, TEXT("장착 guid 저장: %s"), *Item.parent_inventory_guid.ToString());

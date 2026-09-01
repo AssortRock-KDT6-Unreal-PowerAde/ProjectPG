@@ -4,6 +4,7 @@
 #include "Common/TableData.h"
 #include "Server/WebSocketSubSystem.h"
 #include <Core/ItemSubSystem.h>
+#include <Core/TableSubSystem.h>
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -149,8 +150,40 @@ bool UInventoryComponent::CanPlaceItemByGuid(const FGuid& InvenGuid, const FName
 {
 	if (InvenGuid == IgnoreItemGUID) return false;
 
-	const FIntPoint InvenSize = GetInventorySizeByGuid(InvenGuid);
-	if (InvenSize.X <= 0 || InvenSize.Y <= 0) return false;
+	FIntPoint InvenSize = GetInventorySizeByGuid(InvenGuid);
+	if (InvenSize.X <= 0 || InvenSize.Y <= 0)
+	{
+		// 방어: 대상 컨테이너의 크기가 등록되어 있지 않다면
+		// 해당 GUID가 실제로 백팩 아이템의 GUID인지 검사하여 테이블에서 크기를 자동 등록 시도
+		if (InvenGuid.IsValid())
+		{
+			// Search for an item instance whose GUID matches the container GUID
+			for (const auto& Pair : ItemsMap)
+			{
+				for (const FItemInstance& Candidate : Pair.Value.Items)
+				{
+					if (Candidate.GUID == InvenGuid)
+					{
+						// Found potential backpack item; lookup backpack table
+						if (UTableSubSystem* TableSub = UTableSubSystem::Get(GetWorld()))
+						{
+							const FItemBackpackTable* BP = TableSub->FindTableRow<FItemBackpackTable>("BackpackTable", Candidate.ItemID);
+							if (BP && BP->SlotSize.X > 0 && BP->SlotSize.Y > 0)
+							{
+								RegisterContainer(InvenGuid, FIntPoint(BP->SlotSize.X, BP->SlotSize.Y));
+								InvenSize = BP->SlotSize;
+								UE_LOG(LogTemp, Warning, TEXT("[CanPlaceItemByGuid] Auto-registered container %s size=(%d,%d) based on item %s"), *InvenGuid.ToString(), BP->SlotSize.X, BP->SlotSize.Y, *Candidate.ItemID.ToString());
+								break;
+							}
+						}
+					}
+				}
+				if (InvenSize.X > 0 && InvenSize.Y > 0) break;
+			}
+		}
+
+		if (InvenSize.X <= 0 || InvenSize.Y <= 0) return false;
+	}
 
 	const FItemTableRow* Data = GetItemData(ItemID);
 	if (!Data) return false;
@@ -248,6 +281,8 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	FGuid SourceGuid;
 	int32 ItemIndex = -1;
 
+	UE_LOG(LogTemp, Warning, TEXT("[MoveItem] ThisComp=%p Called MoveItem Item=%s ToGuid=%s Pos=(%d,%d) Rot=%d"), this, *ItemGUID.ToString(), *TargetInvenGuid.ToString(), NewPos.X, NewPos.Y, bNewRotated);
+
 	// 해당 GUID를 가진 아이템 검색
 	for (auto& Pair : ItemsMap)
 	{
@@ -297,31 +332,6 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	return true;
 }
 
-void UInventoryComponent::AllocateItemDataByGuid(const TMap<FGuid, FItemArrayWrapper>& ItemData)
-{
-	ItemsMap.Empty();
-
-	for (const auto& Pair : ItemData)
-	{
-		const FGuid& TargetGuid = Pair.Key;
-		FItemArrayWrapper Wrapper = Pair.Value;
-
-		for (FItemInstance& Item : Wrapper.Items)
-		{
-			if (!Item.GUID.IsValid())
-			{
-				Item.GUID = FGuid::NewGuid();
-			}
-			Item.parent_inventory_guid = TargetGuid;
-		}
-
-		ItemsMap.Add(TargetGuid, Wrapper);
-		RebuildGridMapByGuid(TargetGuid);
-	}
-
-	OnInventoryUpdated.Broadcast();
-}
-
 void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWrapper)
 {
 	// ★ 수정: 크기 데이터(InventorySizeMap)마저 완전히 없다면 잘못된 데이터로 판단하여 리턴합니다.
@@ -353,16 +363,57 @@ void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWr
 	}
 
 	// 4. 수신된 아이템 복사 및 그리드 매핑
+	TSet<FGuid> SeenItemGuids;
 	for (const auto& Pair : InWrapper.InventoryMap)
 	{
 		const FGuid& TargetGuid = Pair.Key;
-		const FItemArrayWrapper& Wrapper = Pair.Value;
+		FItemArrayWrapper Wrapper = Pair.Value; // 복사해서 수정 후 집어넣음
+
+		// 역순으로 순회하여 중복 제거할 때 안전하게 RemoveAt를 사용할 수 있도록 함
+		for (int32 i = Wrapper.Items.Num() - 1; i >= 0; --i)
+		{
+			FItemInstance& Item = Wrapper.Items[i];
+
+			// Owner 주입
+			Item.Owner = GetOwner();
+
+			// 보정: 서버 데이터가 잘못된 parent_inventory_guid를 보냈다면 Pair.Key(TargetGuid)를 우선 사용
+			if (!Item.parent_inventory_guid.IsValid() || Item.parent_inventory_guid != TargetGuid)
+			{
+				UE_LOG(LogTemp, Verbose, TEXT("[SetServerInventoryData] Correcting item %s parent_guid from %s to %s"), *Item.GUID.ToString(), *Item.parent_inventory_guid.ToString(), *TargetGuid.ToString());
+				Item.parent_inventory_guid = TargetGuid;
+			}
+
+			// 중복 GUID 검사: 이미 다른 컨테이너에서 본 GUID라면 해당 항목을 건너뜀
+			if (Item.GUID.IsValid())
+			{
+				if (SeenItemGuids.Contains(Item.GUID))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[SetServerInventoryData] Skipping duplicate item %s for container %s (already assigned)"), *Item.GUID.ToString(), *TargetGuid.ToString());
+					Wrapper.Items.RemoveAt(i);
+					continue;
+				}
+				SeenItemGuids.Add(Item.GUID);
+			}
+		}
 
 		ItemsMap.FindOrAdd(TargetGuid) = Wrapper;
 		RebuildGridMapByGuid(TargetGuid);
 	}
 
 	// 5. UI 갱신 알림
+	// 디버그: 모든 컨테이너와 포함된 아이템 GUID 출력
+	for (const auto& Pair : ItemsMap)
+	{
+		const FGuid& Guid = Pair.Key;
+		const TArray<FItemInstance>& List = Pair.Value.Items;
+		UE_LOG(LogTemp, Warning, TEXT("[SetServerInventoryData] Container %s has %d items"), *Guid.ToString(), List.Num());
+		for (const FItemInstance& It : List)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("  - Item %s parent=%s pos=(%d,%d)"), *It.GUID.ToString(), *It.parent_inventory_guid.ToString(), It.Position.X, It.Position.Y);
+		}
+	}
+
 	OnInventoryUpdated.Broadcast();
 }
 
@@ -387,7 +438,8 @@ void UInventoryComponent::RebuildGridMapByGuid(const FGuid& InvenGuid)
 	for (int32 i = 0; i < ItemList.Num(); ++i)
 	{
 		const FItemInstance& Item = ItemList[i];
-		const FItemTableRow* Data = GetItemData(Item.ItemID);
+		const FItemTableRow* Data = GetItemData(Item.ItemID);		
+
 		if (!Data) continue;
 
 		FIntPoint Size = Item.bIsRotated ? FIntPoint(Data->GridSize.Y, Data->GridSize.X) : Data->GridSize;

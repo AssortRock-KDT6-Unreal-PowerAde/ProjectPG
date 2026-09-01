@@ -1,6 +1,8 @@
 #include "UI/InventoryWindow.h"
 #include "UI/EquipmentWidget.h"
 #include "UI/InventoryGridWidget.h"
+
+#include "Components/CanvasPanel.h"
 #include "Components/Button.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
@@ -176,6 +178,16 @@ void UInventoryWindow::SetChildBackpackInvenOverlay(UUserWidget* childWidget)
 		childWidget->RemoveFromParent();
 		BackPackInvenOverlay->ClearChildren();
 		BackPackInvenOverlay->AddChild(childWidget);
+	}
+}
+
+void UInventoryWindow::SetChildMainCanvas(UUserWidget* childWidget)
+{
+	if (MainCanvas && childWidget)
+	{
+		childWidget->RemoveFromParent();
+		MainCanvas->ClearChildren();
+		MainCanvas->AddChild(childWidget);
 	}
 }
 

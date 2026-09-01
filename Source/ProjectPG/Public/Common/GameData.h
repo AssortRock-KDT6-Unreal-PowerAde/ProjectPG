@@ -39,6 +39,7 @@ struct FItemInstance
 {
 	GENERATED_BODY()
 
+	TWeakObjectPtr<class AActor> Owner;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGuid GUID;
 
