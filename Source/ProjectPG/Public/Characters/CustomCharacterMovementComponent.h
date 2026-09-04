@@ -20,17 +20,17 @@ public:
 	float MaxWalkSpeedProne;
 
 	UPROPERTY(Category="Character Movement: Walking", EditAnywhere, BlueprintReadWrite)
-	bool bCanWalkOffLedgesWhenProne;
+	uint8 bCanWalkOffLedgesWhenProne : 1;
 
 	UPROPERTY(Category="Character Movement (General Settings)", VisibleInstanceOnly, BlueprintReadOnly)
-	bool bWantsToEnterProne;
+	uint8 bWantsToEnterProne : 1;
 
 	UPROPERTY(Category="Character Movement (General Settings)", VisibleInstanceOnly, BlueprintReadWrite,
 		AdvancedDisplay)
-	bool bProneMaintainsBaseLocation;
+	uint8 bProneMaintainsBaseLocation : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=MovementProperties)
-	bool bCanEverEnterProne;
+	uint8 bCanEverEnterProne : 1;
 
 private:
 	UPROPERTY(Category="Character Movement (General Settings)", EditAnywhere,

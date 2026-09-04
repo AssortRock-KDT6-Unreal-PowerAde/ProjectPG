@@ -29,17 +29,20 @@ protected:
 	float Direction;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsIronSighted;
+	uint8 bIsIronSighted : 1;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsCrouched;
+	uint8 bIsCrouched : 1;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsProne;
+	uint8 bIsProne : 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	uint8 bIsJumping : 1;
 
 public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
-	
+
 	void SyncAim(FRotator rotation);
 	void SyncAim(float Yaw, float Pitch);
 };

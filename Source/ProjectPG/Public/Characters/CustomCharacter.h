@@ -27,7 +27,7 @@ protected:
 	float ProneEyeHeight;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	bool bCanProne;
+	uint8 bCanProne : 1;
 
 	UPROPERTY(BlueprintReadOnly, replicatedUsing=OnRep_IsProne, Category=Character)
 	uint8 bIsProne : 1;

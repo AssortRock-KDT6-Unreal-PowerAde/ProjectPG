@@ -29,19 +29,21 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	if (!IsValid(movementComp))
 		return;
 
-	if (!movementComp->IsWalking())
-		return;
+	bIsJumping = movementComp->IsFalling() && !character->bWasJumping;
 
-	UCharacterAttributeSet* characterAttributeSet = character->GetCharacterAttributeSet();
-	if (nullptr == characterAttributeSet)
-		return;
+	if (movementComp->IsWalking())
+	{
+		UCharacterAttributeSet* characterAttributeSet = character->GetCharacterAttributeSet();
+		if (nullptr == characterAttributeSet)
+			return;
 
-	FRotator rotation = character->GetActorRotation();
-	FVector velocity = rotation.UnrotateVector(movementComp->Velocity);
-	velocity.Z = 0;
+		FRotator rotation = character->GetActorRotation();
+		FVector velocity = rotation.UnrotateVector(movementComp->Velocity);
+		velocity.Z = 0;
 
-	Direction = velocity.Rotation().Yaw;
-	Speed = velocity.Size() / characterAttributeSet->GetWalkSpeed();
+		Direction = velocity.Rotation().Yaw;
+		Speed = velocity.Size() / characterAttributeSet->GetWalkSpeed();
+	}
 }
 
 void UCustomAnimInstance::SyncAim(FRotator rotation)
