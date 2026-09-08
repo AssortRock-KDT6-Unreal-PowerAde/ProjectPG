@@ -18,6 +18,9 @@ class PROJECTPG_API UItemContextWidget : public UUserWidget
 	
 protected:
 	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UButton> OpenButton;
+
+	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UButton> EquipButton;
 
 	UPROPERTY(meta = (BindWidget))
@@ -46,19 +49,16 @@ public:
 	void SetItem(const FItemInstance& InItem);
 	void UpdateButtonState(EItemType type);
 private:
-	UFUNCTION()
-	void OnEquipClickedBtn();
-	UFUNCTION()
-	void OnUnEquipClickedBtn();
+	UFUNCTION()	void OnEquipClickedBtn();
+	UFUNCTION()	void OnUnEquipClickedBtn();
 
-	UFUNCTION()
-	void OnUsedClickedBtn();
+	UFUNCTION()	void OnUsedClickedBtn();
 
-	UFUNCTION()
-	void OnDropClicked();
+	UFUNCTION()	void OnDropClicked();
 
-	UFUNCTION()
-	void OnCancledClicked();
+	UFUNCTION()	void OnCancledClicked();
+
+	UFUNCTION() void OnOpenClickBtn(); //가방열때만나옴
 
 	void InitButtonState();
 };
