@@ -33,6 +33,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	FVector2D DragOffset;
 
+	// Absolute screen-space offset from widget top-left to mouse position at drag start
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
+	FVector2D DragOffsetAbs;
+
 	// 드래그 출처가 장착 슬롯인지 여부
 	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	bool bFromEquip = false;

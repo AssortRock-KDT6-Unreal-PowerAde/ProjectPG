@@ -30,7 +30,7 @@ void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& In
 	// SizeBox 크기 동적 조절
 	if (RootSizeBox)
 	{
-		RootSizeBox->SetWidthOverride(EffectiveSize.X * TileSize);
+		RootSizeBox->SetWidthOverride (EffectiveSize.X * TileSize);
 		RootSizeBox->SetHeightOverride(EffectiveSize.Y * TileSize);
 	}
 
@@ -102,36 +102,75 @@ bool UItemWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent
 	return Super::NativeOnDrop(MyGeometry, InDragDropEvent, InOperation);
 }
 
-// 2. 드래그 시작 시 Drag Visual 및 DragDropOperation 생성
-void UItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
+void UItemWidget::NativeOnDragDetected(
+	const FGeometry& InGeometry,
+	const FPointerEvent& InMouseEvent,
+	UDragDropOperation*& OutOperation)
 {
-	Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
+	Super::NativeOnDragDetected(
+		InGeometry,
+		InMouseEvent,
+		OutOperation);
 
-	UItemDragDropOperation* DragOp = NewObject<UItemDragDropOperation>();
-	if (!DragOp) return;
+	UItemDragDropOperation* DragOp =
+		NewObject<UItemDragDropOperation>();
+
+	if (!DragOp)
+	{
+		return;
+	}
 
 	DragOp->WidgetReference = this;
 	DragOp->DraggedItem = ItemInstance;
-	DragOp->SourceInventoryGUID = OwnerInventoryGUID; // 출발지 인벤토리 GUID 전달
-	DragOp->bCurrentRotated = ItemInstance.bIsRotated;
+	DragOp->SourceInventoryGUID = OwnerInventoryGUID;
+	DragOp->bCurrentRotated =
+		ItemInstance.bIsRotated;
 
-	// ★ [수정] DPI Scale이 반영된 위젯 내부 클릭 좌표 계산
-	FVector2D ScreenSpacePosition = InMouseEvent.GetScreenSpacePosition();
-	FVector2D LocalMousePos = InGeometry.AbsoluteToLocal(ScreenSpacePosition);
+	// =========================================================
+	// ★ 모든 드래그의 공통 좌표 기준
+	//
+	// Mouse - Widget TopLeft
+	// =========================================================
 
-	// DragOffset 세팅 (TileSize 기준 정확한 상대 좌표 저장)
-	DragOp->DragOffset = LocalMousePos;
+	const FVector2D MouseAbsolute =
+		InMouseEvent.GetScreenSpacePosition();
 
-	// Drag Visual 생성 및 설정
-	UItemWidget* DragVisual = CreateWidget<UItemWidget>(GetOwningPlayer(), GetClass());
+	const FVector2D WidgetTopLeftAbsolute =
+		InGeometry.GetAbsolutePosition();
+
+	DragOp->DragOffsetAbs =
+		MouseAbsolute - WidgetTopLeftAbsolute;
+
+	// 호환용
+	DragOp->DragOffset =
+		InGeometry.AbsoluteToLocal(MouseAbsolute);
+
+	// =========================================================
+	// Drag Visual
+	// =========================================================
+
+	UItemWidget* DragVisual =
+		CreateWidget<UItemWidget>(
+			GetOwningPlayer(),
+			GetClass());
+
 	if (DragVisual)
 	{
-		DragVisual->InitWidget(ItemInstance, CachedItemData, OwnerInventoryGUID, TileSize);
-		DragOp->DefaultDragVisual = DragVisual;
-		DragOp->Pivot = EDragPivot::MouseDown;
+		DragVisual->InitWidget(
+			ItemInstance,
+			CachedItemData,
+			OwnerInventoryGUID,
+			TileSize);
+
+		DragOp->DefaultDragVisual =
+			DragVisual;
 	}
 
+	DragOp->Pivot =
+		EDragPivot::MouseDown;
+
 	SetRenderOpacity(0.5f);
+
 	OutOperation = DragOp;
 }
 

@@ -43,6 +43,10 @@ protected:
 
 	UPROPERTY()
 	TArray<class USlotWidget*> HighlightedSlots;
+
+	// 마지막으로 하이라이트된 타일 (NativeOnDragOver에서 갱신, NativeOnDrop에서 우선 사용)
+	UPROPERTY()
+	FIntPoint LastHoveredTile = FIntPoint(-1, -1);
 protected:
 	virtual void NativeConstruct() override;
 	virtual FReply NativeOnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
@@ -76,5 +80,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void RefreshGrid(class UInventoryComponent* InComp, const FGuid& InvenGuid);
-	
+private:
+	FIntPoint CalculateDropTile(
+		const FVector2D& ScreenMousePosition,
+		class UItemDragDropOperation* DragOp
+	) const;
 };

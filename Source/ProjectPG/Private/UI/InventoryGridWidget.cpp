@@ -14,6 +14,7 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/SizeBox.h"
 #include "Components/EquipComponent.h"
+#include "Components/OverlaySlot.h"
 
 #include "Server/WebSocketSubSystem.h"
 #include <Core/TableSubSystem.h>
@@ -34,6 +35,123 @@ void UInventoryGridWidget::RefreshGrid(UInventoryComponent* InComp, const FGuid&
 	BindInventoryComponent(InComp);
 }
 
+FIntPoint UInventoryGridWidget::CalculateDropTile(
+	const FVector2D& ScreenMousePosition,
+	UItemDragDropOperation* DragOp) const
+{
+	if (!DragOp ||
+		!BackGroundGrid ||
+		!TargetInventoryComp ||
+		!InventoryGUID.IsValid())
+	{
+		return FIntPoint(-1, -1);
+	}
+
+	const int32 Columns =
+		TargetInventoryComp->GetColumns(InventoryGUID);
+
+	const int32 Rows =
+		TargetInventoryComp->GetRows(InventoryGUID);
+
+	if (Columns <= 0 || Rows <= 0)
+	{
+		return FIntPoint(-1, -1);
+	}
+
+	/*
+	 * 실제 화면에 렌더링된 Grid의 Geometry
+	 */
+	const FGeometry GridGeometry =
+		BackGroundGrid->GetCachedGeometry();
+
+	const FVector2D GridLocalSize =
+		GridGeometry.GetLocalSize();
+
+	if (GridLocalSize.X <= 0.f ||
+		GridLocalSize.Y <= 0.f)
+	{
+		return FIntPoint(-1, -1);
+	}
+
+	/*
+	 * ★ 중요
+	 *
+	 * TileSize(64)가 아니라
+	 * 실제 Grid가 화면에 차지하는 크기로 계산한다.
+	 *
+	 * 현재:
+	 *
+	 * 500 / 10 = 50
+	 * 750 / 15 = 50
+	 */
+	const float ActualTileWidth =
+		GridLocalSize.X / static_cast<float>(Columns);
+
+	const float ActualTileHeight =
+		GridLocalSize.Y / static_cast<float>(Rows);
+
+	if (ActualTileWidth <= 0.f ||
+		ActualTileHeight <= 0.f)
+	{
+		return FIntPoint(-1, -1);
+	}
+
+	/*
+	 * 마우스 위치에서 드래그 시작점 offset 제거
+	 *
+	 * 결과:
+	 * Item의 좌상단 Absolute 위치
+	 */
+	const FVector2D ItemTopLeftAbsolute =
+		ScreenMousePosition - DragOp->DragOffsetAbs;
+
+	/*
+	 * Absolute → Grid Local
+	 */
+	const FVector2D ItemTopLeftGrid =
+		GridGeometry.AbsoluteToLocal(
+			ItemTopLeftAbsolute);
+
+	/*
+	 * 실제 Grid 크기 기준으로 Tile 계산
+	 */
+	const int32 TileX =
+		FMath::FloorToInt(
+			ItemTopLeftGrid.X / ActualTileWidth);
+
+	const int32 TileY =
+		FMath::FloorToInt(
+			ItemTopLeftGrid.Y / ActualTileHeight);
+
+	if (TileX < 0 ||
+		TileY < 0 ||
+		TileX >= Columns ||
+		TileY >= Rows)
+	{
+		return FIntPoint(-1, -1);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT(
+			"[CalculateDropTile] "
+			"Grid=(%.2f,%.2f) "
+			"ActualTile=(%.2f,%.2f) "
+			"TileSize=%.2f "
+			"Tile=(%d,%d)"
+		),
+		GridLocalSize.X,
+		GridLocalSize.Y,
+		ActualTileWidth,
+		ActualTileHeight,
+		TileSize,
+		TileX,
+		TileY);
+
+	return FIntPoint(TileX, TileY);
+}
+
 void UInventoryGridWidget::BindInventoryComponent(UInventoryComponent* InComp)
 {
 	if (TargetInventoryComp)
@@ -47,44 +165,121 @@ void UInventoryGridWidget::BindInventoryComponent(UInventoryComponent* InComp)
 	if (TargetInventoryComp)
 	{
 		TargetInventoryComp->OnInventoryUpdated.AddDynamic(this, &UInventoryGridWidget::RefreshGridUI);
-		UE_LOG(LogTemp, Warning, TEXT("[BindInventoryComponent] GridWidget=%s this=%p BoundToComp=%p"), *GetName(), this, TargetInventoryComp);
 	}
 }
 
 // DB의 Columns, Rows 수치로 빈 배경 슬롯 격자 생성
 void UInventoryGridWidget::CreateBackGroundGrid(int32 Columns, int32 Rows)
 {
-	if (!BackGroundGrid || !SlotWidgetClass || !InventorySizeBox) return;
-	if (Columns <= 0 || Rows <= 0) return;
+	if (!BackGroundGrid || !SlotWidgetClass || !InventorySizeBox)
+	{
+		return;
+	}
 
-	BackGroundGrid->ClearChildren();
-	BackGroundGrid->SetSlotPadding(FMargin(0.0f));
+	if (Columns <= 0 || Rows <= 0)
+	{
+		return;
+	}
 
-	const float CalculatedWidth = Columns * TileSize;
-	const float CalculatedHeight = Rows * TileSize;
+	// =========================================================
+	// InventorySizeBox 크기
+	// =========================================================
 
-	// 1. SizeBox 크기 고정
+	const float CalculatedWidth =
+		static_cast<float>(Columns) * TileSize;
+
+	const float CalculatedHeight =
+		static_cast<float>(Rows) * TileSize;
+
 	InventorySizeBox->SetWidthOverride(CalculatedWidth);
 	InventorySizeBox->SetHeightOverride(CalculatedHeight);
 
-	// 2. Row x Col 만큼 타일 슬롯 생성 및 추가
-	for (int32 r = 0; r < Rows; ++r)
-	{
-		for (int32 c = 0; c < Columns; ++c)
-		{
-			USlotWidget* SlotWidget = CreateWidget<USlotWidget>(this, SlotWidgetClass);
-			if (!SlotWidget) continue;
+	// =========================================================
+	// ★ 중요
+	// Overlay 안에서 BackGroundGrid가 SizeBox 전체를
+	// 차지하도록 강제
+	// =========================================================
 
-			// AddChildToUniformGrid takes (Content, Column, Row) so pass column first then row
-			UUniformGridSlot* GridSlot = BackGroundGrid->AddChildToUniformGrid(SlotWidget, c, r);
+	if (UOverlaySlot* OverlaySlot =
+		Cast<UOverlaySlot>(BackGroundGrid->Slot))
+	{
+		OverlaySlot->SetHorizontalAlignment(
+			EHorizontalAlignment::HAlign_Fill);
+
+		OverlaySlot->SetVerticalAlignment(
+			EVerticalAlignment::VAlign_Fill);
+
+		OverlaySlot->SetPadding(FMargin(0.f));
+	}
+
+	// =========================================================
+	// ItemCanvas도 Overlay 전체를 차지하도록 강제
+	// =========================================================
+
+	if (ItemCanvas)
+	{
+		if (UOverlaySlot* OverlaySlot =
+			Cast<UOverlaySlot>(ItemCanvas->Slot))
+		{
+			OverlaySlot->SetHorizontalAlignment(
+				EHorizontalAlignment::HAlign_Fill);
+
+			OverlaySlot->SetVerticalAlignment(
+				EVerticalAlignment::VAlign_Fill);
+
+			OverlaySlot->SetPadding(FMargin(0.f));
+		}
+	}
+
+	// =========================================================
+	// Background Grid 생성
+	// =========================================================
+
+	BackGroundGrid->ClearChildren();
+	BackGroundGrid->SetSlotPadding(FMargin(0.f));
+
+	for (int32 Row = 0; Row < Rows; ++Row)
+	{
+		for (int32 Column = 0; Column < Columns; ++Column)
+		{
+			USlotWidget* SlotWidget =
+				CreateWidget<USlotWidget>(
+					GetWorld(),
+					SlotWidgetClass);
+
+			if (!SlotWidget)
+			{
+				continue;
+			}
+
+			UUniformGridSlot* GridSlot =
+				BackGroundGrid->AddChildToUniformGrid(
+					SlotWidget,
+					Row,
+					Column);
+
 			if (GridSlot)
 			{
-				GridSlot->SetHorizontalAlignment(EHorizontalAlignment::HAlign_Fill);
-				GridSlot->SetVerticalAlignment(EVerticalAlignment::VAlign_Fill);
+				GridSlot->SetHorizontalAlignment(
+					EHorizontalAlignment::HAlign_Fill);
+
+				GridSlot->SetVerticalAlignment(
+					EVerticalAlignment::VAlign_Fill);
+
 			}
 		}
 	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[CreateBackGroundGrid] Columns=%d Rows=%d Size=(%.1f,%.1f)"),
+		Columns,
+		Rows,
+		CalculatedWidth,
+		CalculatedHeight);
 }
+
 
 void UInventoryGridWidget::RefreshGridUI()
 {
@@ -104,7 +299,6 @@ void UInventoryGridWidget::RefreshGridUI()
 	}
 	int32 GridColumns = TargetInventoryComp->GetColumns(InventoryGUID);
 	int32 GridRows = TargetInventoryComp->GetRows(InventoryGUID);
-	UE_LOG(LogTemp, Warning, TEXT("슬롯생성 %d %d"),GridColumns, GridRows);
 
 	// 2. 크기가 0이면 가방(Backpack) 장착 데이터 자동 복구 시도
 	if (GridColumns <= 0 || GridRows <= 0)
@@ -137,7 +331,6 @@ void UInventoryGridWidget::RefreshGridUI()
 	// 3. 서버 데이터 동기화 대기 중인 경우 처리 중단 (패킷 수신 후 OnInventoryUpdated 델리게이트로 재호출됨)
 	if (GridColumns <= 0 || GridRows <= 0)
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("[RefreshGridUI] 인벤토리 정보 동기화 대기 중... (GUID: %s)"), *InventoryGUID.ToString());
 		return;
 	}
 	if (GridColumns == 0 && GridRows == 0) {
@@ -152,47 +345,76 @@ void UInventoryGridWidget::RefreshGridUI()
 }
 void UInventoryGridWidget::RenderItems()
 {
-	if (!ItemCanvas || !ItemWidgetClass || !TargetInventoryComp || !InventoryGUID.IsValid()) return;
+	if (!ItemCanvas ||
+		!TargetInventoryComp ||
+		!InventoryGUID.IsValid())
+	{
+		return;
+	}
 
 	ItemCanvas->ClearChildren();
 
-	UItemSubSystem* ItemSubSystem = UItemSubSystem::Get(GetWorld());
-	if (!ItemSubSystem) return;
+	UItemSubSystem* ItemSubSystem =
+		UItemSubSystem::Get(GetWorld());
 
-	const TArray<FItemInstance>& ItemList = TargetInventoryComp->GetItems(InventoryGUID);
-
-	// 진단 로그: 렌더링 대상 아이템 수 및 인벤토리 GUID
-	UE_LOG(LogTemp, Warning, TEXT("[RenderItems] InventoryGUID=%s ItemCount=%d"), *InventoryGUID.ToString(), ItemList.Num());
-
-	for (const FItemInstance& Item : ItemList)
+	if (!ItemSubSystem)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[RenderItems] Item GUID=%s Pos=(%d,%d) parent_guid=%s"), *Item.GUID.ToString(), Item.Position.X, Item.Position.Y, *Item.parent_inventory_guid.ToString());
-		// 방어 코드: Item의 parent_inventory_guid가 현재 그리드의 InventoryGUID와 다르면 렌더링하지 않음
-		if (Item.parent_inventory_guid.IsValid() && Item.parent_inventory_guid != InventoryGUID)
+		return;
+	}
+
+	const TArray<FItemInstance>& Items =
+		TargetInventoryComp->GetItems(InventoryGUID);
+
+	for (const FItemInstance& Item : Items)
+	{
+		const FItemTableRow* ItemData =
+			ItemSubSystem->GetItem(Item.ItemID);
+
+		if (!ItemData)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[RenderItems] Skipping item %s because parent_guid %s != InventoryGUID %s"), *Item.GUID.ToString(), *Item.parent_inventory_guid.ToString(), *InventoryGUID.ToString());
 			continue;
 		}
-		const FItemTableRow* ItemData = ItemSubSystem->GetItem(Item.ItemID);
-		if (!ItemData) continue;
 
-		UItemWidget* ItemWidget = CreateWidget<UItemWidget>(this, ItemWidgetClass);
-		if (!ItemWidget) continue;
+		UItemWidget* ItemWidget =
+			CreateWidget<UItemWidget>(
+				GetWorld(),
+				ItemWidgetClass);
 
-		// ★ 핵심: 현재 InventoryGridWidget의 InventoryGUID를 정확히 넘겨주어 위젯의 OwnerInventoryGUID 갱신!
-		ItemWidget->InitWidget(Item, *ItemData, InventoryGUID, TileSize);
-
-		UCanvasPanelSlot* CanvasSlot = ItemCanvas->AddChildToCanvas(ItemWidget);
-		if (CanvasSlot)
+		if (!ItemWidget)
 		{
-			FIntPoint GridSize = Item.GetCurrentGridSize(ItemData);
-			FVector2D PositionPixel = FVector2D(Item.Position.X * TileSize, Item.Position.Y * TileSize);
-			FVector2D SizePixel = FVector2D(GridSize.X * TileSize, GridSize.Y * TileSize);
-
-			CanvasSlot->SetPosition(PositionPixel);
-			CanvasSlot->SetSize(SizePixel);
-			CanvasSlot->SetAutoSize(false);
+			continue;
 		}
+
+		const FIntPoint CurrentGridSize =
+			Item.GetCurrentGridSize(ItemData);
+
+		ItemWidget->InitWidget(
+			Item,
+			*ItemData,
+			InventoryGUID,
+			TileSize);
+
+		UCanvasPanelSlot* CanvasSlot =
+			ItemCanvas->AddChildToCanvas(ItemWidget);
+
+		if (!CanvasSlot)
+		{
+			continue;
+		}
+
+		const FVector2D PositionPixel(
+			Item.Position.X * TileSize,
+			Item.Position.Y * TileSize);
+
+		const FVector2D SizePixel(
+			CurrentGridSize.X * TileSize,
+			CurrentGridSize.Y * TileSize);
+
+		CanvasSlot->SetPosition(PositionPixel);
+		CanvasSlot->SetSize(SizePixel);
+		CanvasSlot->SetZOrder(10);
+
+		
 	}
 }
 USlotWidget* UInventoryGridWidget::GetSlotWidgetAt(int32 TileX, int32 TileY)
@@ -228,9 +450,6 @@ USlotWidget* UInventoryGridWidget::GetSlotWidgetAt(int32 TileX, int32 TileY)
 bool UInventoryGridWidget::CanPlaceItemAt(const FItemInstance& ItemToPlace, FIntPoint TargetTile, FIntPoint GridSize)
 {
 	if (!TargetInventoryComp || !InventoryGUID.IsValid()) return false;
-
-	// 디버그 로그로 드롭 좌표 확인 (필요 시 주석 해제)
-	// UE_LOG(LogTemp, Log, TEXT("[CanPlaceItemAt] TargetTile: (%d, %d), GUID: %s"), TargetTile.X, TargetTile.Y, *ItemToPlace.GUID.ToString());
 
 	return TargetInventoryComp->CanPlaceItemByGuid(
 		InventoryGUID,
@@ -312,235 +531,334 @@ FReply UInventoryGridWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const 
 	return Super::NativeOnKeyDown(MyGeometry, InKeyEvent);
 }
 
-bool UInventoryGridWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+bool UInventoryGridWidget::NativeOnDrop(
+	const FGeometry& MyGeometry,
+	const FDragDropEvent& InDragDropEvent,
+	UDragDropOperation* InOperation)
 {
 	ClearSlotHighlights();
 
-	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
-	if (!ItemDragOp || !BackGroundGrid || !InventoryGUID.IsValid()) return false;
+	UItemDragDropOperation* ItemDragOp =
+		Cast<UItemDragDropOperation>(InOperation);
 
-	// 1. 드롭할 대상 타일 좌표 계산
-	FGeometry GridGeometry = BackGroundGrid->GetCachedGeometry();
-	FVector2D LocalMousePos = GridGeometry.AbsoluteToLocal(InDragDropEvent.GetScreenSpacePosition());
-	FIntPoint TargetTile = MouseToTilePosition(LocalMousePos, ItemDragOp->DragOffset);
-
-	// 디버그 출력: 드롭 직전 산출된 좌표 확인
-	UE_LOG(LogTemp, Log, TEXT("[NativeOnDrop] ScreenPos:(%s) LocalMouse:(%s) DragOffset:(%s) ComputedTarget:(%d,%d) GUID:%s"),
-		*InDragDropEvent.GetScreenSpacePosition().ToString(), *LocalMousePos.ToString(), *ItemDragOp->DragOffset.ToString(), TargetTile.X, TargetTile.Y, *ItemDragOp->DraggedItem.GUID.ToString());
-
-	// 2. 드래그 중인 아이템 객체 준비 (현재 회전값 반영)
-	FItemInstance TempInstance = ItemDragOp->DraggedItem;
-	TempInstance.bIsRotated = ItemDragOp->bCurrentRotated;
-
-	UItemWidget* DragVisual = Cast<UItemWidget>(ItemDragOp->DefaultDragVisual);
-	if (!DragVisual) return false;
-
-	const FItemTableRow* ItemData = DragVisual->GetCachedItemData();
-	if (!ItemData) return false;
-
-	FIntPoint GridSize = TempInstance.GetCurrentGridSize(ItemData);
-
-	// 3. 만약 드래그 출처가 장착 슬롯이라면(장비 해제) 특수 처리
-	if (ItemDragOp->bFromEquip)
+	if (!ItemDragOp ||
+		!BackGroundGrid ||
+		!TargetInventoryComp ||
+		!InventoryGUID.IsValid())
 	{
-		// 장착에서 해제되어 인벤토리로 들어오는 흐름
-		// 드래그 오프셋이 EquipSlot 기준으로 계산되어 있을 수 있으므로
-		// 여러 후보 위치를 계산하여 배치 가능한 첫 위치를 선택하도록 안전하게 처리합니다.
-		TArray<FIntPoint> CandidateTiles;
+		return false;
+	}
 
-		// 1) 드래그에 포함된 DragOffset을 사용한 기본 계산
-		CandidateTiles.Add(MouseToTilePosition(LocalMousePos, ItemDragOp->DragOffset));
+	// =========================================================
+	// Drag Visual
+	// =========================================================
 
-		// 2) 아이템 크기 중심을 오프셋으로 사용한 계산(중앙 기준)
-		CandidateTiles.Add(MouseToTilePosition(LocalMousePos, FVector2D((GridSize.X * TileSize) * 0.5f, (GridSize.Y * TileSize) * 0.5f)));
+	UItemWidget* DragVisual =
+		Cast<UItemWidget>(
+			ItemDragOp->DefaultDragVisual);
 
-		// 3) 마우스 좌표 그대로(DragOffset 0) 시도
-		CandidateTiles.Add(MouseToTilePosition(LocalMousePos, FVector2D::ZeroVector));
+	if (!DragVisual)
+	{
+		return false;
+	}
 
-		FIntPoint ChosenTile = FIntPoint(-1, -1);
-		for (const FIntPoint& Cand : CandidateTiles)
-		{
-			if (CanPlaceItemAt(TempInstance, Cand, GridSize))
-			{
-				ChosenTile = Cand;
-				break;
-			}
-		}
+	const FItemTableRow* ItemData =
+		DragVisual->GetCachedItemData();
 
-		bool bCanPlace = (ChosenTile.X != -1 && ChosenTile.Y != -1);
-		// 디버그: 후보 타일 및 선택 결과 출력
-		FString CandList;
-		for (const FIntPoint& C : CandidateTiles)
-		{
-			CandList += FString::Printf(TEXT("(%d,%d) "), C.X, C.Y);
-		}
-		UE_LOG(LogTemp, Warning, TEXT("[InventoryGrid::Unequip] Candidates=%s Chosen=(%d,%d)"), *CandList, ChosenTile.X, ChosenTile.Y);
-		if (!bCanPlace)
-		{
-			if (ItemDragOp->WidgetReference)
-			{
-				ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
-			}
-			UE_LOG(LogTemp, Warning, TEXT("[NativeOnDrop] (Unequip) 배치 불가능한 위치입니다. Candidates tested: %d | Drop 취소"), CandidateTiles.Num());
-			return false;
-		}
+	if (!ItemData)
+	{
+		return false;
+	}
 
-		if (!TargetInventoryComp)
-		{
-			return false;
-		}
+	// =========================================================
+	// 현재 회전 상태
+	// =========================================================
 
-		// 1) 먼저 장착에서 해제 요청 (로컬 적용)
-		// 우선 드래그 출처가 EquipSlot 위젯이면 해당 위젯의 RequestUnEquip을 호출해
-		// EquipComponent 인스턴스를 정확히 사용하도록 합니다.
+	FItemInstance TempInstance =
+		ItemDragOp->DraggedItem;
+
+	TempInstance.bIsRotated =
+		ItemDragOp->bCurrentRotated;
+
+	const FIntPoint GridSize =
+		TempInstance.GetCurrentGridSize(ItemData);
+
+	// =========================================================
+	// ★ 중요
+	//
+	// Drop 위치도 DragOver와 완전히 동일한 함수 사용
+	// =========================================================
+
+	const FVector2D MouseScreenPosition =
+		InDragDropEvent.GetScreenSpacePosition();
+
+	const FIntPoint TargetTile =
+		CalculateDropTile(
+			MouseScreenPosition,
+			ItemDragOp);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[NativeOnDrop] TargetTile=(%d,%d) Mouse=(%.1f,%.1f) OffsetAbs=(%.1f,%.1f)"),
+		TargetTile.X,
+		TargetTile.Y,
+		MouseScreenPosition.X,
+		MouseScreenPosition.Y,
+		ItemDragOp->DragOffsetAbs.X,
+		ItemDragOp->DragOffsetAbs.Y);
+
+	if (TargetTile.X < 0 ||
+		TargetTile.Y < 0)
+	{
 		if (ItemDragOp->WidgetReference)
 		{
-			if (UEquipSlot* SrcSlot = Cast<UEquipSlot>(ItemDragOp->WidgetReference))
+			ItemDragOp->WidgetReference
+				->SetRenderOpacity(1.0f);
+		}
+
+		return false;
+	}
+
+	// =========================================================
+	// 배치 가능 여부
+	// =========================================================
+
+	const bool bCanPlace =
+		CanPlaceItemAt(
+			TempInstance,
+			TargetTile,
+			GridSize);
+
+	if (!bCanPlace)
+	{
+		if (ItemDragOp->WidgetReference)
+		{
+			ItemDragOp->WidgetReference
+				->SetRenderOpacity(1.0f);
+		}
+
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[NativeOnDrop] 배치 불가능 TargetTile=(%d,%d)"),
+			TargetTile.X,
+			TargetTile.Y);
+
+		return false;
+	}
+
+	// =========================================================
+	// 장비 슬롯 → 인벤토리
+	// =========================================================
+
+	if (ItemDragOp->bFromEquip)
+	{
+		if (ItemDragOp->WidgetReference)
+		{
+			if (UEquipSlot* SrcSlot =
+				Cast<UEquipSlot>(
+					ItemDragOp->WidgetReference))
 			{
 				SrcSlot->RequestUnEquip();
 			}
 		}
 
-		// 2) 인벤토리에 아이템 추가 (명시 위치)
-		// 서버에 이동 명령을 보내기 위해 기존 소스 GUID를 보존
-		FGuid SourceGuid = ItemDragOp->DraggedItem.parent_inventory_guid;
-		TempInstance.parent_inventory_guid = InventoryGUID;
-		bool bAdded = TargetInventoryComp->AddItemAt(TempInstance, ChosenTile);
+		const FGuid SourceGuid =
+			ItemDragOp->DraggedItem.parent_inventory_guid;
 
-		if (ItemDragOp->WidgetReference)
-		{
-			ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
-		}
+		TempInstance.parent_inventory_guid =
+			InventoryGUID;
 
-		// 3) 서버에 장착 해제 패킷 전송
+		const bool bAdded =
+			TargetInventoryComp->AddItemAt(
+				TempInstance,
+				TargetTile);
+
 		if (bAdded)
 		{
-			if (UWebSocketSubSystem* Web = UWebSocketSubSystem::Get(GetWorld()))
+			if (UWebSocketSubSystem* Web =
+				UWebSocketSubSystem::Get(GetWorld()))
 			{
-				// 1) 장착 해제 알림
-				Web->RequestEquipItem(TempInstance.GUID, InventoryGUID, false);
+				Web->RequestEquipItem(
+					TempInstance.GUID,
+					InventoryGUID,
+					false);
 
-				// 2) 선택한 위치로 아이템 이동 요청 (서버에 구체적 좌표 전달)
-				Web->RequestMoveItem(SourceGuid, InventoryGUID, TempInstance.GUID, ChosenTile, TempInstance.bIsRotated);
+				Web->RequestMoveItem(
+					SourceGuid,
+					InventoryGUID,
+					TempInstance.GUID,
+					TargetTile,
+					TempInstance.bIsRotated);
 			}
-			UE_LOG(LogTemp, Warning, TEXT("[InventoryGrid::Unequip] Sent RequestMoveItem From=%s To=%s Item=%s Pos=(%d,%d)"), *SourceGuid.ToString(), *InventoryGUID.ToString(), *TempInstance.GUID.ToString(), ChosenTile.X, ChosenTile.Y);
+
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[NativeOnDrop] Unequip Success Target=(%d,%d)"),
+				TargetTile.X,
+				TargetTile.Y);
 		}
 
-		// 소스 EquipSlot UI 정리: 드래그 시작 소스가 EquipSlot 위젯이면 Clear 호출
 		if (ItemDragOp->WidgetReference)
 		{
-			if (UEquipSlot* SrcSlot = Cast<UEquipSlot>(ItemDragOp->WidgetReference))
+			ItemDragOp->WidgetReference
+				->SetRenderOpacity(1.0f);
+
+			if (UEquipSlot* SrcSlot =
+				Cast<UEquipSlot>(
+					ItemDragOp->WidgetReference))
 			{
 				SrcSlot->Clear();
-			}
-		}
-
-		// BackPack의 경우에는 장착 해제 시 백팩 UI 제거
-		// UUIManagerSubSystem을 통해 활성화된 InventoryWindow를 찾아 처리
-		UUIManagerSubSystem* UISub = UUIManagerSubSystem::Get(GetWorld());
-		if (UISub)
-		{
-			if (UUserWidget* InventoryUI = UISub->GetUI(EUIType::Inventory))
-			{
-				if (UInventoryWindow* ParentInvenWindow = Cast<UInventoryWindow>(InventoryUI))
-				{
-					UItemSubSystem* ItemSub = UItemSubSystem::Get(GetWorld());
-					if (ItemSub)
-					{
-						const FItemTableRow* DragData = ItemSub->GetItem(TempInstance.ItemID);
-						if (DragData && DragData->EquipSlotType == EEquipSlot::BackPack)
-						{
-							ParentInvenWindow->SetupBackPackInventoryWidget(nullptr);
-						}
-					}
-				}
 			}
 		}
 
 		return bAdded;
 	}
 
-	// 4. 일반적인 인벤토리 간 이동 처리 (기존 구현 유지)
-	bool bCanPlace = CanPlaceItemAt(TempInstance, TargetTile, GridSize);
+	// =========================================================
+	// 일반 인벤토리 이동
+	// =========================================================
 
-	// 배치가 불가능한 지역이면 드롭 취소 및 원복
-	if (!bCanPlace)
-	{
-		if (ItemDragOp->WidgetReference)
-		{
-			ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
-		}
-		UE_LOG(LogTemp, Warning, TEXT("[NativeOnDrop] 배치 불가능한 위치입니다. TargetTile:(%d, %d) Drop 취소"), TargetTile.X, TargetTile.Y);
-		return false;
-	}
-
-	// 4. 배치 가능 시 이동 처리 (MoveItem 선처리 호출)
-	if (ItemDragOp->WidgetReference)
-	{
-		ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
-	}
-
-	if (TargetInventoryComp)
-	{
-		// MoveItem 내부에서 로컬 선처리 및 WebSocketSub->RequestMoveItem()이 수행됩니다.
-		return TargetInventoryComp->MoveItem(
+	const bool bMoved =
+		TargetInventoryComp->MoveItem(
 			InventoryGUID,
 			ItemDragOp->DraggedItem.GUID,
 			TargetTile,
-			ItemDragOp->bCurrentRotated
-		);
+			ItemDragOp->bCurrentRotated);
+
+	if (ItemDragOp->WidgetReference)
+	{
+		ItemDragOp->WidgetReference
+			->SetRenderOpacity(1.0f);
 	}
 
-	return false;
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[NativeOnDrop] MoveItem Target=(%d,%d) Success=%s"),
+		TargetTile.X,
+		TargetTile.Y,
+		bMoved ? TEXT("true") : TEXT("false"));
+
+	return bMoved;
 }
-bool UInventoryGridWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+
+bool UInventoryGridWidget::NativeOnDragOver(
+	const FGeometry& InGeometry,
+	const FDragDropEvent& InDragDropEvent,
+	UDragDropOperation* InOperation)
 {
-	Super::NativeOnDragOver(InGeometry, InDragDropEvent, InOperation);
+	Super::NativeOnDragOver(
+		InGeometry,
+		InDragDropEvent,
+		InOperation);
 
-	if (!TargetInventoryComp || !BackGroundGrid || !InventoryGUID.IsValid()) return false;
+	if (!TargetInventoryComp ||
+		!BackGroundGrid ||
+		!InventoryGUID.IsValid())
+	{
+		return false;
+	}
 
-	UItemDragDropOperation* ItemDragOp = Cast<UItemDragDropOperation>(InOperation);
-	if (!ItemDragOp) return false;
+	UItemDragDropOperation* ItemDragOp =
+		Cast<UItemDragDropOperation>(InOperation);
 
-	UItemWidget* DragVisual = Cast<UItemWidget>(ItemDragOp->DefaultDragVisual);
-	if (!DragVisual) return false;
+	if (!ItemDragOp)
+	{
+		return false;
+	}
+
+	UItemWidget* DragVisual =
+		Cast<UItemWidget>(ItemDragOp->DefaultDragVisual);
+
+	if (!DragVisual)
+	{
+		return false;
+	}
 
 	ClearSlotHighlights();
 
-	FGeometry GridGeometry = BackGroundGrid->GetCachedGeometry();
-	FVector2D LocalMousePos = GridGeometry.AbsoluteToLocal(InDragDropEvent.GetScreenSpacePosition());
+	const FItemTableRow* ItemData =
+		DragVisual->GetCachedItemData();
 
-	const FItemTableRow* ItemData = DragVisual->GetCachedItemData();
-	if (!ItemData) return false;
+	if (!ItemData)
+	{
+		return false;
+	}
 
-	// 현재 회전값 반영된 객체로 검사
-	FItemInstance TempInstance = ItemDragOp->DraggedItem;
-	TempInstance.bIsRotated = ItemDragOp->bCurrentRotated;
+	// 현재 회전 상태 적용
+	FItemInstance TempInstance =
+		ItemDragOp->DraggedItem;
 
-	FIntPoint GridSize = TempInstance.GetCurrentGridSize(ItemData);
-	FIntPoint TargetTile = MouseToTilePosition(LocalMousePos, ItemDragOp->DragOffset);
+	TempInstance.bIsRotated =
+		ItemDragOp->bCurrentRotated;
 
-	int32 Columns = TargetInventoryComp->GetColumns(InventoryGUID);
-	int32 Rows = TargetInventoryComp->GetRows(InventoryGUID);
+	const FIntPoint GridSize =
+		TempInstance.GetCurrentGridSize(ItemData);
 
-	// 배치 검사 실행
-	bool bCanPlace = CanPlaceItemAt(TempInstance, TargetTile, GridSize);
+	const int32 Columns =
+		TargetInventoryComp->GetColumns(InventoryGUID);
 
-	UE_LOG(LogTemp, Warning, TEXT("[NativeOnDrop] CanPlaceCheck GUID=%s Columns=%d Rows=%d GridSize=(%d,%d) Target=(%d,%d) Result=%d"), *InventoryGUID.ToString(), Columns, Rows, GridSize.X, GridSize.Y, TargetTile.X, TargetTile.Y, bCanPlace);
-	EBorderHighlightState HighlightState = bCanPlace ? EBorderHighlightState::Valid : EBorderHighlightState::Invalid;
+	const int32 Rows =
+		TargetInventoryComp->GetRows(InventoryGUID);
+
+	// ---------------------------------------------------------
+	// ★ 핵심
+	// 하이라이트 위치 계산을 CalculateDropTile 하나로 통일
+	// ---------------------------------------------------------
+
+	const FVector2D MouseScreenPosition =
+		InDragDropEvent.GetScreenSpacePosition();
+
+	const FIntPoint TargetTile =
+		CalculateDropTile(
+			MouseScreenPosition,
+			ItemDragOp);
+
+	LastHoveredTile = TargetTile;
+
+	// ---------------------------------------------------------
+	// 배치 가능 여부
+	// ---------------------------------------------------------
+
+	const bool bCanPlace =
+		CanPlaceItemAt(
+			TempInstance,
+			TargetTile,
+			GridSize);
+
+	const EBorderHighlightState HighlightState =
+		bCanPlace
+		? EBorderHighlightState::Valid
+		: EBorderHighlightState::Invalid;
+
+	// ---------------------------------------------------------
+	// 하이라이트
+	// ---------------------------------------------------------
 
 	for (int32 x = 0; x < GridSize.X; ++x)
 	{
 		for (int32 y = 0; y < GridSize.Y; ++y)
 		{
-			int32 CheckX = TargetTile.X + x;
-			int32 CheckY = TargetTile.Y + y;
+			const int32 CheckX =
+				TargetTile.X + x;
 
-			if (CheckX >= 0 && CheckX < Columns && CheckY >= 0 && CheckY < Rows)
+			const int32 CheckY =
+				TargetTile.Y + y;
+
+			if (CheckX >= 0 &&
+				CheckX < Columns &&
+				CheckY >= 0 &&
+				CheckY < Rows)
 			{
-				if (USlotWidget* SlotWidget = GetSlotWidgetAt(CheckX, CheckY))
+				if (USlotWidget* SlotWidget =
+					GetSlotWidgetAt(CheckX, CheckY))
 				{
-					SlotWidget->SetHighlightState(HighlightState);
+					SlotWidget->SetHighlightState(
+						HighlightState);
+
 					HighlightedSlots.Add(SlotWidget);
 				}
 			}
@@ -560,12 +878,13 @@ FIntPoint UInventoryGridWidget::MouseToTilePosition(const FVector2D& LocalMouseP
 {
 	if (TileSize <= 0.0f) return FIntPoint(-1, -1);
 
-	// 드래그 마우스 오프셋 반영한 아이템 좌상단 위치 계산
-	FVector2D TopLeftPos = LocalMousePos - DragOffset;
+	FVector2D TopLeftPos = LocalMousePos;
 
-	// 픽셀 연산 보정을 위해 약간의 중심점 픽셀Offset(TileSize * 0.1f) 반영 후 안전 계산
 	int32 TileX = FMath::FloorToInt((TopLeftPos.X + (TileSize * 0.1f)) / TileSize);
 	int32 TileY = FMath::FloorToInt((TopLeftPos.Y + (TileSize * 0.1f)) / TileSize);
+
+	if (TileX < 0) TileX = -1;
+	if (TileY < 0) TileY = -1;
 
 	return FIntPoint(TileX, TileY);
 }

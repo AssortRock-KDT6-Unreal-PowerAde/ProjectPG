@@ -191,56 +191,127 @@ void UEquipSlot::NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragD
 
 }
 
-void UEquipSlot::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
+void UEquipSlot::NativeOnDragDetected(
+	const FGeometry& InGeometry,
+	const FPointerEvent& InMouseEvent,
+	UDragDropOperation*& OutOperation)
 {
-	Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
+	Super::NativeOnDragDetected(
+		InGeometry,
+		InMouseEvent,
+		OutOperation);
 
-	if (!Item) return;
-	if (!EquipComp) return;
+	if (!Item)
+	{
+		return;
+	}
 
-	UItemDragDropOperation* DragOp = NewObject<UItemDragDropOperation>();
-	if (!DragOp) return;
+	if (!EquipComp)
+	{
+		return;
+	}
 
-	// 드래그 출처가 장착 슬롯임을 표시
+	UItemDragDropOperation* DragOp =
+		NewObject<UItemDragDropOperation>();
+
+	if (!DragOp)
+	{
+		return;
+	}
+
+	// =========================================================
+	// 드래그 기본 정보
+	// =========================================================
+
 	DragOp->bFromEquip = true;
 	DragOp->DraggedItem = *Item;
 	DragOp->bCurrentRotated = Item->bIsRotated;
 
-	// 마우스 내부 로컬 좌표를 DragOffset으로 설정 (기본값)
-	FVector2D ScreenSpacePosition = InMouseEvent.GetScreenSpacePosition();
-	FVector2D LocalMousePos = InGeometry.AbsoluteToLocal(ScreenSpacePosition);
-	DragOp->DragOffset = LocalMousePos;
+	// =========================================================
+	// ★ 핵심
+	//
+	// 마우스가 클릭된 위치와
+	// EquipSlot 좌상단의 차이를 저장
+	//
+	// 이 값은 Absolute 좌표 기준이다.
+	// InventoryGrid에서도 동일한 기준으로 사용한다.
+	// =========================================================
 
-	// DragVisual 생성 (ItemWidget 재사용)
-	UItemSubSystem* ItemSubsystem = UItemSubSystem::Get(GetWorld());
+	const FVector2D MouseAbsolute =
+		InMouseEvent.GetScreenSpacePosition();
+
+	const FVector2D SlotTopLeftAbsolute =
+		InGeometry.GetAbsolutePosition();
+
+	DragOp->DragOffsetAbs =
+		MouseAbsolute - SlotTopLeftAbsolute;
+
+	// 기존 DragOffset은 호환용으로만 저장
+	// 실제 Inventory 배치 계산에서는 사용하지 않는다.
+	DragOp->DragOffset =
+		InGeometry.AbsoluteToLocal(MouseAbsolute);
+
+	// =========================================================
+	// Drag Visual 생성
+	// =========================================================
+
+	UItemSubSystem* ItemSubsystem =
+		UItemSubSystem::Get(GetWorld());
+
 	if (ItemSubsystem)
 	{
-		const FItemTableRow* Data = ItemSubsystem->GetItem(Item->ItemID);
+		const FItemTableRow* Data =
+			ItemSubsystem->GetItem(Item->ItemID);
+
 		if (Data)
 		{
-			UItemWidget* Visual = CreateWidget<UItemWidget>(GetOwningPlayer(), UItemWidget::StaticClass());
+			UItemWidget* Visual =
+				CreateWidget<UItemWidget>(
+					GetOwningPlayer(),
+					UItemWidget::StaticClass());
+
 			if (Visual)
 			{
-				// 기본 TileSize는 Inventory의 타일 크기와 다를 수 있으므로
-				// Visual의 TileSize를 항목 테이블이나 기본값으로 초기화합니다.
-				Visual->InitWidget(*Item, *Data, FGuid(), 64.0f);
-				DragOp->DefaultDragVisual = Visual;
+				// Inventory와 동일한 TileSize를 사용하는 것이 가장 좋음.
+				// 일단 기존 64.f 유지.
+				Visual->InitWidget(
+					*Item,
+					*Data,
+					FGuid(),
+					64.0f);
 
-				// DragVisual 크기를 기반으로 DragOffset 기본을 중앙으로 재설정
-				FIntPoint VisualGridSize = Item->GetCurrentGridSize(Data);
-				FVector2D VisualPixelSize = FVector2D(VisualGridSize.X * Visual->TileSize, VisualGridSize.Y * Visual->TileSize);
-				DragOp->DragOffset = VisualPixelSize * 0.5f;
+				DragOp->DefaultDragVisual =
+					Visual;
 			}
 		}
 	}
 
-	// reference to origin widget (equip slot) so drop handler can update source UI
+	// =========================================================
+	// 출발 Widget 저장
+	// =========================================================
+
 	DragOp->WidgetReference = this;
-	// Pivot을 마우스 위치로 지정하여 드래그 비주얼이 마우스에 맞춰 렌더링되도록 함
+
+	// 마우스 클릭 위치를 Pivot으로 사용
 	DragOp->Pivot = EDragPivot::MouseDown;
-	// 디버그 출력: EquipSlot에서 드래그 생성 정보 (DragOffset, GUID, Pivot)
-	UE_LOG(LogTemp, Warning, TEXT("[EquipSlot::NativeOnDragDetected] ItemGUID=%s DragOffset=%s bFromEquip=%d Pivot=%d"),
-		*DragOp->DraggedItem.GUID.ToString(), *DragOp->DragOffset.ToString(), DragOp->bFromEquip ? 1 : 0, (int32)DragOp->Pivot);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT(
+			"[EquipSlot::NativeOnDragDetected] "
+			"ItemGUID=%s "
+			"DragOffsetAbs=(%.2f, %.2f) "
+			"DragOffset=(%.2f, %.2f) "
+			"bFromEquip=%d"
+		),
+		*DragOp->DraggedItem.GUID.ToString(),
+		DragOp->DragOffsetAbs.X,
+		DragOp->DragOffsetAbs.Y,
+		DragOp->DragOffset.X,
+		DragOp->DragOffset.Y,
+		DragOp->bFromEquip ? 1 : 0
+	);
 
 	OutOperation = DragOp;
 }

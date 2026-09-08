@@ -61,6 +61,7 @@ int32 UInventoryComponent::GetColumns(const FGuid& InvenGuid) const
 
 int32 UInventoryComponent::GetRows(const FGuid& InvenGuid) const
 {
+
 	return GetInventorySizeByGuid(InvenGuid).Y;
 }
 
@@ -281,8 +282,6 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	FGuid SourceGuid;
 	int32 ItemIndex = -1;
 
-	UE_LOG(LogTemp, Warning, TEXT("[MoveItem] ThisComp=%p Called MoveItem Item=%s ToGuid=%s Pos=(%d,%d) Rot=%d"), this, *ItemGUID.ToString(), *TargetInvenGuid.ToString(), NewPos.X, NewPos.Y, bNewRotated);
-
 	// 해당 GUID를 가진 아이템 검색
 	for (auto& Pair : ItemsMap)
 	{
@@ -380,7 +379,6 @@ void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWr
 			// 보정: 서버 데이터가 잘못된 parent_inventory_guid를 보냈다면 Pair.Key(TargetGuid)를 우선 사용
 			if (!Item.parent_inventory_guid.IsValid() || Item.parent_inventory_guid != TargetGuid)
 			{
-				UE_LOG(LogTemp, Verbose, TEXT("[SetServerInventoryData] Correcting item %s parent_guid from %s to %s"), *Item.GUID.ToString(), *Item.parent_inventory_guid.ToString(), *TargetGuid.ToString());
 				Item.parent_inventory_guid = TargetGuid;
 			}
 
@@ -389,7 +387,6 @@ void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWr
 			{
 				if (SeenItemGuids.Contains(Item.GUID))
 				{
-					UE_LOG(LogTemp, Warning, TEXT("[SetServerInventoryData] Skipping duplicate item %s for container %s (already assigned)"), *Item.GUID.ToString(), *TargetGuid.ToString());
 					Wrapper.Items.RemoveAt(i);
 					continue;
 				}
@@ -407,7 +404,6 @@ void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWr
 	{
 		const FGuid& Guid = Pair.Key;
 		const TArray<FItemInstance>& List = Pair.Value.Items;
-		UE_LOG(LogTemp, Warning, TEXT("[SetServerInventoryData] Container %s has %d items"), *Guid.ToString(), List.Num());
 		for (const FItemInstance& It : List)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("  - Item %s parent=%s pos=(%d,%d)"), *It.GUID.ToString(), *It.parent_inventory_guid.ToString(), It.Position.X, It.Position.Y);
