@@ -50,7 +50,6 @@ const FEquipTableRow* UItemSubSystem::GetEquip(FName ItemID)
 	const FEquipTableRow* ItemRow = subSystem->FindTableRow<FEquipTableRow>(TEXT("EquipTable"), ItemID);
 	if (nullptr == ItemRow) {
 		UE_LOG(LogTemp, Warning, TEXT("Equip Table Row Data Can't Find"));
-
 		return nullptr;
 	}
 	return ItemRow;

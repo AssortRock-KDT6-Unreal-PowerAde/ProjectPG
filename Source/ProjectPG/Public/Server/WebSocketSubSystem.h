@@ -7,20 +7,12 @@
 
 #include "WebSocketSubSystem.generated.h"
 
-USTRUCT(BlueprintType)
-struct FInventoryMapWrapper
-{
-	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TMap<FGuid, FItemArrayWrapper> InventoryMap;
-};
-
-// 💡 USTRUCT 이름을 델리게이트 매개변수로 전달
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnLoginStatusChanged, bool, bIsLoggedIn, bool, bInventoryLoaded, const FString&, Message);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMatchStatusChanged, const FString&, StatusType, const FString&, Message);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCreateIDStatusChanged, bool, bSuccess, const FString&, UserId, const FString&, Message);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryReceived, FInventoryMapWrapper, ItemsWrapper);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEquipReceived, FInventoryMapWrapper, ItemsWrapper);
 
 UCLASS()
 class PROJECTPG_API UWebSocketSubSystem : public UGameInstanceSubsystem
@@ -43,6 +35,8 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "WebSocket|Events")
 	FOnInventoryReceived OnInventoryReceived;
+	UPROPERTY(BlueprintAssignable, Category = "WebSocket|Events")
+	FOnEquipReceived OnEquipRecived;
 
 public:
 	static UWebSocketSubSystem* Get(const UObject* worldContext);
@@ -70,6 +64,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Lobby WebSocket")
 	FString GetCurrentUserID() { return CurrentUserId; }
+	UFUNCTION(BlueprintCallable, Category = "Lobby WebSocket")
+	void RequestMoveItem(const FGuid& FromInventoryGuid, const FGuid& ToInventoryGuid, const FGuid& ItemGuid, const FIntPoint& TargetPosition, bool bIsRotated);
+	void RequestEquipItem(const FGuid& ItemGuid, const FGuid& TargetParentGuid, bool bIsEquipped);
 
 private:
 	void OnConnected();

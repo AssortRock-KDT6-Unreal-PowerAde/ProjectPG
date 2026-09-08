@@ -7,7 +7,7 @@
 #include "Common/GameData.h"
 #include "EquipComponent.generated.h"
 
-DECLARE_MULTICAST_DELEGATE(FOnEquipmentChange);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEquipmentChanged);
 UCLASS()
 class PROJECTPG_API UEquipComponent : public UActorComponent
 {
@@ -19,8 +19,9 @@ public:
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equip", meta = (AllowPrivateAccess = "true"))	TMap<EEquipSlot, FItemInstance> Equipments;
 	UPROPERTY()TMap < EEquipSlot, TObjectPtr<class AEquipActor>> EquipActors;
+	UPROPERTY()TMap<FGuid,EEquipSlot> EquipSlotGuids;
 public:
-	FOnEquipmentChange OnEquipmentChanged;
+	FOnEquipmentChanged OnEquipmentChanged;
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -40,18 +41,19 @@ public:
 	const FItemInstance* GetEquipment(EEquipSlot slot) const;
 	
 	void CopyFrom(UEquipComponent* Other);
-
+	void RegisterGuid(EEquipSlot slottype, FGuid guid) { if(!EquipSlotGuids.Contains(guid))EquipSlotGuids.Add(guid,slottype); }
+	class UInventoryComponent* GetOwnerInventoryComponent() const;
 private:
 	void SpawnEquipActor(EEquipSlot Slot, class UStaticMesh* Mesh);
 
 
-	void DestroyEquipActor(EEquipSlot Slot);
+		void DestroyEquipActor(EEquipSlot Slot);
 
-	//아이템의 타입에 따른 능력 적용(장비창관련)
-	void ApplyItemData(const FItemInstance& Item);
+		//아이템의 타입에 따른 능력 적용(장비창관련)
+		void ApplyItemData(const FItemInstance& Item);
 
-	void RemoveItemData( EEquipSlot slot);
+		void RemoveItemData(EEquipSlot slot);
 
-	
+		UFUNCTION() void SetServerEquipData(const FInventoryMapWrapper InWrapper);
 		
 };

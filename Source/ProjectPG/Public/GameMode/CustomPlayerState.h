@@ -18,11 +18,14 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<class UInventoryComponent> InvenComp;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<class UDataComponent> DataComp;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<class UEquipComponent> EquipComp;
 private:
 	FGuid InventoryGuid;
 
 protected:
 	virtual void BeginPlay() override;
+
 };

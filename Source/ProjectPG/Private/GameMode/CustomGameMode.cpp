@@ -11,6 +11,7 @@ void ACustomGameMode::InitGame(const FString& MapName, const FString& Options, F
 
 void ACustomGameMode::BeginPlay()
 {
+	Super::BeginPlay();
 	
 
 }

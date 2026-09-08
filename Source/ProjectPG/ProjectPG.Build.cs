@@ -11,8 +11,8 @@ public class ProjectPG : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "WebSockets", "Json", "JsonUtilities",
-			"AIModule", "GameplayTags", "GameplayTasks", "GameplayAbilities"
-		});
+			"AIModule", "GameplayTags", "GameplayTasks", "GameplayAbilities", "Slate", "SlateCore"
+        });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 

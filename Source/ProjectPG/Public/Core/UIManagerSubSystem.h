@@ -10,8 +10,8 @@
 UENUM(BlueprintType)
 enum class EUIType : uint8
 {
-	None,LoginWindow, Login, CreateUser,
-	Character, Inventory, EquipMent, Quest,MessagePopup, Lobby,ItemContext,
+	None, LoginWindow, Login, CreateUser,
+	Character, Inventory, EquipMent, Quest, MessagePopup, Lobby, ItemContext, BackPackPopup,
 };
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMessagePopupView, const FString&, Message, int32, Popuptype);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPopupClosed);
@@ -25,6 +25,9 @@ private:
 	// 생성된 위젯들을 관리하는 맵
 	UPROPERTY()
 	TMap<EUIType, UUserWidget*> ActiveWidgets;
+
+	UPROPERTY()
+	TMap<FGuid, UUserWidget*> DynamicActiveWidgets;
 
 	UPROPERTY()
 	TMap<EUIType, TSubclassOf<UUserWidget>> UIClassMap;
@@ -54,9 +57,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI Manager")
 	void CloseAllUI();
 
+	UUserWidget* GetDynamicUI(FGuid UIType) const;
+
+
 	UFUNCTION(BlueprintCallable, Category = "UI Manager")
 	void RegisterUIClass(EUIType UIType, TSubclassOf<UUserWidget> WidgetClass);
 	static UUIManagerSubSystem* Get(const UObject* worldContext);
+
+	// 등록된 EUIType의 TSubclassOf<UUserWidget> 클래스를 반환
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	TSubclassOf<UUserWidget> GetUIClass(EUIType UIType) const;
+
+
+	UFUNCTION(BlueprintCallable, Category = "UIManager")
+	UUserWidget* OpenDynamicUI(EUIType UIType, FGuid guid);
+
+	UFUNCTION(BlueprintCallable, Category = "UIManager")
+	void CloseDynamicUI(FGuid guid);
 
 
 private:

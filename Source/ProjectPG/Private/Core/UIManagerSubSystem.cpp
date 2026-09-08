@@ -24,6 +24,68 @@ UUIManagerSubSystem* UUIManagerSubSystem::Get(const UObject* worldContext)
 
 	return inst->GetSubsystem<UUIManagerSubSystem>();
 }
+TSubclassOf<UUserWidget> UUIManagerSubSystem::GetUIClass(EUIType UIType) const
+{
+	if (const TSubclassOf<UUserWidget>* FoundClass = UIClassMap.Find(UIType))
+	{
+		return *FoundClass;
+	}
+	return nullptr;
+}
+UUserWidget* UUIManagerSubSystem::OpenDynamicUI(EUIType UIType, FGuid guid)
+{
+	if (UIType == EUIType::None || !guid.IsValid()) return nullptr;
+
+	// 1. 이미 해당 컨텍스트(예: 특정 가방)에 대한 위젯이 열려있는지 확인
+	if (UUserWidget** Found = DynamicActiveWidgets.Find(guid))
+	{
+		if (*Found && (*Found)->IsInViewport())
+		{
+			return *Found; // 이미 열려있다면 기존 것 반환
+		}
+	}
+
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!PC) return nullptr;
+
+	// 2. 매니저 내부에서 클래스 맵을 참조해 직접 생성 (외부에서 GetUIClass 할 필요 없음!)
+	TSubclassOf<UUserWidget>* TargetClass = UIClassMap.Find(UIType);
+	if (TargetClass && *TargetClass)
+	{
+		UUserWidget* NewWidget = CreateWidget<UUserWidget>(PC, *TargetClass);
+		if (NewWidget)
+		{
+			DynamicActiveWidgets.Add(guid, NewWidget);
+			NewWidget->AddToViewport();
+			UpdateInputMode();
+			return NewWidget;
+		}
+	}
+
+	return nullptr;
+}
+void UUIManagerSubSystem::CloseDynamicUI(FGuid guid)
+{
+	if (!guid.IsValid()) return;
+
+	// 1. 해당 컨텍스트로 관리되던 위젯이 있는지 검색
+	if (UUserWidget** FoundWidget = DynamicActiveWidgets.Find(guid))
+	{
+		if (*FoundWidget)
+		{
+			if ((*FoundWidget)->IsInViewport())
+			{
+				(*FoundWidget)->RemoveFromParent();
+			}
+		}
+
+		// 2. 관리 맵에서 제거 (필요에 따라 인스턴스를 날리거나 유지할 수 있습니다)
+		DynamicActiveWidgets.Remove(guid);
+	}
+
+	// 3. 입력 모드 갱신 (다른 창들이 여전히 떠 있는지 확인하기 위함)
+	UpdateInputMode();
+}
 UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 {
 	if (UUserWidget** FoundWidget = ActiveWidgets.Find(UIType))
@@ -108,6 +170,14 @@ void UUIManagerSubSystem::CloseAllUI()
 	UpdateInputMode();
 }
 
+UUserWidget* UUIManagerSubSystem::GetDynamicUI(FGuid UIType) const
+{
+	if (false == DynamicActiveWidgets.Contains(UIType)) return nullptr;
+
+	return DynamicActiveWidgets[UIType];
+}
+
+
 void UUIManagerSubSystem::RegisterUIClass(EUIType UIType, TSubclassOf<UUserWidget> WidgetClass)
 {
 	if (UIType != EUIType::None && WidgetClass)
@@ -122,14 +192,29 @@ void UUIManagerSubSystem::UpdateInputMode()
 	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
 	if (!PC) return;
 
-	// 현재 Viewport에 떠 있는 Managed UI가 하나라도 있는지 체크
+	// 현재 Viewport에 떠 있는 Managed UI가 하나라도 있는지 체크 (고정형 + 동적형 모두 검사)
 	bool bHasActiveUI = false;
+
+	// 1. 고정형 UI 검사
 	for (const auto& Pair : ActiveWidgets)
 	{
 		if (Pair.Value && Pair.Value->IsInViewport())
 		{
 			bHasActiveUI = true;
 			break;
+		}
+	}
+
+	// 2. [추가] 동적형 UI(가방, 상자 등) 검사
+	if (!bHasActiveUI)
+	{
+		for (const auto& Pair : DynamicActiveWidgets)
+		{
+			if (Pair.Value && Pair.Value->IsInViewport())
+			{
+				bHasActiveUI = true;
+				break;
+			}
 		}
 	}
 

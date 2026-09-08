@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Common/GameData.h"
 #include "LobbyWidget.generated.h"
 
 /**

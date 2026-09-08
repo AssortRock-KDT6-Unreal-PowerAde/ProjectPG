@@ -150,6 +150,7 @@ void ULobbyUIFlowController::DataLoadPopup()
 	UIsubSystem->CloseAllUI();
 	UIsubSystem->OpenUI(EUIType::MessagePopup);
 	UIsubSystem->OnMessagePopupEvent.Broadcast(TEXT("데이터 로딩중..."), 0);
+	UIsubSystem->OnPopupClosed.RemoveDynamic(this, &ULobbyUIFlowController::ShowLobby);
 	UIsubSystem->OnPopupClosed.AddDynamic(this, &ULobbyUIFlowController::ShowLobby);
 	subSystem->RequestGetInventory();
 }

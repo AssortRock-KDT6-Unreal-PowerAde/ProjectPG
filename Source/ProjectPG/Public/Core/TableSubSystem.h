@@ -49,6 +49,7 @@ public:
 		TObjectPtr<UDataTable> table = FindTable(tableName);
 		if (nullptr == table)
 			return nullptr;
+		FString ContextString = FString::Printf(TEXT("UTableSubSystem::FindTableRow -> Table: %s, Row: %s"), *tableName.ToString(), *rowName.ToString());
 
 		return table->FindRow<T>(rowName, TEXT("not Found row"));
 	}
