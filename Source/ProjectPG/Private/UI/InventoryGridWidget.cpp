@@ -269,15 +269,6 @@ void UInventoryGridWidget::CreateBackGroundGrid(int32 Columns, int32 Rows)
 			}
 		}
 	}
-
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("[CreateBackGroundGrid] Columns=%d Rows=%d Size=(%.1f,%.1f)"),
-		Columns,
-		Rows,
-		CalculatedWidth,
-		CalculatedHeight);
 }
 
 
