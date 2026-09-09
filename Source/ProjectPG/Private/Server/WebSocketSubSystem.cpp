@@ -25,10 +25,26 @@ void UWebSocketSubSystem::Initialize(FSubsystemCollectionBase& Collection)
 	UE_LOG(LogTemp, Warning,
 		TEXT("========== NETWORK VERSION =========="));
 
+	//UE_LOG(LogTemp, Warning,
+	//	TEXT("NetworkVersion: %u"),
+	//	FNetworkVersion::GetLocalNetworkVersion());
+
+	uint32 CurrentVersion = 0;
+
+	// 오버라이드 델리게이트에 바인딩된 함수가 존재한다면 그 값을 가져오고, 아니면 기본 버전을 가져옵니다.
+	if (FNetworkVersion::GetLocalNetworkVersionOverride.IsBound())
+	{
+		// 오버라이드 함수를 직접 호출하여 현재 적용된 커스텀 버전 값을 확인합니다.
+		CurrentVersion = FNetworkVersion::GetLocalNetworkVersionOverride.Execute();
+	}
+	else
+	{
+		CurrentVersion = FNetworkVersion::GetLocalNetworkVersion();
+	}
+
 	UE_LOG(LogTemp, Warning,
 		TEXT("NetworkVersion: %u"),
-		FNetworkVersion::GetLocalNetworkVersion());
-
+		CurrentVersion);
 	UE_LOG(LogTemp, Warning,
 		TEXT("IsDedicatedServer: %s"),
 		IsRunningDedicatedServer() ? TEXT("TRUE") : TEXT("FALSE"));
