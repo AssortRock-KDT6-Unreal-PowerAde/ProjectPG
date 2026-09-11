@@ -32,32 +32,53 @@ TSubclassOf<UUserWidget> UUIManagerSubSystem::GetUIClass(EUIType UIType) const
 	}
 	return nullptr;
 }
-UUserWidget* UUIManagerSubSystem::OpenDynamicUI(EUIType UIType, FGuid guid)
+UUserWidget* UUIManagerSubSystem::OpenDynamicUI(
+	EUIType UIType,
+	FGuid guid)
 {
-	if (UIType == EUIType::None || !guid.IsValid()) return nullptr;
+	if (UIType == EUIType::None || !guid.IsValid())
+	{
+		return nullptr;
+	}
 
-	// 1. 이미 해당 컨텍스트(예: 특정 가방)에 대한 위젯이 열려있는지 확인
+	// 이미 열려있는 가방이면 기존 위젯 반환
 	if (UUserWidget** Found = DynamicActiveWidgets.Find(guid))
 	{
 		if (*Found && (*Found)->IsInViewport())
 		{
-			return *Found; // 이미 열려있다면 기존 것 반환
+			return *Found;
 		}
 	}
 
-	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
-	if (!PC) return nullptr;
+	APlayerController* PC =
+		GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
 
-	// 2. 매니저 내부에서 클래스 맵을 참조해 직접 생성 (외부에서 GetUIClass 할 필요 없음!)
-	TSubclassOf<UUserWidget>* TargetClass = UIClassMap.Find(UIType);
+	if (!PC)
+	{
+		return nullptr;
+	}
+
+	TSubclassOf<UUserWidget>* TargetClass =
+		UIClassMap.Find(UIType);
+
 	if (TargetClass && *TargetClass)
 	{
-		UUserWidget* NewWidget = CreateWidget<UUserWidget>(PC, *TargetClass);
+		UUserWidget* NewWidget =
+			CreateWidget<UUserWidget>(PC, *TargetClass);
+
 		if (NewWidget)
 		{
 			DynamicActiveWidgets.Add(guid, NewWidget);
-			NewWidget->AddToViewport();
+
+			// =====================================================
+			// Dynamic UI는 InventoryWindow보다 위
+			// =====================================================
+			int32 ZOrder = 200;
+
+			NewWidget->AddToViewport(ZOrder);
+
 			UpdateInputMode();
+
 			return NewWidget;
 		}
 	}
@@ -92,6 +113,28 @@ void UUIManagerSubSystem::OpenMessageBox(FString message, int boxType)
 	OnMessagePopupEvent.Broadcast(message, boxType);
 
 }
+void UUIManagerSubSystem::CloseItemContext()
+{
+	if (UUserWidget** FoundWidget =
+		ActiveWidgets.Find(EUIType::ItemContext))
+	{
+		if (*FoundWidget)
+		{
+			UUserWidget* ContextWidget = *FoundWidget;
+
+			ContextWidget->SetVisibility(
+				ESlateVisibility::Collapsed
+			);
+
+			if (ContextWidget->IsInViewport())
+			{
+				ContextWidget->RemoveFromParent();
+			}
+		}
+	}
+
+	UpdateInputMode();
+}
 UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 {
 	if (UUserWidget** FoundWidget = ActiveWidgets.Find(UIType))
@@ -106,57 +149,100 @@ UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 	return OpenUI(UIType);
 }
 
- UUserWidget* UUIManagerSubSystem::OpenUI(EUIType UIType)
+UUserWidget* UUIManagerSubSystem::OpenUI(EUIType UIType)
 {
+	if (UIType == EUIType::None)
+	{
+		return nullptr;
+	}
 
-	if (UIType == EUIType::None) return nullptr;
-	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
-	if (!PC) return nullptr;
+	APlayerController* PC =
+		GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
 
-	// 1. 이미 스폰된 위젯이 있는지 확인
+	if (!PC)
+	{
+		return nullptr;
+	}
+
 	UUserWidget** FoundWidget = ActiveWidgets.Find(UIType);
 	UUserWidget* TargetWidget = FoundWidget ? *FoundWidget : nullptr;
 
-	// 2. 스폰된 위젯이 없다면 UIClassMap에서 블루프린트 클래스를 찾아 스폰
 	if (!TargetWidget)
 	{
 		TSubclassOf<UUserWidget>* TargetClass = UIClassMap.Find(UIType);
-		UE_LOG(LogTemp, Warning, TEXT("ClassMap %d"), UIClassMap.Num());
 
 		if (TargetClass && *TargetClass)
 		{
 			TargetWidget = CreateWidget<UUserWidget>(PC, *TargetClass);
+
 			if (TargetWidget)
 			{
 				ActiveWidgets.Add(UIType, TargetWidget);
-				UE_LOG(LogTemp, Warning, TEXT("Add ActiveWidgets  "));
-
 			}
 		}
 	}
 
-	// 3. Viewport에 출력
-	if (TargetWidget && !TargetWidget->IsInViewport())
+	if (!TargetWidget)
 	{
-		TargetWidget->AddToViewport();
-		UpdateInputMode();
+		return nullptr;
 	}
+
+	if (!TargetWidget->IsInViewport())
+	{
+		int32 ZOrder = 100;
+
+		switch (UIType)
+		{
+		case EUIType::Inventory:
+			ZOrder = 100;
+			break;
+
+		case EUIType::ItemContext:
+			ZOrder = 300;
+			break;
+
+		case EUIType::MessagePopup:
+			ZOrder = 1000;
+			break;
+
+		default:
+			ZOrder = 100;
+			break;
+		}
+
+		TargetWidget->AddToViewport(ZOrder);
+	}
+
+	UpdateInputMode();
 
 	return TargetWidget;
 }
 
 void UUIManagerSubSystem::CloseUI(EUIType UIType)
 {
-	if (UUserWidget** FoundWidget = ActiveWidgets.Find(UIType))
+	if (UIType == EUIType::Inventory)
 	{
-		if (*FoundWidget && (*FoundWidget)->IsInViewport())
+		CloseItemContext();
+	}
+
+	if (UUserWidget** FoundWidget =
+		ActiveWidgets.Find(UIType))
+	{
+		if (*FoundWidget)
 		{
-			(*FoundWidget)->RemoveFromParent();
-			UpdateInputMode();
+			(*FoundWidget)->SetVisibility(
+				ESlateVisibility::Collapsed
+			);
+
+			if ((*FoundWidget)->IsInViewport())
+			{
+				(*FoundWidget)->RemoveFromParent();
+			}
 		}
 	}
-}
 
+	UpdateInputMode();
+}
 UUserWidget* UUIManagerSubSystem::GetUI(EUIType UIType) const
 {
 	if (false == ActiveWidgets.Contains(UIType)  ) return nullptr;
@@ -166,6 +252,7 @@ UUserWidget* UUIManagerSubSystem::GetUI(EUIType UIType) const
 
 void UUIManagerSubSystem::CloseAllUI()
 {
+	// 고정 UI
 	for (auto& Pair : ActiveWidgets)
 	{
 		if (Pair.Value && Pair.Value->IsInViewport())
@@ -173,6 +260,16 @@ void UUIManagerSubSystem::CloseAllUI()
 			Pair.Value->RemoveFromParent();
 		}
 	}
+
+	// 동적 UI
+	for (auto& Pair : DynamicActiveWidgets)
+	{
+		if (Pair.Value && Pair.Value->IsInViewport())
+		{
+			Pair.Value->RemoveFromParent();
+		}
+	}
+
 	UpdateInputMode();
 }
 
@@ -195,92 +292,126 @@ void UUIManagerSubSystem::RegisterUIClass(EUIType UIType, TSubclassOf<UUserWidge
 
 void UUIManagerSubSystem::UpdateInputMode()
 {
-	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
-	if (!PC) return;
+	APlayerController* PC =
+		GetWorld()
+		? GetWorld()->GetFirstPlayerController()
+		: nullptr;
 
-	// 현재 Viewport에 떠 있는 Managed UI가 하나라도 있는지 체크 (고정형 + 동적형 모두 검사)
+	if (!PC)
+	{
+		return;
+	}
+
 	bool bHasActiveUI = false;
-	bool bHasMessageBox = false; //메시지 박스 현재 활동하는지 확인
-	// 1. 고정형 UI 검사
+	bool bHasMessageBox = false;
+
+	// =====================================================
+	// 1. 고정 UI 검사
+	// =====================================================
 	for (const auto& Pair : ActiveWidgets)
 	{
-		if (Pair.Value && Pair.Value->IsInViewport())
+		UUserWidget* Widget = Pair.Value;
+
+		if (!Widget)
+		{
+			continue;
+		}
+
+		if (!Widget->IsInViewport())
+		{
+			continue;
+		}
+
+		// 실제로 Visible인 UI만 활성 UI로 취급
+		if (Widget->GetVisibility() !=
+			ESlateVisibility::Collapsed &&
+			Widget->GetVisibility() !=
+			ESlateVisibility::Hidden)
 		{
 			bHasActiveUI = true;
-			break;
+		}
+
+		if (Pair.Key == EUIType::MessagePopup &&
+			Widget->GetVisibility() ==
+			ESlateVisibility::Visible)
+		{
+			bHasMessageBox = true;
 		}
 	}
 
-	// 2. [추가] 동적형 UI(가방, 상자 등) 검사
-	if (!bHasActiveUI)
+	// =====================================================
+	// 2. 동적 UI 검사
+	// =====================================================
+	for (const auto& Pair : DynamicActiveWidgets)
 	{
-		for (const auto& Pair : DynamicActiveWidgets)
+		UUserWidget* Widget = Pair.Value;
+
+		if (!Widget)
 		{
-			if (Pair.Value && Pair.Value->IsInViewport())
+			continue;
+		}
+
+		if (!Widget->IsInViewport())
+		{
+			continue;
+		}
+
+		if (Widget->GetVisibility() !=
+			ESlateVisibility::Collapsed &&
+			Widget->GetVisibility() !=
+			ESlateVisibility::Hidden)
+		{
+			bHasActiveUI = true;
+		}
+	}
+
+	// =====================================================
+	// 3. MessageBox가 있는 경우
+	// =====================================================
+	if (bHasMessageBox)
+	{
+		PC->SetShowMouseCursor(true);
+
+		FInputModeUIOnly InputMode;
+
+		if (UUserWidget** MsgWidget =
+			ActiveWidgets.Find(EUIType::MessagePopup))
+		{
+			if (MsgWidget && *MsgWidget)
 			{
-				bHasActiveUI = true;
-				break;
+				InputMode.SetWidgetToFocus(
+					(*MsgWidget)->TakeWidget()
+				);
 			}
 		}
+
+		PC->SetInputMode(InputMode);
+
+		return;
 	}
 
+	// =====================================================
+	// 4. 일반 UI가 있는 경우
+	// =====================================================
 	if (bHasActiveUI)
 	{
 		PC->SetShowMouseCursor(true);
 
-		if (bHasMessageBox)
-		{
-			FInputModeUIOnly InputMode;
+		FInputModeGameAndUI InputMode;
 
-			if (UUserWidget** MsgWidget = ActiveWidgets.Find(EUIType::MessagePopup))
-			{
-				if (MsgWidget && *MsgWidget)
-				{
-					InputMode.SetWidgetToFocus((*MsgWidget)->TakeWidget());
-				}
-			}
-			PC->SetInputMode(InputMode);
+		InputMode.SetHideCursorDuringCapture(false);
 
-			// [수정] 메시지 박스가 뜰 때 다른 위젯들은 눈에 그대로 보이되(Hit Test Invisible), 클릭만 투과되도록 설정
-			for (auto& Pair : ActiveWidgets)
-			{
-				if (Pair.Key != EUIType::MessagePopup && Pair.Value)
-				{
-					Pair.Value->SetVisibility(ESlateVisibility::HitTestInvisible);
-				}
-			}
-			for (auto& Pair : DynamicActiveWidgets)
-			{
-				if (Pair.Value)
-				{
-					Pair.Value->SetVisibility(ESlateVisibility::HitTestInvisible);
-				}
-			}
-		}
-		else
-		{
-			// 메시지 박스가 닫히면 다른 위젯들의 원래 상호작용성 복구 (다시 클릭 가능하게)
-			for (auto& Pair : ActiveWidgets)
-			{
-				if (Pair.Value) Pair.Value->SetVisibility(ESlateVisibility::Visible);
-			}
-			for (auto& Pair : DynamicActiveWidgets)
-			{
-				if (Pair.Value) Pair.Value->SetVisibility(ESlateVisibility::Visible);
-			}
+		PC->SetInputMode(InputMode);
 
-			FInputModeGameAndUI InputMode;
-			InputMode.SetHideCursorDuringCapture(false);
-			PC->SetInputMode(InputMode);
-		}
+		return;
 	}
-	else
-	{
-		// UI가 아예 없을 때 복구
-		for (auto& Pair : ActiveWidgets) { if (Pair.Value) Pair.Value->SetVisibility(ESlateVisibility::Visible); }
-		for (auto& Pair : DynamicActiveWidgets) { if (Pair.Value) Pair.Value->SetVisibility(ESlateVisibility::Visible); }
 
-		PC->SetShowMouseCursor(false);
-		PC->SetInputMode(FInputModeGameOnly());
-	}
+	// =====================================================
+	// 5. UI가 하나도 없는 경우
+	// =====================================================
+	PC->SetShowMouseCursor(false);
+
+	PC->SetInputMode(
+		FInputModeGameOnly()
+	);
 }

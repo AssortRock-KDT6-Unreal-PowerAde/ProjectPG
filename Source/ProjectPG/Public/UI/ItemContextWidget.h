@@ -35,6 +35,9 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UButton> CancleButton;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UOverlay> MainOverlay;
 private:
 	UPROPERTY()
 	TObjectPtr<class UInventoryComponent> InvenComp;

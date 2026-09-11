@@ -21,6 +21,10 @@ private:
 	UPROPERTY(meta = (BindWidget))	TObjectPtr<class UCanvasPanel> RootCanvas;
 	UPROPERTY(meta = (BindWidget))	TObjectPtr<class UButton> CancleButton;
 	UPROPERTY(meta = (BindWidget))	TObjectPtr<class UOverlay> InventoryParent;
+	UPROPERTY(meta = (BindWidget))	TObjectPtr<class UOverlay> TopOverlay;
+	UPROPERTY(meta = (BindWidget))	TObjectPtr<class UOverlay> SubOverlay;
+	UPROPERTY(meta = (BindWidget))	TObjectPtr<class UOverlay> MainOverlay;
+
 	UPROPERTY(meta = (BindWidget))	TObjectPtr<class USizeBox> TitleSizeBox;
 	UPROPERTY(meta = (BindWidget))	TObjectPtr<class UBorder> WindowBorder;
 

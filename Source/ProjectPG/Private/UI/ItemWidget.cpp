@@ -69,68 +69,85 @@ FReply UItemWidget::NativeOnMouseButtonDown(
 	const FPointerEvent& InMouseEvent)
 {
 
-
 	UE_LOG(
 		LogTemp,
 		Error,
-		TEXT("[ITEM CLICK] %s Button=%s"),
-		*GetName(),
-		*InMouseEvent.GetEffectingButton().ToString()
+		TEXT("[ItemWidget] CLICK %s GUID=%s"),
+		*InMouseEvent.GetEffectingButton().ToString(),
+		*ItemInstance.GUID.ToString()
 	);
 
-	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	if (InMouseEvent.GetEffectingButton() ==
+		EKeys::RightMouseButton)
 	{
-		return UWidgetBlueprintLibrary::DetectDragIfPressed(
-			InMouseEvent,
-			this,
-			EKeys::LeftMouseButton
-		).NativeReply;
-	}
-	else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
-	{
-		UUIManagerSubSystem* Subsystem = UUIManagerSubSystem::Get(GetWorld());
-
-		if (!Subsystem)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ItemWidget] Subsystem nullptr"));
-			return FReply::Handled();
-		}
-
-		_ContextWidget = Cast<UItemContextWidget>(
-			Subsystem->OpenUI(EUIType::ItemContext)
-		);
-
-		if (!_ContextWidget)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ItemWidget] ContextWidget nullptr"));
-			return FReply::Handled();
-		}
-
-		_ContextWidget->SetItem(ItemInstance);
-		_ContextWidget->UpdateButtonState(ItemInstance.type);
-		_ContextWidget->SetVisibility(ESlateVisibility::Visible);
-
-		// 마우스 위치
-		FVector2D MousePosition =
-			UWidgetLayoutLibrary::GetMousePositionOnViewport(GetWorld());
-
 		UE_LOG(
 			LogTemp,
-			Warning,
-			TEXT("[ItemWidget] Mouse Viewport Position = %s"),
-			*MousePosition.ToString()
+			Error,
+			TEXT("[ItemWidget] RIGHT CLICK SUCCESS")
 		);
 
-		// 마우스 위치에 배치
-		_ContextWidget->SetPositionInViewport(
-			MousePosition,
-			false
-		);
+		UUIManagerSubSystem* Subsystem =
+			UUIManagerSubSystem::Get(GetWorld());
+
+		if (Subsystem)
+		{
+			UItemContextWidget* ContextWidget =
+				Cast<UItemContextWidget>(
+					Subsystem->OpenUI(
+						EUIType::ItemContext
+					)
+				);
+
+			if (ContextWidget)
+			{
+				ContextWidget->SetItem(ItemInstance);
+				ContextWidget->UpdateButtonState(
+					ItemInstance.type
+				);
+
+				ContextWidget->SetVisibility(
+					ESlateVisibility::Visible
+				);
+
+				FVector2D MousePosition =
+					UWidgetLayoutLibrary::
+					GetMousePositionOnViewport(
+						GetWorld()
+					);
+
+				ContextWidget->SetPositionInViewport(
+					MousePosition,
+					false
+				);
+			}
+		}
 
 		return FReply::Handled();
 	}
 
-	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+	if (InMouseEvent.GetEffectingButton() ==
+		EKeys::LeftMouseButton)
+	{
+		UUIManagerSubSystem* Subsystem =
+			UUIManagerSubSystem::Get(GetWorld());
+
+		if (Subsystem)
+		{
+			Subsystem->CloseItemContext();
+		}
+
+		return UWidgetBlueprintLibrary::
+			DetectDragIfPressed(
+				InMouseEvent,
+				this,
+				EKeys::LeftMouseButton
+			).NativeReply;
+	}
+
+	return Super::NativeOnMouseButtonDown(
+		InGeometry,
+		InMouseEvent
+	);
 }
 bool UItemWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {

@@ -77,27 +77,62 @@ int32 UInventoryComponent::GetGridIndex(const FGuid& InvenGuid, int32 X, int32 Y
 
 void UInventoryComponent::RegisterContainer(const FGuid& ContainerGUID, FIntPoint ContainerSize)
 {
-	if (!ContainerGUID.IsValid() || ContainerSize.X <= 0 || ContainerSize.Y <= 0) return;
-
-	if (InventorySizeMap.Contains(ContainerGUID) && InventorySizeMap[ContainerGUID] == ContainerSize)
+	if (!ContainerGUID.IsValid())
 	{
 		return;
 	}
 
-	InventorySizeMap.FindOrAdd(ContainerGUID) = ContainerSize;
+	if (ContainerSize.X <= 0 ||	ContainerSize.Y <= 0)
+	{
+		return;
+	}
+
+	bool bSizeChanged = false;
+
+	if (!InventorySizeMap.Contains(ContainerGUID))
+	{
+		InventorySizeMap.Add(
+			ContainerGUID,
+			ContainerSize);
+
+		bSizeChanged = true;
+	}
+	else
+	{
+		if (InventorySizeMap[ContainerGUID] != ContainerSize)
+		{
+			InventorySizeMap[ContainerGUID] =
+				ContainerSize;
+
+			bSizeChanged = true;
+		}
+	}
+
 	ItemsMap.FindOrAdd(ContainerGUID);
+
+	// Grid만 다시 계산
 	RebuildGridMapByGuid(ContainerGUID);
 
-	OnInventoryUpdated.Broadcast();
+	// 크기가 바뀌었거나 처음 등록된 경우에만 알림
+	if (bSizeChanged)
+	{
+		OnInventoryUpdated.Broadcast();
+	}
 }
 
 void UInventoryComponent::UnregisterContainer(const FGuid& ContainerGUID)
 {
-	if (!ContainerGUID.IsValid()) return;
+	if (!ContainerGUID.IsValid())
+		return;
+
 
 	InventorySizeMap.Remove(ContainerGUID);
-	ItemsMap.Remove(ContainerGUID);
-	InvenGridMap.Remove(ContainerGUID);
+
+	// ★ 실제 아이템 데이터 유지
+	// ItemsMap.Remove(ContainerGUID);
+
+	// ★ Grid 데이터도 유지
+	// InvenGridMap.Remove(ContainerGUID);
 
 	OnInventoryUpdated.Broadcast();
 }

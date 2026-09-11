@@ -26,6 +26,8 @@
 void UInventoryGridWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+
+
 }
 
 void UInventoryGridWidget::RefreshGrid(UInventoryComponent* InComp, const FGuid& InvenGuid)
@@ -165,6 +167,7 @@ void UInventoryGridWidget::BindInventoryComponent(UInventoryComponent* InComp)
 
 	if (TargetInventoryComp)
 	{
+		TargetInventoryComp->OnInventoryUpdated.RemoveDynamic(this, &UInventoryGridWidget::RefreshGridUI);
 		TargetInventoryComp->OnInventoryUpdated.AddDynamic(this, &UInventoryGridWidget::RefreshGridUI);
 	}
 }
@@ -289,28 +292,44 @@ void UInventoryGridWidget::RefreshGridUI()
 		UE_LOG(LogTemp, Warning, TEXT("InventoryGuid none"));
 		return;
 	}
-	int32 GridColumns = TargetInventoryComp->GetColumns(InventoryGUID);
-	int32 GridRows = TargetInventoryComp->GetRows(InventoryGUID);
+	int32 GridColumns =
+		TargetInventoryComp->GetColumns(InventoryGUID);
 
-	// 2. 크기가 0이면 가방(Backpack) 장착 데이터 자동 복구 시도
+	int32 GridRows =
+		TargetInventoryComp->GetRows(InventoryGUID);
+
 	if (GridColumns <= 0 || GridRows <= 0)
 	{
 		APlayerController* PC = GetOwningPlayer();
+
 		if (PC && PC->GetPawn())
 		{
-			//가방 장착시 
-			if (UEquipComponent* EquipComp = PC->GetPawn()->FindComponentByClass<UEquipComponent>())
+			if (UEquipComponent* EquipComp =
+				PC->GetPawn()->FindComponentByClass<UEquipComponent>())
 			{
-				const FItemInstance* BackpackItem = EquipComp->GetEquipment(EEquipSlot::BackPack);
-				if (BackpackItem && BackpackItem->GUID == InventoryGUID)
+				const FItemInstance* BackpackItem =
+					EquipComp->GetEquipment(EEquipSlot::BackPack);
+
+				if (BackpackItem &&
+					BackpackItem->GUID == InventoryGUID)
 				{
-					if (UTableSubSystem* TableSub = UTableSubSystem::Get(GetWorld()))
+					if (UTableSubSystem* TableSub =
+						UTableSubSystem::Get(GetWorld()))
 					{
-						const FItemBackpackTable* Data = TableSub->FindTableRow<FItemBackpackTable>("BackpackTable", BackpackItem->ItemID);
-						if (Data && Data->SlotSize.X > 0 && Data->SlotSize.Y > 0)
+						const FItemBackpackTable* Data =
+							TableSub->FindTableRow<FItemBackpackTable>(
+								"BackpackTable",
+								BackpackItem->ItemID);
+
+						if (Data &&
+							Data->SlotSize.X > 0 &&
+							Data->SlotSize.Y > 0)
 						{
-							// 테이블 정보로 가방 컨테이너 크기 즉시 등록
-							TargetInventoryComp->RegisterContainer(InventoryGUID, FIntPoint(Data->SlotSize.X, Data->SlotSize.Y));
+							TargetInventoryComp->RegisterContainer(
+								InventoryGUID,
+								Data->SlotSize
+							);
+
 							GridColumns = Data->SlotSize.X;
 							GridRows = Data->SlotSize.Y;
 						}
@@ -320,18 +339,19 @@ void UInventoryGridWidget::RefreshGridUI()
 		}
 	}
 
-	// 3. 서버 데이터 동기화 대기 중인 경우 처리 중단 (패킷 수신 후 OnInventoryUpdated 델리게이트로 재호출됨)
+	// 여기에 한 번만 검사
 	if (GridColumns <= 0 || GridRows <= 0)
 	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[InventoryGrid] Invalid inventory size GUID=%s"),
+			*InventoryGUID.ToString()
+		);
+
 		return;
 	}
-	if (GridColumns == 0 && GridRows == 0) {
-		FIntPoint size = TargetInventoryComp->GetInventorySizeByGuid(InventoryGUID);
-		GridColumns = size.X;
-		GridRows = size.Y;
 
-	}
-	// 4. 정상 크기 수신 확인 후 배경 슬롯 및 아이템 렌더링
 	CreateBackGroundGrid(GridColumns, GridRows);
 	RenderItems();
 }
@@ -343,7 +363,14 @@ void UInventoryGridWidget::RenderItems()
 	{
 		return;
 	}
+	if (ItemCanvas)
+	{
+		ItemCanvas->SetVisibility(
+			ESlateVisibility::Visible
+		);
 
+		ItemCanvas->SetIsEnabled(true);
+	}
 	ItemCanvas->ClearChildren();
 
 	UItemSubSystem* ItemSubSystem =
@@ -405,8 +432,6 @@ void UInventoryGridWidget::RenderItems()
 		CanvasSlot->SetPosition(PositionPixel);
 		CanvasSlot->SetSize(SizePixel);
 		CanvasSlot->SetZOrder(10);
-
-		
 	}
 }
 USlotWidget* UInventoryGridWidget::GetSlotWidgetAt(int32 TileX, int32 TileY)
@@ -522,7 +547,26 @@ FReply UInventoryGridWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const 
 	}
 	return Super::NativeOnKeyDown(MyGeometry, InKeyEvent);
 }
+FReply UInventoryGridWidget::NativeOnMouseButtonDown(
+	const FGeometry& InGeometry,
+	const FPointerEvent& InMouseEvent)
+{
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	{
+		UUIManagerSubSystem* Subsystem =
+			UUIManagerSubSystem::Get(GetWorld());
 
+		if (Subsystem)
+		{
+			Subsystem->CloseItemContext();
+		}
+	}
+
+	return Super::NativeOnMouseButtonDown(
+		InGeometry,
+		InMouseEvent
+	);
+}
 bool UInventoryGridWidget::NativeOnDrop(
 	const FGeometry& MyGeometry,
 	const FDragDropEvent& InDragDropEvent,
