@@ -10,10 +10,12 @@
 #include "Components/EquipComponent.h"
 
 #include "GameMode/CustomPlayerState.h"
+#include <Server/MatchmakingSubSystem.h>
 
 void ULobbyWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
 
 	if (CharacterBtn)
 	{
@@ -24,6 +26,7 @@ void ULobbyWidget::NativeConstruct()
 	{
 		GameStartBtn->OnClicked.RemoveDynamic(this, &ULobbyWidget::OnClickedGameStartButton);
 		GameStartBtn->OnClicked.AddDynamic(this, &ULobbyWidget::OnClickedGameStartButton);
+
 	}
 	if (OptionBtn)
 	{
@@ -77,7 +80,12 @@ void ULobbyWidget::OnClickedCharacterButton()
 
 void ULobbyWidget::OnClickedGameStartButton() {
 
-	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
+
+	UUIManagerSubSystem* UISubsystem = UUIManagerSubSystem::Get(GetWorld());
+	if (!IsValid(UISubsystem)) return;
+	UISubsystem->OpenMessageBox("",1);
+
+	UMatchmakingSubSystem* subSystem = UMatchmakingSubSystem::Get(GetWorld());
 	if (nullptr == subSystem) return;
 
 	subSystem->RequestGameStart();

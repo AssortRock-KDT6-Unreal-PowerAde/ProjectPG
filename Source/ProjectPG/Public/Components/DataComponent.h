@@ -22,7 +22,7 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 public:
-	UFUNCTION()	void LoadInventoryData(FInventoryMapWrapper Items);
+	UFUNCTION()	void LoadInventoryData(const FInventoryMapWrapper& Items);
 
 
 		

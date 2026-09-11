@@ -117,7 +117,7 @@ public:
 	// GUID로 인벤토리 크기 가져오는 보조 함수
 	FIntPoint GetInventorySizeByGuid(const FGuid& InvenGuid) const;
 
-	UFUNCTION()	void HandleInventoryReceived(const FInventoryMapWrapper InventoryMapWrapper);
+	UFUNCTION()	void HandleInventoryReceived(const FInventoryMapWrapper& InventoryMapWrapper);
 private:
 	void RebuildGridMapByGuid(const FGuid& InvenGuid);
 };
