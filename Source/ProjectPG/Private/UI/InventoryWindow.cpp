@@ -10,32 +10,32 @@
 #include "Components/EquipComponent.h"
 
 #include "Core/UIManagerSubSystem.h"
-#include "Server/WebSocketSubSystem.h"
 #include <Core/TableSubSystem.h>
+#include <Server/InventorySubSystem.h>
 
 
 void UInventoryWindow::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
-		WebSocketSub->OnInventoryReceived.RemoveDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
-		WebSocketSub->OnInventoryReceived.AddDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
+		InvenSub->OnInventoryReceived.RemoveDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
+		InvenSub->OnInventoryReceived.AddDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
 	}
+
 	if (BackBtn)
 	{
 		BackBtn->OnClicked.RemoveDynamic(this, &UInventoryWindow::OnClickedBackBtn);
 		BackBtn->OnClicked.AddDynamic(this, &UInventoryWindow::OnClickedBackBtn);
-
 	}
 }
 
 void UInventoryWindow::NativeDestruct()
 {
-	if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
-		WebSocketSub->OnInventoryReceived.RemoveDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
+		InvenSub->OnInventoryReceived.RemoveDynamic(this, &UInventoryWindow::OnInventoryDataReceived);
 	}
 
 	if (BackBtn)
@@ -201,13 +201,14 @@ void UInventoryWindow::OnClickedBackBtn()
 
 void UInventoryWindow::UpdateState()
 {
-	if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
+
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
-		WebSocketSub->RequestGetInventory();
+		InvenSub->RequestGetInventory();
 	}
 }
 
-void UInventoryWindow::OnInventoryDataReceived(const FInventoryMapWrapper InventoryMapWrapper)
+void UInventoryWindow::OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper)
 {
 	if (InvenComp)
 	{

@@ -176,9 +176,6 @@ void UItemContextWidget::OnOpenClickBtn()
 	FItemInstance LocalItem = CurrentItem;
 	if (LocalItem.ItemID.IsNone()) return;
 
-	// 진단 로그: 선택된 아이템 정보 출력
-	UE_LOG(LogTemp, Warning, TEXT("[OnOpenClickBtn] Item GUID=%s ItemID=%s parent_inventory_guid=%s inventory_guid=%s OwnerIsValid=%d"), *LocalItem.GUID.ToString(), *LocalItem.ItemID.ToString(), *LocalItem.parent_inventory_guid.ToString(), *LocalItem.inventory_guid.ToString(), LocalItem.Owner.IsValid());
-
 	UUIManagerSubSystem* UIMgr = UUIManagerSubSystem::Get(GetWorld());
 	if (!IsValid(UIMgr)) return;
 

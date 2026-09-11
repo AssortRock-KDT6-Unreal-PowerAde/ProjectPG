@@ -6,7 +6,6 @@
 
 #include "Blueprint/WidgetBlueprintLibrary.h"
 
-
 #include "Components/SizeBox.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
@@ -17,6 +16,7 @@
 
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Core/UIManagerSubSystem.h"
+#include <Blueprint/SlateBlueprintLibrary.h>
 
 void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& InData, const FGuid& InInvenGUID, float InTileSize)
 {
@@ -64,38 +64,74 @@ void UItemWidget::SetContextWidget(UItemContextWidget* widget)
 	_ContextWidget = widget;
 }
 
-// 1. 마우스 누름 감지
-FReply UItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+FReply UItemWidget::NativeOnMouseButtonDown(
+	const FGeometry& InGeometry,
+	const FPointerEvent& InMouseEvent)
 {
+
+
+	UE_LOG(
+		LogTemp,
+		Error,
+		TEXT("[ITEM CLICK] %s Button=%s"),
+		*GetName(),
+		*InMouseEvent.GetEffectingButton().ToString()
+	);
+
 	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
-		// 드래그 감지 등록
-		return UWidgetBlueprintLibrary::DetectDragIfPressed(InMouseEvent, this, EKeys::LeftMouseButton).NativeReply;
+		return UWidgetBlueprintLibrary::DetectDragIfPressed(
+			InMouseEvent,
+			this,
+			EKeys::LeftMouseButton
+		).NativeReply;
 	}
 	else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
 	{
-		UUIManagerSubSystem* subsystem = UUIManagerSubSystem::Get(GetWorld());
-		if (!subsystem) return FReply::Handled();
+		UUIManagerSubSystem* Subsystem = UUIManagerSubSystem::Get(GetWorld());
 
-		_ContextWidget = Cast<UItemContextWidget>(subsystem->OpenUI(EUIType::ItemContext));
-		if (!_ContextWidget) return FReply::Handled();
-		APlayerController* PC = GetOwningPlayer();
+		if (!Subsystem)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[ItemWidget] Subsystem nullptr"));
+			return FReply::Handled();
+		}
+
+		_ContextWidget = Cast<UItemContextWidget>(
+			Subsystem->OpenUI(EUIType::ItemContext)
+		);
+
+		if (!_ContextWidget)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[ItemWidget] ContextWidget nullptr"));
+			return FReply::Handled();
+		}
+
 		_ContextWidget->SetItem(ItemInstance);
-		_ContextWidget->SetVisibility(ESlateVisibility::Visible);
 		_ContextWidget->UpdateButtonState(ItemInstance.type);
-		
+		_ContextWidget->SetVisibility(ESlateVisibility::Visible);
 
-		// 마우스 절대 위치 가져오기
-		FVector2D ScreenPosition = InMouseEvent.GetScreenSpacePosition();
+		// 마우스 위치
+		FVector2D MousePosition =
+			UWidgetLayoutLibrary::GetMousePositionOnViewport(GetWorld());
 
-		// Viewport 스케일링(DPI)을 고려하여 위치 설정
-		_ContextWidget->SetPositionInViewport(ScreenPosition, true);
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[ItemWidget] Mouse Viewport Position = %s"),
+			*MousePosition.ToString()
+		);
+
+		// 마우스 위치에 배치
+		_ContextWidget->SetPositionInViewport(
+			MousePosition,
+			false
+		);
 
 		return FReply::Handled();
 	}
+
 	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
-
 bool UItemWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
 	SetRenderOpacity(1.0f);

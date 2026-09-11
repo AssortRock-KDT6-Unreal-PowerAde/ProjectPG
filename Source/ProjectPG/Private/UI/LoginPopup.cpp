@@ -32,8 +32,8 @@ void ULoginPopup::OnClickedLogin()
 		UUIManagerSubSystem* UIsubSystem = UUIManagerSubSystem::Get(GetWorld());
 		if (IsValid(UIsubSystem))
 		{
-			UIsubSystem->OpenUI(EUIType::MessagePopup);
-			UIsubSystem->OnMessagePopupEvent.Broadcast(TEXT("UserID를 입력해주세요"), 0);
+
+			UIsubSystem->OpenMessageBox(TEXT("UserID를 입력해주세요"), 0);
 			return;
 		}
 	}

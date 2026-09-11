@@ -86,6 +86,12 @@ void UUIManagerSubSystem::CloseDynamicUI(FGuid guid)
 	// 3. 입력 모드 갱신 (다른 창들이 여전히 떠 있는지 확인하기 위함)
 	UpdateInputMode();
 }
+void UUIManagerSubSystem::OpenMessageBox(FString message, int boxType)
+{
+	OpenUI(EUIType::MessagePopup);
+	OnMessagePopupEvent.Broadcast(message, boxType);
+
+}
 UUserWidget* UUIManagerSubSystem::ToggleUI(EUIType UIType)
 {
 	if (UUserWidget** FoundWidget = ActiveWidgets.Find(UIType))
@@ -194,7 +200,7 @@ void UUIManagerSubSystem::UpdateInputMode()
 
 	// 현재 Viewport에 떠 있는 Managed UI가 하나라도 있는지 체크 (고정형 + 동적형 모두 검사)
 	bool bHasActiveUI = false;
-
+	bool bHasMessageBox = false; //메시지 박스 현재 활동하는지 확인
 	// 1. 고정형 UI 검사
 	for (const auto& Pair : ActiveWidgets)
 	{
@@ -221,12 +227,59 @@ void UUIManagerSubSystem::UpdateInputMode()
 	if (bHasActiveUI)
 	{
 		PC->SetShowMouseCursor(true);
-		FInputModeGameAndUI InputMode;
-		InputMode.SetHideCursorDuringCapture(false);
-		PC->SetInputMode(InputMode);
+
+		if (bHasMessageBox)
+		{
+			FInputModeUIOnly InputMode;
+
+			if (UUserWidget** MsgWidget = ActiveWidgets.Find(EUIType::MessagePopup))
+			{
+				if (MsgWidget && *MsgWidget)
+				{
+					InputMode.SetWidgetToFocus((*MsgWidget)->TakeWidget());
+				}
+			}
+			PC->SetInputMode(InputMode);
+
+			// [수정] 메시지 박스가 뜰 때 다른 위젯들은 눈에 그대로 보이되(Hit Test Invisible), 클릭만 투과되도록 설정
+			for (auto& Pair : ActiveWidgets)
+			{
+				if (Pair.Key != EUIType::MessagePopup && Pair.Value)
+				{
+					Pair.Value->SetVisibility(ESlateVisibility::HitTestInvisible);
+				}
+			}
+			for (auto& Pair : DynamicActiveWidgets)
+			{
+				if (Pair.Value)
+				{
+					Pair.Value->SetVisibility(ESlateVisibility::HitTestInvisible);
+				}
+			}
+		}
+		else
+		{
+			// 메시지 박스가 닫히면 다른 위젯들의 원래 상호작용성 복구 (다시 클릭 가능하게)
+			for (auto& Pair : ActiveWidgets)
+			{
+				if (Pair.Value) Pair.Value->SetVisibility(ESlateVisibility::Visible);
+			}
+			for (auto& Pair : DynamicActiveWidgets)
+			{
+				if (Pair.Value) Pair.Value->SetVisibility(ESlateVisibility::Visible);
+			}
+
+			FInputModeGameAndUI InputMode;
+			InputMode.SetHideCursorDuringCapture(false);
+			PC->SetInputMode(InputMode);
+		}
 	}
 	else
 	{
+		// UI가 아예 없을 때 복구
+		for (auto& Pair : ActiveWidgets) { if (Pair.Value) Pair.Value->SetVisibility(ESlateVisibility::Visible); }
+		for (auto& Pair : DynamicActiveWidgets) { if (Pair.Value) Pair.Value->SetVisibility(ESlateVisibility::Visible); }
+
 		PC->SetShowMouseCursor(false);
 		PC->SetInputMode(FInputModeGameOnly());
 	}

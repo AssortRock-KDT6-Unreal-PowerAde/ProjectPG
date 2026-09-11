@@ -21,6 +21,7 @@
 #include <UI/InventoryWindow.h>
 #include <UI/EquipSlot.h>
 #include <Core/UIManagerSubSystem.h>
+#include <Server/InventorySubSystem.h>
 
 void UInventoryGridWidget::NativeConstruct()
 {
@@ -668,8 +669,8 @@ bool UInventoryGridWidget::NativeOnDrop(
 
 		if (bAdded)
 		{
-			if (UWebSocketSubSystem* Web =
-				UWebSocketSubSystem::Get(GetWorld()))
+			if (UInventorySubSystem* Web =
+				UInventorySubSystem::Get(GetWorld()))
 			{
 				Web->RequestEquipItem(
 					TempInstance.GUID,

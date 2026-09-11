@@ -8,14 +8,51 @@
 #include "Components/OverlaySlot.h"
 #include "Components/Button.h"
 #include "Components/Overlay.h"
+#include "Components/SizeBox.h"
+#include "Components/Border.h"
+#include "Components/CanvasPanel.h"
+
 #include "Components/InventoryComponent.h"
 #include <Core/TableSubSystem.h>
+#include <Components/CanvasPanelSlot.h>
+#include <Blueprint/WidgetLayoutLibrary.h>
+#include <Blueprint/SlateBlueprintLibrary.h>
 
 void UBagPopupWindow::NativeConstruct()
 {
-	if (CancleButton) {
-		CancleButton->OnClicked.RemoveDynamic(this, &UBagPopupWindow::OnClickedCancleButton);
-		CancleButton->OnClicked.AddDynamic(this, &UBagPopupWindow::OnClickedCancleButton);
+	Super::NativeConstruct();
+	if (RootCanvas)
+	{
+		RootCanvas->SetVisibility(
+			ESlateVisibility::SelfHitTestInvisible
+		);
+	}
+
+	if (WindowBorder)
+	{
+		WindowBorder->SetVisibility(
+			ESlateVisibility::Visible
+		);
+	}
+
+	if (CancleButton)
+	{
+		CancleButton->OnClicked.RemoveDynamic(
+			this,
+			&UBagPopupWindow::OnClickedCancleButton
+		);
+
+		CancleButton->OnClicked.AddDynamic(
+			this,
+			&UBagPopupWindow::OnClickedCancleButton
+		);
+	}
+
+	if (TitleSizeBox)
+	{
+		TitleSizeBox->SetVisibility(
+			ESlateVisibility::SelfHitTestInvisible
+		);
 	}
 }
 
@@ -25,16 +62,133 @@ void UBagPopupWindow::OnClickedCancleButton()
 	if (UIMgr)
 	{		
 		UIMgr->CloseDynamicUI(MyGuid); // 혹은 RemoveFromParent()
+		if (CachInvenComp)
+		{
+			CachInvenComp->UnregisterContainer(MyGuid);
+			CachInvenComp = nullptr;
+		}
 		RemoveFromParent();
 	}
 }
+FReply UBagPopupWindow::NativeOnMouseButtonDown(
+	const FGeometry& InGeometry,
+	const FPointerEvent& InMouseEvent)
+{
+	UE_LOG(
+		LogTemp,
+		Error,
+		TEXT("[BagPopup] MouseDown Button=%s"),
+		*InMouseEvent.GetEffectingButton().ToString()
+	);
 
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	{
+	
+
+		const FVector2D MousePosition =
+			InMouseEvent.GetScreenSpacePosition();
+
+		if (TitleSizeBox &&
+			TitleSizeBox->GetCachedGeometry().IsUnderLocation(MousePosition))
+		{
+			if (WindowBorder)
+			{
+				if (UCanvasPanelSlot* CanvasSlot =
+					Cast<UCanvasPanelSlot>(WindowBorder->Slot))
+				{
+					bIsDragging = true;
+
+					DragStartMousePosition = MousePosition;
+
+					// 현재 Canvas상의 실제 위치
+					DragStartPosition =
+						CanvasSlot->GetPosition();
+
+					UE_LOG(
+						LogTemp,
+						Warning,
+						TEXT("[BagPopup] DragStart Mouse=%s Position=%s"),
+						*DragStartMousePosition.ToString(),
+						*DragStartPosition.ToString()
+					);
+
+					return FReply::Handled()
+						.CaptureMouse(TakeWidget());
+				}
+			}
+		}
+	}
+
+	return Super::NativeOnMouseButtonDown(
+		InGeometry,
+		InMouseEvent
+	);
+}
+
+FReply UBagPopupWindow::NativeOnMouseMove(
+	const FGeometry& InGeometry,
+	const FPointerEvent& InMouseEvent)
+{
+	if (!bIsDragging)
+	{
+		return Super::NativeOnMouseMove(
+			InGeometry,
+			InMouseEvent
+		);
+	}
+
+	if (!WindowBorder || !RootCanvas)
+	{
+		return FReply::Handled();
+	}
+
+	if (UCanvasPanelSlot* CanvasSlot =
+		Cast<UCanvasPanelSlot>(WindowBorder->Slot))
+	{
+		const FVector2D CurrentMousePosition =
+			InMouseEvent.GetScreenSpacePosition();
+
+		const FVector2D MouseDelta =
+			CurrentMousePosition - DragStartMousePosition;
+
+		// Canvas의 DPI / Layout Scale 보정
+		const float CanvasScale =
+			RootCanvas->GetCachedGeometry()
+			.GetAccumulatedLayoutTransform()
+			.GetScale();
+
+		const FVector2D NewPosition =
+			DragStartPosition +
+			(MouseDelta / CanvasScale);
+
+		CanvasSlot->SetPosition(NewPosition);
+	}
+
+	return FReply::Handled();
+}
+FReply UBagPopupWindow::NativeOnMouseButtonUp(
+	const FGeometry& InGeometry,
+	const FPointerEvent& InMouseEvent)
+{
+	if (bIsDragging &&
+		InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	{
+		bIsDragging = false;
+
+		return FReply::Handled()
+			.ReleaseMouseCapture();
+	}
+
+	return Super::NativeOnMouseButtonUp(
+		InGeometry,
+		InMouseEvent
+	);
+}
 void UBagPopupWindow::Init(UInventoryComponent* InvenComp, FItemInstance Item)
 {
 	if (InvenComp == nullptr) return;
 	if (InventoryParent == nullptr) return;
 	if (Item.type != EItemType::Bag) return;
-
 
 	UUIManagerSubSystem* UIMgr = UUIManagerSubSystem::Get(GetWorld());
 	if (!IsValid(UIMgr)) return;
@@ -80,6 +234,9 @@ void UBagPopupWindow::Init(UInventoryComponent* InvenComp, FItemInstance Item)
 			// 초기화: Grid에 인벤토리 컴포넌트와 GUID 바인딩 후 즉시 UI 갱신 호출
 			GridWidget->RefreshGrid(InvenComp, Item.GUID);
 			GridWidget->RefreshGridUI();
+
+			CachInvenComp = InvenComp;
 		}
 	}
+	SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 }

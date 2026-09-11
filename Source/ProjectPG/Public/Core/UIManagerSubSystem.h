@@ -75,6 +75,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UIManager")
 	void CloseDynamicUI(FGuid guid);
 
+	void OpenMessageBox(FString message, int boxType = 0);
 
 private:
 	void UpdateInputMode();
