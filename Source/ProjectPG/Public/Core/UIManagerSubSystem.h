@@ -76,7 +76,7 @@ public:
 	void CloseDynamicUI(FGuid guid);
 
 	void OpenMessageBox(FString message, int boxType = 0);
-
+	void CloseItemContext();
 private:
 	void UpdateInputMode();
 };

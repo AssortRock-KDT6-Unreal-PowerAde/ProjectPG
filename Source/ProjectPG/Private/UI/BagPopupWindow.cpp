@@ -28,10 +28,10 @@ void UBagPopupWindow::NativeConstruct()
 		);
 	}
 
-	if (WindowBorder)
+	if (MainOverlay)
 	{
-		WindowBorder->SetVisibility(
-			ESlateVisibility::Visible
+		TopOverlay->SetVisibility(
+			ESlateVisibility::SelfHitTestInvisible
 		);
 	}
 
@@ -58,15 +58,30 @@ void UBagPopupWindow::NativeConstruct()
 
 void UBagPopupWindow::OnClickedCancleButton()
 {
-	UUIManagerSubSystem* UIMgr = UUIManagerSubSystem::Get(GetWorld());
+	UUIManagerSubSystem* UIMgr =
+		UUIManagerSubSystem::Get(GetWorld());
+
 	if (UIMgr)
-	{		
-		UIMgr->CloseDynamicUI(MyGuid); // 혹은 RemoveFromParent()
+	{
+		// =====================================================
+		// 가방 닫기 전에 ContextWidget도 닫는다.
+		// =====================================================
+		UIMgr->CloseItemContext();
+
+		// =====================================================
+		// 가방 Dynamic UI 닫기
+		// =====================================================
+		UIMgr->CloseDynamicUI(MyGuid);
+
 		if (CachInvenComp)
 		{
-			CachInvenComp->UnregisterContainer(MyGuid);
+			// 중요:
+			// 여기서 UnregisterContainer를 호출하는 문제는
+			// 이전에 이야기한 "가방 내용 사라짐" 문제와 별개이므로
+			// 현재 데이터 구조에 맞춰 유지/제거를 결정해야 함.
 			CachInvenComp = nullptr;
 		}
+
 		RemoveFromParent();
 	}
 }
@@ -74,48 +89,78 @@ FReply UBagPopupWindow::NativeOnMouseButtonDown(
 	const FGeometry& InGeometry,
 	const FPointerEvent& InMouseEvent)
 {
+	const FVector2D MousePosition =
+		InMouseEvent.GetScreenSpacePosition();
+
 	UE_LOG(
 		LogTemp,
-		Error,
-		TEXT("[BagPopup] MouseDown Button=%s"),
-		*InMouseEvent.GetEffectingButton().ToString()
+		Warning,
+		TEXT("[BagPopup] MouseDown Button=%s Mouse=%s"),
+		*InMouseEvent.GetEffectingButton().ToString(),
+		*MousePosition.ToString()
 	);
 
-	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	if (InMouseEvent.GetEffectingButton() ==
+		EKeys::LeftMouseButton)
 	{
-	
-
-		const FVector2D MousePosition =
-			InMouseEvent.GetScreenSpacePosition();
-
 		if (TitleSizeBox &&
 			TitleSizeBox->GetCachedGeometry().IsUnderLocation(MousePosition))
 		{
-			if (WindowBorder)
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[BagPopup] TitleHit=TRUE")
+			);
+
+			if (!MainOverlay)
 			{
-				if (UCanvasPanelSlot* CanvasSlot =
-					Cast<UCanvasPanelSlot>(WindowBorder->Slot))
-				{
-					bIsDragging = true;
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("[BagPopup] MainOverlay is NULL")
+				);
 
-					DragStartMousePosition = MousePosition;
-
-					// 현재 Canvas상의 실제 위치
-					DragStartPosition =
-						CanvasSlot->GetPosition();
-
-					UE_LOG(
-						LogTemp,
-						Warning,
-						TEXT("[BagPopup] DragStart Mouse=%s Position=%s"),
-						*DragStartMousePosition.ToString(),
-						*DragStartPosition.ToString()
-					);
-
-					return FReply::Handled()
-						.CaptureMouse(TakeWidget());
-				}
+				return Super::NativeOnMouseButtonDown(
+					InGeometry,
+					InMouseEvent
+				);
 			}
+
+			UCanvasPanelSlot* CanvasSlot =
+				Cast<UCanvasPanelSlot>(MainOverlay->Slot);
+
+			if (!CanvasSlot)
+			{
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("[BagPopup] MainOverlay->Slot is NOT CanvasPanelSlot")
+				);
+
+				return Super::NativeOnMouseButtonDown(
+					InGeometry,
+					InMouseEvent
+				);
+			}
+
+			bIsDragging = true;
+
+			DragStartMousePosition =
+				MousePosition;
+
+			DragStartPosition =
+				CanvasSlot->GetPosition();
+
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[BagPopup] DRAG START Mouse=%s Position=%s"),
+				*DragStartMousePosition.ToString(),
+				*DragStartPosition.ToString()
+			);
+
+			return FReply::Handled()
+				.CaptureMouse(TakeWidget());
 		}
 	}
 
@@ -137,32 +182,47 @@ FReply UBagPopupWindow::NativeOnMouseMove(
 		);
 	}
 
-	if (!WindowBorder || !RootCanvas)
+	if (!MainOverlay || !RootCanvas)
 	{
 		return FReply::Handled();
 	}
 
-	if (UCanvasPanelSlot* CanvasSlot =
-		Cast<UCanvasPanelSlot>(WindowBorder->Slot))
+	UCanvasPanelSlot* CanvasSlot =
+		Cast<UCanvasPanelSlot>(MainOverlay->Slot);
+
+	if (!CanvasSlot)
 	{
-		const FVector2D CurrentMousePosition =
-			InMouseEvent.GetScreenSpacePosition();
-
-		const FVector2D MouseDelta =
-			CurrentMousePosition - DragStartMousePosition;
-
-		// Canvas의 DPI / Layout Scale 보정
-		const float CanvasScale =
-			RootCanvas->GetCachedGeometry()
-			.GetAccumulatedLayoutTransform()
-			.GetScale();
-
-		const FVector2D NewPosition =
-			DragStartPosition +
-			(MouseDelta / CanvasScale);
-
-		CanvasSlot->SetPosition(NewPosition);
+		return FReply::Handled();
 	}
+
+	const FVector2D CurrentMousePosition =
+		InMouseEvent.GetScreenSpacePosition();
+
+	const FVector2D MouseDelta =
+		CurrentMousePosition -
+		DragStartMousePosition;
+
+	const float CanvasScale =
+		RootCanvas
+		->GetCachedGeometry()
+		.GetAccumulatedLayoutTransform()
+		.GetScale();
+
+	const FVector2D NewPosition =
+		DragStartPosition +
+		(MouseDelta / CanvasScale);
+
+	CanvasSlot->SetPosition(NewPosition);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[BagPopup] Move Mouse=%s Delta=%s Scale=%f NewPosition=%s"),
+		*CurrentMousePosition.ToString(),
+		*MouseDelta.ToString(),
+		CanvasScale,
+		*NewPosition.ToString()
+	);
 
 	return FReply::Handled();
 }
@@ -171,9 +231,16 @@ FReply UBagPopupWindow::NativeOnMouseButtonUp(
 	const FPointerEvent& InMouseEvent)
 {
 	if (bIsDragging &&
-		InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+		InMouseEvent.GetEffectingButton() ==
+		EKeys::LeftMouseButton)
 	{
 		bIsDragging = false;
+
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[BagPopup] DRAG END")
+		);
 
 		return FReply::Handled()
 			.ReleaseMouseCapture();
@@ -234,7 +301,7 @@ void UBagPopupWindow::Init(UInventoryComponent* InvenComp, FItemInstance Item)
 			// 초기화: Grid에 인벤토리 컴포넌트와 GUID 바인딩 후 즉시 UI 갱신 호출
 			GridWidget->RefreshGrid(InvenComp, Item.GUID);
 			GridWidget->RefreshGridUI();
-
+//			GridWidget->RefreshGridUI();
 			CachInvenComp = InvenComp;
 		}
 	}
