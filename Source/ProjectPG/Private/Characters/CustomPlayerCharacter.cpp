@@ -201,6 +201,31 @@ void ACustomPlayerCharacter::OnRep_SyncCharacterRotation_Implementation(FVector2
 	animInstance->SyncAim(AimDirection.X, AimDirection.Y);
 }
 
+void ACustomPlayerCharacter::OnReq_SyncIronsight_Implementation(bool IsIronsight)
+{
+	OnRep_SyncIronsight(IsIronsight);
+}
+
+void ACustomPlayerCharacter::OnRep_SyncIronsight_Implementation(bool IsIronsight)
+{
+	bIsIronsight = IsIronsight;
+}
+
+bool ACustomPlayerCharacter::IsIronsight() const
+{
+	return bIsIronsight;
+}
+
+void ACustomPlayerCharacter::OnStartIronsight()
+{
+	OnReq_SyncIronsight(true);
+}
+
+void ACustomPlayerCharacter::OnEndIronsight()
+{
+	OnReq_SyncIronsight(false);
+}
+
 void ACustomPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();

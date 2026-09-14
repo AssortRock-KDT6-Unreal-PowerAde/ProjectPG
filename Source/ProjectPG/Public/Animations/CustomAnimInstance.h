@@ -29,7 +29,7 @@ protected:
 	float Direction;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	uint8 bIsIronSighted : 1;
+	uint8 bIsIronsight : 1;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	uint8 bIsCrouched : 1;

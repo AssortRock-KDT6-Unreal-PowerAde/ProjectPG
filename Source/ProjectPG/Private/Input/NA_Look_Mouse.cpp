@@ -17,6 +17,9 @@ bool UNA_Look_Mouse::ShouldRegisterTriggerEvent(ETriggerEvent TriggerEvent) cons
 
 void UNA_Look_Mouse::Triggered(const FInputActionValue& InputActionValue, ACustomPlayerCharacter* PlayerCharacter)
 {
+	if (!IsValid(PlayerCharacter))
+		return;
+	
 	FVector2D value = InputActionValue.Get<FVector2D>();
 
 	FRotator controlRotation = PlayerCharacter->GetControlRotation();

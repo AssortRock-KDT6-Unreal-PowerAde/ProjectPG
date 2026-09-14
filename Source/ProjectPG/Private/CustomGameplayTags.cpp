@@ -13,7 +13,7 @@ namespace CustomGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Ability_Jump, "Input.Ability.Jump");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_Fire, "Input.Weapon.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_Reload, "Input.Weapon.Reload");
-	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_Scope, "Input.Weapon.Scope");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_IronSight, "Input.Weapon.Ironsight");
 
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Sprint, "Ability.Sprint");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Jump, "Ability.Jump");
