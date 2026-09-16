@@ -16,6 +16,13 @@ class PROJECTPG_API ACustomCharacter : public ACharacter, public IAbilitySystemI
 public:
 	ACustomCharacter(const FObjectInitializer& ObjectInitializer);
 
+public:
+	UPROPERTY(BlueprintReadOnly, Replicated, Category=Character)
+	uint8 bIsIronsight : 1 = false;
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_IsProne, Category=Character)
+	uint8 bIsProne : 1 = false;
+	
 protected:
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Abilities")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComp;
@@ -28,9 +35,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	uint8 bCanProne : 1;
-
-	UPROPERTY(BlueprintReadOnly, replicatedUsing=OnRep_IsProne, Category=Character)
-	uint8 bIsProne : 1;
 
 public:
 	virtual void Tick(float DeltaTime) override;
@@ -49,11 +53,15 @@ public:
 	virtual void EnterProne(bool bClientSimulation = false);
 	UFUNCTION(BlueprintCallable, Category=Character, meta=(HidePin="bClientSimulation"))
 	virtual void ExitProne(bool bClientSimulation = false);
+
+	UFUNCTION(Server, Reliable)
+	virtual void OnReq_SetIronsight(bool IsIronsight);
 	UFUNCTION()
 	virtual void OnRep_IsProne();
 
 	class UCustomCharacterMovementComponent* GetCustomCharacterMovement() const;
 	bool IsProne() const;
+	bool IsIronsight() const;
 	void SetIsProne(const bool bInIsProne);
 	void RecalculateProneEyeHeight();
 

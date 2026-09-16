@@ -29,8 +29,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<class UNativeActionComponent> NativeActionComp;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	uint8 bIsIronsight : 1 = false;
 
 public:
 	virtual void Tick(float DeltaTime) override;
@@ -49,15 +47,6 @@ public:
 	void OnReq_SyncCharacterRotation(FVector2D AimDirection, FRotator ActorRotation);
 	UFUNCTION(NetMulticast, Unreliable)
 	void OnRep_SyncCharacterRotation(FVector2D AimDirection);
-
-	UFUNCTION(Server, Unreliable)
-	void OnReq_SyncIronsight(bool IsIronsight);
-	UFUNCTION(NetMulticast, Unreliable)
-	void OnRep_SyncIronsight(bool IsIronsight);
-
-	bool IsIronsight() const;
-	void OnStartIronsight();
-	void OnEndIronsight();
 
 protected:
 	virtual void BeginPlay() override;

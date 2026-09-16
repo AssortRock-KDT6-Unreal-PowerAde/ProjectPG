@@ -23,7 +23,7 @@ void UNA_Ironsight::Started(const FInputActionValue& InputActionValue, ACustomPl
 	if (!IsValid(PlayerCharacter))
 		return;
 
-	PlayerCharacter->OnStartIronsight();
+	PlayerCharacter->OnReq_SetIronsight(true);
 }
 
 void UNA_Ironsight::Completed(const FInputActionValue& InputActionValue, ACustomPlayerCharacter* PlayerCharacter)
@@ -31,5 +31,5 @@ void UNA_Ironsight::Completed(const FInputActionValue& InputActionValue, ACustom
 	if (!IsValid(PlayerCharacter))
 		return;
 
-	PlayerCharacter->OnEndIronsight();
+	PlayerCharacter->OnReq_SetIronsight(false);
 }

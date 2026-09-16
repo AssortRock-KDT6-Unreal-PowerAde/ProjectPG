@@ -10,7 +10,7 @@
 bool UCustomCharacterMovementComponent::IsProne() const
 {
 	ACustomCharacter* character = Cast<ACustomCharacter>(CharacterOwner);
-	return character && character->IsProne();
+	return character && character->bIsProne;
 }
 
 void UCustomCharacterMovementComponent::EnterProne(bool bClientSimulation)

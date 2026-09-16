@@ -14,14 +14,15 @@ class PROJECTPG_API UCustomCharacterMovementComponent : public UCharacterMovemen
 {
 	GENERATED_BODY()
 
-public:
-	UPROPERTY(Category="Character Movement: Walking", EditAnywhere, BlueprintReadWrite,
+public:	
+	UPROPERTY(Category="Character Movement: Prone", EditAnywhere, BlueprintReadWrite,
 		meta=(ClampMin="0", UIMin="0", ForceUnits="cm/s"))
 	float MaxWalkSpeedProne;
-
-	UPROPERTY(Category="Character Movement: Walking", EditAnywhere, BlueprintReadWrite)
-	uint8 bCanWalkOffLedgesWhenProne : 1;
-
+	
+	UPROPERTY(Category="Character Movement: Walking", EditAnywhere, BlueprintReadWrite,
+		meta=(ClampMin="0", UIMin="0", ForceUnits="cm/s"))
+	float MaxWalkSpeedIronsight = 100.f;
+	
 	UPROPERTY(Category="Character Movement (General Settings)", VisibleInstanceOnly, BlueprintReadOnly)
 	uint8 bWantsToEnterProne : 1;
 

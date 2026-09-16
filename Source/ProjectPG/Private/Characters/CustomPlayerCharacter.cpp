@@ -35,19 +35,15 @@ ACustomPlayerCharacter::ACustomPlayerCharacter(const FObjectInitializer& ObjectI
 	CameraArmComp->bInheritRoll = false;
 
 	FVector cameraArmAdditiveLocation = FVector::ZeroVector;
-	cameraArmAdditiveLocation.Z += 50.;
+	cameraArmAdditiveLocation.Z += 80.;
 	CameraArmComp->AddRelativeLocation(cameraArmAdditiveLocation);
-	CameraArmComp->TargetArmLength = 200.f;
+	CameraArmComp->TargetArmLength = 250.f;
 
 	CameraComp = CreateDefaultSubobject<UCameraComponent>("Camera");
 	if (!IsValid(CameraComp))
 		return;
 
 	CameraComp->SetupAttachment(CameraArmComp);
-
-	FVector cameraAdditiveLocation = FVector::ZeroVector;
-	cameraAdditiveLocation.Y += 30.;
-	CameraComp->AddRelativeLocation(cameraAdditiveLocation);
 
 	NativeActionComp = CreateDefaultSubobject<UNativeActionComponent>(TEXT("NativeAction"));
 	if (!IsValid(NativeActionComp))
@@ -201,34 +197,13 @@ void ACustomPlayerCharacter::OnRep_SyncCharacterRotation_Implementation(FVector2
 	animInstance->SyncAim(AimDirection.X, AimDirection.Y);
 }
 
-void ACustomPlayerCharacter::OnReq_SyncIronsight_Implementation(bool IsIronsight)
-{
-	OnRep_SyncIronsight(IsIronsight);
-}
-
-void ACustomPlayerCharacter::OnRep_SyncIronsight_Implementation(bool IsIronsight)
-{
-	bIsIronsight = IsIronsight;
-}
-
-bool ACustomPlayerCharacter::IsIronsight() const
-{
-	return bIsIronsight;
-}
-
-void ACustomPlayerCharacter::OnStartIronsight()
-{
-	OnReq_SyncIronsight(true);
-}
-
-void ACustomPlayerCharacter::OnEndIronsight()
-{
-	OnReq_SyncIronsight(false);
-}
-
 void ACustomPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	float playerAngle = FMath::DegreesToRadians(CameraComp->FieldOfView * 0.3333333333f);
+	FVector cameraLocation = FVector::ZeroVector;
+	cameraLocation.Y = CameraArmComp->TargetArmLength * FMath::Tan(playerAngle) * 0.5f;
+	CameraComp->AddRelativeLocation(cameraLocation);
 
 	AbilitySystemComp->InitAbilityActorInfo(this, this);
 

@@ -103,6 +103,7 @@ void ACustomCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 	DOREPLIFETIME(ACustomCharacter, CharacterAttributeSet);
 	DOREPLIFETIME(ACustomCharacter, bIsProne);
+	DOREPLIFETIME(ACustomCharacter, bIsIronsight);
 }
 
 UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
@@ -196,6 +197,16 @@ void ACustomCharacter::ExitProne(bool bClientSimulation)
 		movementComp->bWantsToEnterProne = false;
 }
 
+void ACustomCharacter::OnReq_SetIronsight_Implementation(bool IsIronsight)
+{
+	bIsIronsight = IsIronsight;
+	
+	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
+	if (!IsValid(movementComp))
+		return;
+
+}
+
 void ACustomCharacter::OnRep_IsProne()
 {
 	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
@@ -226,6 +237,11 @@ class UCustomCharacterMovementComponent* ACustomCharacter::GetCustomCharacterMov
 bool ACustomCharacter::IsProne() const
 {
 	return bIsProne;
+}
+
+bool ACustomCharacter::IsIronsight() const
+{
+	return bIsIronsight;
 }
 
 void ACustomCharacter::SetIsProne(const bool bInIsProne)
