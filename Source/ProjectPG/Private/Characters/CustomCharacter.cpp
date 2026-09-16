@@ -38,7 +38,7 @@ ACustomCharacter::ACustomCharacter(const FObjectInitializer& ObjectInitializer)
 
 	ConstructorHelpers::FClassFinder<UCustomAnimInstance> AnimInstance(
 		TEXT(
-			"/Script/Engine.AnimBlueprint'/Game/PG/Blueprint/Animations/ABP_CharacterDefault.ABP_CharacterDefault_C'"));
+			"/Script/Engine.AnimBlueprint'/Game/PG/Blueprint/Animations/ABP_CharacterManny.ABP_CharacterManny_C'"));
 	if (!AnimInstance.Succeeded())
 		return;
 
