@@ -19,5 +19,6 @@ namespace CustomGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Jump, "Ability.Jump");
 
 	UE_DEFINE_GAMEPLAY_TAG(State_Sprinting, "State.Sprinting");
+	UE_DEFINE_GAMEPLAY_TAG(State_UsingStamina, "State.UsingStamina");
 	UE_DEFINE_GAMEPLAY_TAG(State_Jumping, "State.Jumping");
 };

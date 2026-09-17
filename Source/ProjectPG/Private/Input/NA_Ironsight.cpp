@@ -23,7 +23,8 @@ void UNA_Ironsight::Started(const FInputActionValue& InputActionValue, ACustomPl
 	if (!IsValid(PlayerCharacter))
 		return;
 
-	PlayerCharacter->OnReq_SetIronsight(true);
+	if (PlayerCharacter->IsLocallyControlled())
+		PlayerCharacter->SetAiming(true);
 }
 
 void UNA_Ironsight::Completed(const FInputActionValue& InputActionValue, ACustomPlayerCharacter* PlayerCharacter)
@@ -31,5 +32,6 @@ void UNA_Ironsight::Completed(const FInputActionValue& InputActionValue, ACustom
 	if (!IsValid(PlayerCharacter))
 		return;
 
-	PlayerCharacter->OnReq_SetIronsight(false);
+	if (PlayerCharacter->IsLocallyControlled())
+		PlayerCharacter->SetAiming(false);
 }

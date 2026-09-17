@@ -14,42 +14,42 @@ class PROJECTPG_API UCustomCharacterMovementComponent : public UCharacterMovemen
 {
 	GENERATED_BODY()
 
-public:	
-	UPROPERTY(Category="Character Movement: Prone", EditAnywhere, BlueprintReadWrite,
-		meta=(ClampMin="0", UIMin="0", ForceUnits="cm/s"))
-	float MaxWalkSpeedProne;
-	
+public:
 	UPROPERTY(Category="Character Movement: Walking", EditAnywhere, BlueprintReadWrite,
 		meta=(ClampMin="0", UIMin="0", ForceUnits="cm/s"))
-	float MaxWalkSpeedIronsight = 100.f;
-	
-	UPROPERTY(Category="Character Movement (General Settings)", VisibleInstanceOnly, BlueprintReadOnly)
-	uint8 bWantsToEnterProne : 1;
+	float MaxAimWalkSpeed = 150.f;
 
-	UPROPERTY(Category="Character Movement (General Settings)", VisibleInstanceOnly, BlueprintReadWrite,
-		AdvancedDisplay)
-	uint8 bProneMaintainsBaseLocation : 1;
+	UPROPERTY(Category="Character Movement: Walking", EditAnywhere, BlueprintReadWrite,
+		meta=(ClampMin="0", UIMin="0", ForceUnits="cm/s"))
+	float MaxSprintSpeed = 600.f;
+
+	// Sprinting 인정 범위
+	// 1.0 : 정확한 전방
+	// 0.7 : 전방 약 45도까지
+	// 0.0 : 측면까지
+	// -1.0 : 후방까지
+	UPROPERTY(Category="Character Movement (General Settings)", EditAnywhere, BlueprintReadWrite,
+		meta=(ClampMin="-1.0", ClampMax="1.0", UIMin="-1.0", UIMax="1.0"))
+	float MinSprintForwardInputDot = 0.7f;
+
+	UPROPERTY(Category="Character Movement (General Settings)", VisibleInstanceOnly, BlueprintReadOnly)
+	uint8 bWantsToSprint : 1 = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=MovementProperties)
-	uint8 bCanEverEnterProne : 1;
-
-private:
-	UPROPERTY(Category="Character Movement (General Settings)", EditAnywhere,
-		BlueprintSetter=SetProneHalfHeight, BlueprintGetter=GetProneHalfHeight,
-		meta=(ClampMin="0", UIMin="0", ForceUnits=cm))
-	float ProneHalfHeight;
+	uint8 bSprintEnabled : 1 = true;
 
 public:
-	FORCEINLINE virtual bool CanEverEnterProne() const { return bCanEverEnterProne; }
-	virtual bool IsProne() const;
-	virtual void EnterProne(bool bClientSimulation = false);
-	virtual void ExitProne(bool bClientSimulation = false);
-	virtual bool CanEnterProneInCurrentState() const;
+	UCustomCharacterMovementComponent();
+	bool bWantsToAim = false;
+	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
+	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
+	virtual void PhysicsRotation(float DeltaTime) override;
+
+	FORCEINLINE virtual bool IsSprintEnabled() const { return bSprintEnabled; }
+	virtual bool IsSprinting() const;
+	virtual bool IsAiming() const;
+	virtual bool HasForwardMovementInput() const;
+	virtual bool CanSprintInCurrentState() const;
 
 	virtual float GetMaxSpeed() const override;
-
-	UFUNCTION(BlueprintSetter)
-	void SetProneHalfHeight(const float NewValue);
-	UFUNCTION(BlueprintGetter)
-	float GetProneHalfHeight() const;
 };

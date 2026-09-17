@@ -17,6 +17,4 @@ void UCharacterAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 	DOREPLIFETIME(UCharacterAttributeSet, MaxHealth);
 	DOREPLIFETIME(UCharacterAttributeSet, Stamina);
 	DOREPLIFETIME(UCharacterAttributeSet, MaxStamina);
-	DOREPLIFETIME(UCharacterAttributeSet, WalkSpeed);
-	DOREPLIFETIME(UCharacterAttributeSet, SprintSpeed);
 }

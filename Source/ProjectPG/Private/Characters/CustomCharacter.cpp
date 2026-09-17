@@ -6,6 +6,8 @@
 #include "AbilitySystemComponent.h"
 #include "Animations/CustomAnimInstance.h"
 #include "Characters/CustomCharacterMovementComponent.h"
+#include "CustomGameplayTags.h"
+#include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 
@@ -58,7 +60,6 @@ ACustomCharacter::ACustomCharacter(const FObjectInitializer& ObjectInitializer)
 		return;
 
 	movementComp->NavAgentProps.bCanCrouch = true;
-	bCanProne = true;
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -70,6 +71,41 @@ ACustomCharacter::ACustomCharacter(const FObjectInitializer& ObjectInitializer)
 void ACustomCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (!IsValid(CharacterAttributeSet))
+		return;
+
+	if (HasAuthority()
+		&& IsValid(AbilitySystemComp)
+		&& !AbilitySystemComp->HasMatchingGameplayTag(CustomGameplayTags::State_UsingStamina)
+		&& CharacterAttributeSet->GetStamina() < CharacterAttributeSet->GetMaxStamina())
+	{
+		const float RecoveredStamina = CharacterAttributeSet->GetStamina()
+			+ FMath::Max(0.f, DeltaTime) * StaminaRecoveryMultiplier;
+		CharacterAttributeSet->SetStamina(
+			FMath::Min(RecoveredStamina, CharacterAttributeSet->GetMaxStamina()));
+	}
+
+	if (IsLocallyControlled() && GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(
+			0,
+			0.f,
+			FColor::Red,
+			FString::Printf(
+				TEXT("Health: %.1f / %.1f"),
+				CharacterAttributeSet->GetHealth(),
+				CharacterAttributeSet->GetMaxHealth()));
+
+		GEngine->AddOnScreenDebugMessage(
+			1,
+			0.f,
+			FColor::Green,
+			FString::Printf(
+				TEXT("Stamina: %.1f / %.1f"),
+				CharacterAttributeSet->GetStamina(),
+				CharacterAttributeSet->GetMaxStamina()));
+	}
 }
 
 void ACustomCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -102,8 +138,7 @@ void ACustomCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ACustomCharacter, CharacterAttributeSet);
-	DOREPLIFETIME(ACustomCharacter, bIsProne);
-	DOREPLIFETIME(ACustomCharacter, bIsIronsight);
+	DOREPLIFETIME(ACustomCharacter, bIsAiming);
 }
 
 UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
@@ -111,122 +146,23 @@ UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
 	return AbilitySystemComp;
 }
 
-void ACustomCharacter::RecalculateBaseEyeHeight()
+void ACustomCharacter::EquipItem(const FString& SocketName, UObject* Item)
 {
-	if (IsProne())
-		BaseEyeHeight = ProneEyeHeight;
-	else
-		Super::RecalculateBaseEyeHeight();
 }
 
-bool ACustomCharacter::CanEnterProne() const
+void ACustomCharacter::SetAiming(bool bNewAiming)
 {
-	UCustomCharacterMovementComponent* customCharacterMovement = GetCustomCharacterMovement();
-	if (!IsValid(customCharacterMovement))
-		return false;
+	bIsAiming = bNewAiming;
+	if (auto* Movement = GetCustomCharacterMovement())
+		Movement->bWantsToAim = bNewAiming;
 
-	return !IsProne() && customCharacterMovement->CanEverEnterProne() && GetRootComponent() && !GetRootComponent()->
-		IsSimulatingPhysics();
+	if (!HasAuthority())
+		OnReq_SetAiming(bNewAiming);
 }
 
-void ACustomCharacter::OnEndProne(float HeightAdjust, float ScaledHeightAdjust)
+void ACustomCharacter::OnReq_SetAiming_Implementation(bool bNewAiming)
 {
-	RecalculateBaseEyeHeight();
-
-	const ACustomCharacter* DefaultChar = GetDefault<ACustomCharacter>(GetClass());
-	if (!IsValid(DefaultChar))
-		return;
-
-	USkeletalMeshComponent* thisMesh = GetMesh();
-	USkeletalMeshComponent* defaultMesh = DefaultChar->GetMesh();
-	if (thisMesh && defaultMesh)
-	{
-		FVector& MeshRelativeLocation = thisMesh->GetRelativeLocation_DirectMutable();
-		MeshRelativeLocation.Z = defaultMesh->GetRelativeLocation().Z;
-		BaseTranslationOffset.Z = MeshRelativeLocation.Z;
-	}
-	else
-	{
-		BaseTranslationOffset.Z = DefaultChar->BaseTranslationOffset.Z;
-	}
-
-	// K2_OnEndProne(HeightAdjust, ScaledHeightAdjust);
-}
-
-void ACustomCharacter::OnStartProne(float HeightAdjust, float ScaledHeightAdjust)
-{
-	RecalculateBaseEyeHeight();
-
-	const ACustomCharacter* DefaultChar = GetDefault<ACustomCharacter>(GetClass());
-	if (!IsValid(DefaultChar))
-		return;
-
-	USkeletalMeshComponent* thisMesh = GetMesh();
-	USkeletalMeshComponent* defaultMesh = DefaultChar->GetMesh();
-	if (thisMesh && defaultMesh)
-	{
-		FVector& MeshRelativeLocation = thisMesh->GetRelativeLocation_DirectMutable();
-		MeshRelativeLocation.Z = defaultMesh->GetRelativeLocation().Z + HeightAdjust;
-		BaseTranslationOffset.Z = MeshRelativeLocation.Z;
-	}
-	else
-	{
-		BaseTranslationOffset.Z = DefaultChar->BaseTranslationOffset.Z + HeightAdjust;
-	}
-
-	// K2_OnStartProne(HeightAdjust, ScaledHeightAdjust);
-}
-
-void ACustomCharacter::EnterProne(bool bClientSimulation)
-{
-	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
-	if (!IsValid(movementComp))
-		return;
-
-	if (movementComp && CanEnterProne())
-		movementComp->bWantsToEnterProne = true;
-}
-
-void ACustomCharacter::ExitProne(bool bClientSimulation)
-{
-	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
-	if (!IsValid(movementComp))
-		return;
-
-	if (movementComp)
-		movementComp->bWantsToEnterProne = false;
-}
-
-void ACustomCharacter::OnReq_SetIronsight_Implementation(bool IsIronsight)
-{
-	bIsIronsight = IsIronsight;
-	
-	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
-	if (!IsValid(movementComp))
-		return;
-
-}
-
-void ACustomCharacter::OnRep_IsProne()
-{
-	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
-	if (!IsValid(movementComp))
-		return;
-
-	if (movementComp)
-	{
-		if (IsProne())
-		{
-			movementComp->bWantsToEnterProne = true;
-			movementComp->EnterProne(true);
-		}
-		else
-		{
-			movementComp->bWantsToEnterProne = false;
-			movementComp->ExitProne(true);
-		}
-		movementComp->bNetworkUpdateReceived = true;
-	}
+	bIsAiming = bNewAiming;
 }
 
 class UCustomCharacterMovementComponent* ACustomCharacter::GetCustomCharacterMovement() const
@@ -234,37 +170,18 @@ class UCustomCharacterMovementComponent* ACustomCharacter::GetCustomCharacterMov
 	return Cast<UCustomCharacterMovementComponent>(GetMovementComponent());
 }
 
-bool ACustomCharacter::IsProne() const
+bool ACustomCharacter::CanSprintInCurrentState() const
 {
-	return bIsProne;
+	UCustomCharacterMovementComponent* MovementComponent = GetCustomCharacterMovement();
+	if (!IsValid(MovementComponent))
+		return false;
+
+	return MovementComponent->CanSprintInCurrentState();
 }
 
-bool ACustomCharacter::IsIronsight() const
+bool ACustomCharacter::IsAiming() const
 {
-	return bIsIronsight;
-}
-
-void ACustomCharacter::SetIsProne(const bool bInIsProne)
-{
-	bIsProne = bInIsProne;
-}
-
-void ACustomCharacter::RecalculateProneEyeHeight()
-{
-	UCustomCharacterMovementComponent* movementComp = GetCustomCharacterMovement();
-	if (!IsValid(movementComp))
-		return;
-
-	if (movementComp != nullptr)
-	{
-		constexpr float EyeHeightRatio = 0.8f;
-
-		ProneEyeHeight = movementComp->GetProneHalfHeight() * EyeHeightRatio;
-	}
-}
-
-void ACustomCharacter::EquipItem(const FString& SocketName, UObject* Item)
-{
+	return bIsAiming;
 }
 
 UCharacterAttributeSet* ACustomCharacter::GetCharacterAttributeSet() const

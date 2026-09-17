@@ -18,10 +18,7 @@ public:
 
 public:
 	UPROPERTY(BlueprintReadOnly, Replicated, Category=Character)
-	uint8 bIsIronsight : 1 = false;
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_IsProne, Category=Character)
-	uint8 bIsProne : 1 = false;
+	uint8 bIsAiming : 1 = false;
 	
 protected:
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Abilities")
@@ -30,11 +27,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Abilities")
 	TObjectPtr<UCharacterAttributeSet> CharacterAttributeSet;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
-	float ProneEyeHeight;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	uint8 bCanProne : 1;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Abilities|Stamina",
+		meta=(ClampMin="0.0", UIMin="0.0"))
+	float StaminaRecoveryMultiplier = 25.f;
 
 public:
 	virtual void Tick(float DeltaTime) override;
@@ -43,27 +38,17 @@ public:
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
-	virtual void RecalculateBaseEyeHeight() override;
-	virtual bool CanEnterProne() const;
-	virtual void OnEndProne(float HalfHeightAdjust, float ScaledHalfHeightAdjust); // TODO? : K2 메소드 구현 여부
-	virtual void OnStartProne(float HalfHeightAdjust, float ScaledHalfHeightAdjust); // TODO? : K2 메소드 구현 여부
 	virtual void EquipItem(const FString& SocketName, UObject* Item);
 
-	UFUNCTION(BlueprintCallable, Category=Character, meta=(HidePin="bClientSimulation"))
-	virtual void EnterProne(bool bClientSimulation = false);
-	UFUNCTION(BlueprintCallable, Category=Character, meta=(HidePin="bClientSimulation"))
-	virtual void ExitProne(bool bClientSimulation = false);
+	void SetAiming(bool bNewAiming);
 
 	UFUNCTION(Server, Reliable)
-	virtual void OnReq_SetIronsight(bool IsIronsight);
-	UFUNCTION()
-	virtual void OnRep_IsProne();
+	void OnReq_SetAiming(bool bNewAiming);
 
 	class UCustomCharacterMovementComponent* GetCustomCharacterMovement() const;
-	bool IsProne() const;
-	bool IsIronsight() const;
-	void SetIsProne(const bool bInIsProne);
-	void RecalculateProneEyeHeight();
+
+	bool CanSprintInCurrentState() const;
+	bool IsAiming() const;
 
 	UCharacterAttributeSet* GetCharacterAttributeSet() const;
 

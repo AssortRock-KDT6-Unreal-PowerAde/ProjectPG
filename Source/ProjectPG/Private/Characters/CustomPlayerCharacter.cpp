@@ -177,7 +177,7 @@ void ACustomPlayerCharacter::OnReq_SyncCharacterRotation_Implementation(FVector2
 	if (!HasAuthority())
 		return;
 
-	SetActorRotation(ActorRotation);
+	// Legacy RPC: CharacterMovement now owns body rotation.
 	OnRep_SyncCharacterRotation(AimDirection);
 }
 
@@ -217,14 +217,11 @@ void ACustomPlayerCharacter::BeginPlay()
 		CharacterAttributeSet->InitMaxHealth(100.f);
 		CharacterAttributeSet->InitStamina(100.f);
 		CharacterAttributeSet->InitMaxStamina(100.f);
-		CharacterAttributeSet->InitWalkSpeed(300.f);
-		CharacterAttributeSet->InitSprintSpeed(700.f);
 
 		UCharacterMovementComponent* movementComp = GetCharacterMovement();
 		if (!IsValid(movementComp))
 			return;
 
-		movementComp->MaxWalkSpeed = 300.f;
 		// ~TODO: Table로 옮기기
 
 		UTableSubSystem* tableSubSystem = UTableSubSystem::Get(this);
