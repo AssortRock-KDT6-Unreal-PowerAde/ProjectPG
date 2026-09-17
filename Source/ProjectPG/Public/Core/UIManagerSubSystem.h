@@ -1,0 +1,82 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+
+#include "UIManagerSubSystem.generated.h"
+
+UENUM(BlueprintType)
+enum class EUIType : uint8
+{
+	None, LoginWindow, Login, CreateUser,
+	Character, Inventory, EquipMent, Quest, MessagePopup, Lobby, ItemContext, BackPackPopup,
+};
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMessagePopupView, const FString&, Message, int32, Popuptype);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPopupClosed);
+
+UCLASS()
+class PROJECTPG_API UUIManagerSubSystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+private:
+	// 생성된 위젯들을 관리하는 맵
+	UPROPERTY()
+	TMap<EUIType, UUserWidget*> ActiveWidgets;
+
+	UPROPERTY()
+	TMap<FGuid, UUserWidget*> DynamicActiveWidgets;
+
+	UPROPERTY()
+	TMap<EUIType, TSubclassOf<UUserWidget>> UIClassMap;
+public:
+	FOnMessagePopupView OnMessagePopupEvent;
+	FOnPopupClosed OnPopupClosed;
+public:
+
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+
+
+	UFUNCTION(BlueprintCallable, Category = "UIManager")
+	class UUserWidget* ToggleUI(EUIType UIType);
+
+	UFUNCTION(BlueprintCallable, Category = "UIManager")
+	class UUserWidget* OpenUI(EUIType UIType);
+
+	UFUNCTION(BlueprintCallable, Category = "UI Manager")
+	void CloseUI(EUIType UIType);
+
+	// 생성된 UI 가져오기
+	UFUNCTION(BlueprintPure, Category = "UI Manager")
+	UUserWidget* GetUI(EUIType UIType) const;
+
+	// 모든 UI 닫기
+	UFUNCTION(BlueprintCallable, Category = "UI Manager")
+	void CloseAllUI();
+
+	UUserWidget* GetDynamicUI(FGuid UIType) const;
+
+
+	UFUNCTION(BlueprintCallable, Category = "UI Manager")
+	void RegisterUIClass(EUIType UIType, TSubclassOf<UUserWidget> WidgetClass);
+	static UUIManagerSubSystem* Get(const UObject* worldContext);
+
+	// 등록된 EUIType의 TSubclassOf<UUserWidget> 클래스를 반환
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	TSubclassOf<UUserWidget> GetUIClass(EUIType UIType) const;
+
+
+	UFUNCTION(BlueprintCallable, Category = "UIManager")
+	UUserWidget* OpenDynamicUI(EUIType UIType, FGuid guid);
+
+	UFUNCTION(BlueprintCallable, Category = "UIManager")
+	void CloseDynamicUI(FGuid guid);
+
+	void OpenMessageBox(FString message, int boxType = 0);
+	void CloseItemContext();
+private:
+	void UpdateInputMode();
+};
