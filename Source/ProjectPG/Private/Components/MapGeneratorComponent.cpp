@@ -87,7 +87,8 @@ void UMapGeneratorComponent::Generate()
 	}
 
 	// 스폰 & 탈출구 방향 지정
-	gameMode->SetRandomSeed(FDateTime::UtcNow().ToUnixTimestamp());
+	// GameMode 가 정한 시드를 그대로 쓴다. 여기서 현재 시각으로 다시 맞추면 -PGMapSeed 로 같은 맵을 재현할 수 없다.
+	gameMode->SetRandomSeed(gameMode->GetMapGenerationSeed());
 	for (int i = 0; i < 8; ++i)
 	{
 		int randomIndex = gameMode->GenerateRandomNumber(0, 7);
@@ -108,8 +109,9 @@ void UMapGeneratorComponent::Generate()
 			bool isBLR = b & EMapDirection::Left || b & EMapDirection::Right;
 			bool isBUD = b & EMapDirection::Up || b & EMapDirection::Down;
 
-			bool isADiag = isALR || isAUD;
-			bool isBDiag = isBLR || isBUD;
+			// 모서리 구역 = 가로 끝이면서 세로 끝. || 로 두면 8구역 전부 모서리가 되어 아래 정렬 규칙이 동작하지 않는다.
+			bool isADiag = isALR && isAUD;
+			bool isBDiag = isBLR && isBUD;
 
 			if (isADiag && !isBDiag)
 				return false;
@@ -192,6 +194,9 @@ void UMapGeneratorComponent::GenerateRoad(int directionKey, ETileType cubeType)
 void UMapGeneratorComponent::GenerateEndPoint(int indexX, int indexY, ETileType cubeType)
 {
 	AMapTile* tile = FindTile(indexX, indexY);
+	// 범위 밖 좌표면 FindTile 이 nullptr 를 돌려준다. 그대로 쓰면 크래시.
+	if (!IsValid(tile))
+		return;
 	tile->SetType(cubeType);
 
 	switch (cubeType)

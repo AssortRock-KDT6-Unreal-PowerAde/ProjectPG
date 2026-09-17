@@ -24,6 +24,8 @@ protected:
 private:
 	UPROPERTY()
 	FRandomStream _random;
+	// -PGMapSeed=<숫자> 로 맵 시드를 고정. 옵션이 없으면 기존처럼 현재 시각.
+	int64 _mapGenerationSeed = 0;
 
 protected:
 	virtual void BeginPlay() override;
@@ -31,7 +33,7 @@ protected:
 public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
-
+	int64 GetMapGenerationSeed() const { return _mapGenerationSeed; }
 public:
 	void SetRandomSeed(int64 seed);
 

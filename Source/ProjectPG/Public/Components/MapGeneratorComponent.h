@@ -54,10 +54,11 @@ protected:
 	double _metaballCenterBias = 0.7;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	double _metaballSizeBonus = 2.0;
+	double _metaballSizeBonus = 10.0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int _mapSize = 45;
+	// 45칸(900 m)은 너무 넓어서 30칸(600 m)으로 줄임. 워존 크기는 _mapSize 에 맞춰 따라간다.
+	int _mapSize = 30;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int _startPositionRangeSize = 4;

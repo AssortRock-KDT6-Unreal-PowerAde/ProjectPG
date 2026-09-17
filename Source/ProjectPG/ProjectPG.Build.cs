@@ -11,11 +11,25 @@ public class ProjectPG : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "WebSockets", "Json", "JsonUtilities",
-			"AIModule", "GameplayTags", "GameplayTasks", "GameplayAbilities", "Slate", "SlateCore"
+			"AIModule", "GameplayTags", "GameplayTasks", "GameplayAbilities", "Slate", "SlateCore", "NavigationSystem","PCG","Landscape"
         });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
-
+		
+		// PG.BuildShoreMeshes 같은 에디터 전용 에셋 생성 명령용.
+		if (Target.bBuildEditor == true)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"GeometryCore",
+				"GeometryFramework",
+				"GeometryScriptingCore",
+				"GeometryScriptingEditor",
+				"EditorScriptingUtilities",
+				"UnrealEd"
+			});
+		}
+		
 		PrivateIncludePaths.Add(ModuleDirectory);
 
 		// Uncomment if you are using Slate UI
