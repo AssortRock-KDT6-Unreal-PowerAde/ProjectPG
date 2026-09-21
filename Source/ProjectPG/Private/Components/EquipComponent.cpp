@@ -103,6 +103,7 @@ bool UEquipComponent::Equip(const FItemInstance& Item)
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] RequestEquipItem: ItemGUID=%s TargetSlot=%s"), *Item.GUID.ToString(), *TargetSlotGuid.ToString());
+		// 로컬/서버 분기는 InventorySubSystem::IsLocalOnly()가 단독으로 결정한다.
 		InvenSub->RequestEquipItem(Item.GUID, TargetSlotGuid, true);
 	}
 

@@ -64,11 +64,28 @@ public:
 	UPROPERTY()
 	bool bUseWebSocket = true;
 
+	// 강제 로컬 이동 모드: true면 RequestMoveItem 호출은 항상 로컬로 처리
+	bool bForceLocalMoves = false;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void SetForceLocalMoves(bool bForce);
+
 	FInventoryMapWrapper CachedInventory;
+
+	// If true, we requested initial inventory and are waiting for the server response.
+	// During this window we may prefer local handling of moves to avoid racing with server replay.
+	bool bWaitingForInitialInventory = false;
 
 
 public:
 	// 로컬 변경 여부 확인
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool HasLocalChanges() const { return bHasLocalChanges; }
+
+	// 단일 정책 지점: true면 RequestMoveItem/RequestEquipItem은 반드시 로컬 캐시에서만 처리하고
+	// WebSocket으로 전송하지 않는다. 호출부는 이 함수를 직접 검사하지 말고
+	// RequestMoveItem/RequestEquipItem을 그대로 호출하면 된다 (분기는 내부에서 처리).
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool IsLocalOnly() const { return bForceLocalMoves || !bUseWebSocket || bWaitingForInitialInventory; }
 };

@@ -100,9 +100,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool AddItemByID(FName ItemID, const FGuid& TargetInvenGuid, int32 Quantity = 1);
 
-	// GUID 기반 아이템 위치 변경
+	// GUID 기반 아이템 위치 변경 (동일 컴포넌트 내부에서만 사용)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID, FIntPoint NewPos, bool bNewRotated);
+
+	// 💡 이 컴포넌트에서 아이템을 찾아 제거하고 반환 (다른 InventoryComponent로 이동시킬 때 사용)
+	bool RemoveItemByGUID(const FGuid& ItemGUID, FItemInstance& OutItem);
+
+	// 💡 다른 InventoryComponent가 소유한 아이템을 이 컴포넌트의 지정 위치로 이동 (Owner가 다른 경우)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool TransferItemFrom(UInventoryComponent* SourceComp, const FGuid& ItemGUID, const FGuid& TargetInvenGuid, FIntPoint NewPos, bool bNewRotated);
 
 
 	UFUNCTION()	void SetServerInventoryData(const FInventoryMapWrapper InWrapper);

@@ -5,12 +5,13 @@
 #include "Components/InventoryComponent.h"
 #include "Components/DataComponent.h"
 #include "Components/EquipComponent.h"
+
 ACustomPlayerState::ACustomPlayerState()
 {
 	InvenComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 	DataComp = CreateDefaultSubobject<UDataComponent>(TEXT("DataComponent"));
 	EquipComp = CreateDefaultSubobject<UEquipComponent>(TEXT("EquipComponent"));
-
+	
 	if (InvenComp) InvenComp->SetIsReplicated(true);
 	if (DataComp) DataComp->SetIsReplicated(true);
 	if (EquipComp) EquipComp->SetIsReplicated(true);

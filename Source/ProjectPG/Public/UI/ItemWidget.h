@@ -22,6 +22,10 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	FGuid OwnerInventoryGUID;
 
+	// 💡 출처 InventoryComponent (다른 InventoryComponent로 이동시킬 때 필요)
+	UPROPERTY(BlueprintReadOnly)
+	TWeakObjectPtr<class UInventoryComponent> OwnerInventoryComp;
+
 protected:
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<class USizeBox> RootSizeBox;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<class UImage> ItemIcon;
@@ -36,6 +40,8 @@ public:
 	// 💡 InInvenGUID 매개변수 추가
 	UFUNCTION(BlueprintCallable)
 	void InitWidget(const FItemInstance InItem, const FItemTableRow& InData, const FGuid& InInvenGUID, float InTileSize = 64.0f);
+
+	void SetOwnerInventoryComp(class UInventoryComponent* InComp);
 
 	void SetContextWidget(class UItemContextWidget* widget);
 

@@ -8,10 +8,12 @@
 #include "EnhancedInputSubsystems.h"
 #include "Camera/CameraComponent.h"
 #include "Components/NativeActionComponent.h"
+#include "Components/InteractComponent.h"
 #include "Core/TableSubSystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilities/CustomAbilitySystemComponent.h"
+#include "GameMode/CustomPlayerState.h"
 
 ACustomPlayerCharacter::ACustomPlayerCharacter()
 {
@@ -50,6 +52,10 @@ ACustomPlayerCharacter::ACustomPlayerCharacter()
 
 	AbilitySystemComp->SetIsReplicated(true);
 	AbilitySystemComp->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
+
+
+	InteractComp = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractComponent"));
+
 }
 
 void ACustomPlayerCharacter::Tick(float DeltaTime)
@@ -65,10 +71,17 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 	if (!IsValid(controller))
 		return;
 
-	UEnhancedInputLocalPlayerSubsystem* inputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
-		controller->GetLocalPlayer());
+	UEnhancedInputLocalPlayerSubsystem* inputSubsystem = nullptr;
+	if (controller->GetLocalPlayer())
+	{
+		inputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
+			controller->GetLocalPlayer());
+	}
 	if (!IsValid(inputSubsystem))
-		return;
+	{
+		// Dedicated server / non-local player: cannot add local mapping context, but continue binding
+		UE_LOG(LogTemp, Warning, TEXT("SetupPlayerInputComponent: EnhancedInputLocalPlayerSubsystem not available (likely server). Continuing without AddMappingContext."));
+	}
 
 	UEnhancedInputComponent* inputComp = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	if (!IsValid(inputComp))
@@ -135,6 +148,11 @@ UCustomAbilitySystemComponent* ACustomPlayerCharacter::GetCustomAbilitySystemCom
 USpringArmComponent* ACustomPlayerCharacter::GetCameraArm() const
 {
 	return CameraArmComp;
+}
+
+void ACustomPlayerCharacter::Interact()
+{	
+	if (InteractComp) InteractComp->Interact();
 }
 
 void ACustomPlayerCharacter::BeginPlay()

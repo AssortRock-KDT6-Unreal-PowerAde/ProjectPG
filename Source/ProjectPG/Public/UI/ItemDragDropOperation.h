@@ -27,6 +27,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	FGuid SourceInventoryGUID;
 
+	// [추가] 드래그를 시작한 출발지 InventoryComponent (다른 InventoryComponent로의 이동을 위해 필요)
+	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
+	TWeakObjectPtr<class UInventoryComponent> SourceInventoryComp;
+
 	UPROPERTY(BlueprintReadWrite, Category = "DragDrop")
 	bool bCurrentRotated = false;
 

@@ -29,14 +29,15 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<class UNativeActionComponent> NativeActionComp;
-
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<class UInteractComponent> InteractComp;
 public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	UCustomAbilitySystemComponent* GetCustomAbilitySystemComponent() const;
 	USpringArmComponent* GetCameraArm() const;
-
+	void Interact();
 protected:
 	virtual void BeginPlay() override;
 };

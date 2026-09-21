@@ -64,8 +64,8 @@ void ULobbyWidget::OnClickedCharacterButton()
 				UInventoryComponent* InvenComp = MyPS->GetComponentByClass<UInventoryComponent>();
 				UEquipComponent* EquipComp = MyPS->GetComponentByClass<UEquipComponent>();
 
-				// 1. 컴포넌트 초기화
-				Window->InitWidget(InvenComp, EquipComp);
+				// 1. 컴포넌트 초기화 (Lobby: show main inventory)
+				Window->InitForPlayer(InvenComp, EquipComp, true);
 
 				// 2. Main / Pocket 인벤토리 UI 생성 호출
 				TSubclassOf<UUserWidget> InvenClass = UISubsystem->GetUIClass(EUIType::Inventory);

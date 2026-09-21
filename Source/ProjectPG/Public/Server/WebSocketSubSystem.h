@@ -25,6 +25,16 @@ public:
 	bool SendPayload(const FString& Type, TSharedPtr<FJsonObject> PayloadObject);
 	void SendJsonMessage(const FString& Type, TSharedPtr<FJsonObject> PayloadObject);
 
+	// 실제 소켓 연결 여부. Connect()는 비동기이므로 InitGame 등 이른 시점에서는
+	// false일 수 있다. 연결 완료 후 요청을 보내려면 OnSocketConnected를 사용할 것.
+	UFUNCTION(BlueprintCallable, Category = "WebSocket_Lobby")
+	bool IsConnected() const { return WebSocket.IsValid() && WebSocket->IsConnected(); }
+
+	// 소켓이 실제로 연결되었을 때 브로드캐스트. 연결 이전에 요청을 보내야 하는 코드는
+	// 이 델리게이트에 바인딩한 뒤 연결 완료 시 요청을 보낸다.
+	DECLARE_MULTICAST_DELEGATE(FOnSocketConnected);
+	FOnSocketConnected OnSocketConnected;
+
 	UFUNCTION(BlueprintCallable, Category = "Lobby WebSocket")
 	FString GetCurrentUserID() const { return CurrentUserId; }
 	void SetCurrentUserID(const FString& NewId) { CurrentUserId = NewId; }

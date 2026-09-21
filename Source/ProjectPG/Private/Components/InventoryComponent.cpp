@@ -339,6 +339,8 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	RebuildGridMapByGuid(TargetInvenGuid);
 
 	// 💡 5. 서버로 이동 패킷 전송 (UInventorySubSystem을 거치도록 수정 완료)
+	// 로컬/서버 분기는 InventorySubSystem::IsLocalOnly()가 단독으로 결정한다.
+	// 여기서는 조건을 따지지 말고 항상 RequestMoveItem을 호출한다.
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
 		InvenSub->RequestMoveItem(SourceGuid, TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
@@ -351,6 +353,74 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	return true;
 }
 
+bool UInventoryComponent::RemoveItemByGUID(const FGuid& ItemGUID, FItemInstance& OutItem)
+{
+	for (auto& Pair : ItemsMap)
+	{
+		TArray<FItemInstance>& Items = Pair.Value.Items;
+		for (int32 i = 0; i < Items.Num(); ++i)
+		{
+			if (Items[i].GUID == ItemGUID)
+			{
+				OutItem = Items[i];
+				const FGuid SourceGuid = Pair.Key;
+				Items.RemoveAt(i);
+				RebuildGridMapByGuid(SourceGuid);
+				OnInventoryUpdated.Broadcast();
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool UInventoryComponent::TransferItemFrom(UInventoryComponent* SourceComp, const FGuid& ItemGUID, const FGuid& TargetInvenGuid, FIntPoint NewPos, bool bNewRotated)
+{
+	if (!SourceComp || !TargetInvenGuid.IsValid())
+	{
+		return false;
+	}
+
+	// 동일 컴포넌트라면 기존 MoveItem 로직을 그대로 사용
+	if (SourceComp == this)
+	{
+		return MoveItem(TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
+	}
+
+	FItemInstance Item;
+	if (!SourceComp->RemoveItemByGUID(ItemGUID, Item))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[InventoryComponent] TransferItemFrom: Item not found in source component ItemGUID=%s"), *ItemGUID.ToString());
+		return false;
+	}
+
+	const FGuid SourceOwnerGuid = Item.parent_inventory_guid;
+
+	if (!CanPlaceItemByGuid(TargetInvenGuid, Item.ItemID, NewPos, bNewRotated, ItemGUID))
+	{
+		// 배치 불가 시 원래 소스 컴포넌트로 되돌린다
+		SourceComp->AddItemAt(Item, Item.Position);
+		return false;
+	}
+
+	Item.Position = NewPos;
+	Item.bIsRotated = bNewRotated;
+	Item.parent_inventory_guid = TargetInvenGuid;
+
+	ItemsMap.FindOrAdd(TargetInvenGuid).Items.Add(Item);
+	RebuildGridMapByGuid(TargetInvenGuid);
+
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
+	{
+		InvenSub->RequestMoveItem(SourceOwnerGuid, TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[InventoryComponent] TransferItemFrom: Source=%s Target=%s ItemGUID=%s (cross-component)"), *SourceOwnerGuid.ToString(), *TargetInvenGuid.ToString(), *ItemGUID.ToString());
+
+	OnInventoryUpdated.Broadcast();
+	return true;
+}
+
 void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWrapper)
 {
 	if (InWrapper.InventorySizeMap.Num() == 0 && InWrapper.InventoryMap.Num() == 0)
@@ -358,9 +428,30 @@ void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWr
 		return;
 	}
 
+	// Merge server-provided inventory size map with local registrations.
+	// Do not blindly overwrite locally-registered container sizes (e.g., actor-local containers)
 	if (InWrapper.InventorySizeMap.Num() > 0)
 	{
-		InventorySizeMap = InWrapper.InventorySizeMap;
+		for (const auto& SizePair : InWrapper.InventorySizeMap)
+		{
+			const FGuid& Guid = SizePair.Key;
+			const FIntPoint& ServerSize = SizePair.Value;
+
+			if (!InventorySizeMap.Contains(Guid))
+			{
+				InventorySizeMap.Add(Guid, ServerSize);
+				UE_LOG(LogTemp, Warning, TEXT("SetServerInventoryData: Added server container size GUID=%s Size=(%d,%d)"), *Guid.ToString(), ServerSize.X, ServerSize.Y);
+			}
+			else
+			{
+				const FIntPoint LocalSize = InventorySizeMap[Guid];
+				if (LocalSize != ServerSize)
+				{
+					// Keep local size and report conflict for investigation
+					UE_LOG(LogTemp, Warning, TEXT("SetServerInventoryData: Size conflict GUID=%s Local=(%d,%d) Server=(%d,%d) - keeping Local"), *Guid.ToString(), LocalSize.X, LocalSize.Y, ServerSize.X, ServerSize.Y);
+				}
+			}
+		}
 	}
 
 	ItemsMap.Empty();

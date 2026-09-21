@@ -59,6 +59,11 @@ void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& In
 	RefreshWidget();
 }
 
+void UItemWidget::SetOwnerInventoryComp(UInventoryComponent* InComp)
+{
+	 OwnerInventoryComp = InComp; 
+}
+
 void UItemWidget::SetContextWidget(UItemContextWidget* widget)
 {
 	_ContextWidget = widget;
@@ -176,6 +181,7 @@ void UItemWidget::NativeOnDragDetected(
 	DragOp->WidgetReference = this;
 	DragOp->DraggedItem = ItemInstance;
 	DragOp->SourceInventoryGUID = OwnerInventoryGUID;
+	DragOp->SourceInventoryComp = OwnerInventoryComp;
 	DragOp->bCurrentRotated =
 		ItemInstance.bIsRotated;
 

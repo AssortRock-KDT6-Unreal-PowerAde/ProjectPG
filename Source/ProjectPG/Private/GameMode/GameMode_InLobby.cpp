@@ -8,12 +8,13 @@
 #include <UI/Controller/LobbyUIFlowController.h>
 #include "GameMode/PlayerController_InLobby.h"
 #include "GameMode/PlayerController_InGame.h"
+#include <Server/InventorySubSystem.h>
+#include <Server/WebSocketSubSystem.h>
 
 AGameMode_InLobby::AGameMode_InLobby()
 {
 	PlayerControllerClass = APlayerController_InLobby::StaticClass();
 }
-#include <Server/InventorySubSystem.h>
 
 void AGameMode_InLobby::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
@@ -40,6 +41,32 @@ void AGameMode_InLobby::InitGame(const FString& MapName, const FString& Options,
 		}
 
 		InvSub->SetUseWebSocket(true);
-		InvSub->RequestGetInventory();
+		InvSub->SetForceLocalMoves(false);
 	}
+
+	// WebSocket::Connect()는 비동기이므로, InitGame 시점에는 아직 연결이 완료되지 않았을 수 있다.
+	// 실제로 연결된 뒤에 GET_INVENTORY를 요청하도록 폴링한다.
+	TryRequestInventoryWhenConnected();
+}
+
+void AGameMode_InLobby::TryRequestInventoryWhenConnected()
+{
+	UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(this);
+	UInventorySubSystem* InvSub = UInventorySubSystem::Get(GetWorld());
+
+	if (!WS || !InvSub)
+	{
+		GetWorldTimerManager().SetTimer(InventoryRequestRetryHandle, this, &AGameMode_InLobby::TryRequestInventoryWhenConnected, 0.2f, false);
+		return;
+	}
+
+	if (!WS->IsConnected())
+	{
+		UE_LOG(LogTemp, Log, TEXT("[GameMode_InLobby] WebSocket not connected yet, retrying inventory request..."));
+		GetWorldTimerManager().SetTimer(InventoryRequestRetryHandle, this, &AGameMode_InLobby::TryRequestInventoryWhenConnected, 0.2f, false);
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[GameMode_InLobby] WebSocket connected, requesting inventory."));
+	InvSub->RequestGetInventory();
 }

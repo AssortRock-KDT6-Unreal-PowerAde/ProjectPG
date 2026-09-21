@@ -184,6 +184,13 @@ void UInventorySubSystem::HandleInventoryMessage(const FString& MessageType, TSh
 		// Broadcast equip first so EquipComponents can register containers (backpacks) before inventory UI rebuild
 		OnEquipReceived.Broadcast(EquipMapWrapper);
 		OnInventoryReceived.Broadcast(CachedInventory);
+
+		// Initial inventory applied, stop waiting flag
+		if (bWaitingForInitialInventory)
+		{
+			bWaitingForInitialInventory = false;
+			UE_LOG(LogTemp, Log, TEXT("InventorySubSystem: Received initial INVENTORY_DATA, bWaitingForInitialInventory=false"));
+		}
 	}
 	else if (MessageType == TEXT("RES_MOVE_ITEM"))
 	{
@@ -237,6 +244,10 @@ void UInventorySubSystem::RequestGetInventory()
 		ReplayCachedInventory();
 		return;
 	}
+	// Mark that we are waiting for the server's initial inventory response. This prevents
+	// UI or component code from prematurely sending moves to the server while the initial
+	// server inventory is being delivered and applied locally.
+	bWaitingForInitialInventory = true;
 
 	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
 	{
@@ -247,13 +258,22 @@ void UInventorySubSystem::RequestGetInventory()
 
 void UInventorySubSystem::RequestMoveItem(const FGuid& FromInventoryGuid, const FGuid& ToInventoryGuid, const FGuid& ItemGuid, const FIntPoint& TargetPosition, bool bIsRotated)
 {
-	// WebSocket 사용 안할 때는 로컬 캐시에서 이동 처리 및 브로드캐스트
-	if (!bUseWebSocket && bHasCachedInventory)
+	// 단일 정책 지점(IsLocalOnly)을 사용해 로컬/서버 분기를 결정한다.
+	// 호출부(UI, InventoryComponent, EquipComponent)는 이 조건을 직접 검사하지 않고
+	// 항상 RequestMoveItem을 호출하면 된다.
+	if (IsLocalOnly())
 	{
 		bool bFound = false;
 		FItemInstance FoundItem;
-
 		FGuid SourceGuid;
+
+		// Ensure we have a cache map to operate on
+		if (!bHasCachedInventory)
+		{
+			// create empty cache if none exists
+			CachedInventory = FInventoryMapWrapper();
+			bHasCachedInventory = true;
+		}
 
 		for (auto& Pair : CachedInventory.InventoryMap)
 		{
@@ -283,10 +303,17 @@ void UInventorySubSystem::RequestMoveItem(const FGuid& FromInventoryGuid, const 
 			OnInventoryReceived.Broadcast(CachedInventory);
 			// 로컬 변경 플래그 설정
 			bHasLocalChanges = true;
+
+			UE_LOG(LogTemp, Warning, TEXT("InventorySubSystem: Local move applied Item=%s From=%s To=%s (forceLocal=%d waiting=%d useWS=%d)"), *ItemGuid.ToString(), *SourceGuid.ToString(), *ToInventoryGuid.ToString(), bForceLocalMoves ? 1 : 0, bWaitingForInitialInventory ? 1 : 0, bUseWebSocket ? 1 : 0);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InventorySubSystem: Local move requested but item not found in cache Item=%s"), *ItemGuid.ToString());
 		}
 		return;
 	}
 
+	// Default: forward to WebSocket
 	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
 	{
 		TSharedPtr<FJsonObject> PayloadObject = MakeShared<FJsonObject>();
@@ -303,9 +330,15 @@ void UInventorySubSystem::RequestMoveItem(const FGuid& FromInventoryGuid, const 
 
 void UInventorySubSystem::RequestEquipItem(const FGuid& ItemGuid, const FGuid& TargetParentGuid, bool bIsEquipped)
 {
-	// 로컬 모드이면 캐시에서 장착/해제 처리
-	if (!bUseWebSocket && bHasCachedInventory)
+	// 단일 정책 지점(IsLocalOnly)을 사용해 로컬/서버 분기를 결정한다. (RequestMoveItem과 동일 조건)
+	if (IsLocalOnly())
 	{
+		if (!bHasCachedInventory)
+		{
+			CachedInventory = FInventoryMapWrapper();
+			bHasCachedInventory = true;
+		}
+
 		bool bFound = false;
 		for (auto& Pair : CachedInventory.InventoryMap)
 		{
@@ -359,6 +392,12 @@ void UInventorySubSystem::SetUseWebSocket(bool bUse)
 {
 	bUseWebSocket = bUse;
 	UE_LOG(LogTemp, Log, TEXT("InventorySubSystem: SetUseWebSocket => %s"), bUse ? TEXT("true") : TEXT("false"));
+}
+
+void UInventorySubSystem::SetForceLocalMoves(bool bForce)
+{
+	bForceLocalMoves = bForce;
+	UE_LOG(LogTemp, Log, TEXT("InventorySubSystem: SetForceLocalMoves => %s"), bForce ? TEXT("true") : TEXT("false"));
 }
 
 void UInventorySubSystem::ForceSaveToServer()

@@ -133,25 +133,6 @@ FIntPoint UInventoryGridWidget::CalculateDropTile(
 	{
 		return FIntPoint(-1, -1);
 	}
-
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT(
-			"[CalculateDropTile] "
-			"Grid=(%.2f,%.2f) "
-			"ActualTile=(%.2f,%.2f) "
-			"TileSize=%.2f "
-			"Tile=(%d,%d)"
-		),
-		GridLocalSize.X,
-		GridLocalSize.Y,
-		ActualTileWidth,
-		ActualTileHeight,
-		TileSize,
-		TileX,
-		TileY);
-
 	return FIntPoint(TileX, TileY);
 }
 
@@ -279,7 +260,7 @@ void UInventoryGridWidget::CreateBackGroundGrid(int32 Columns, int32 Rows)
 void UInventoryGridWidget::RefreshGridUI()
 {
 	if (!TargetInventoryComp) {
-		UE_LOG(LogTemp, Warning, TEXT("TargetInventoryComp none"));
+		UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: TargetInventoryComp none"));
 		return;
 	}
 	// 1. GUID가 지정되지 않은 경우 기본 창고(Stash) GUID 가져오기 시도
@@ -289,7 +270,7 @@ void UInventoryGridWidget::RefreshGridUI()
 	}
 
 	if (!InventoryGUID.IsValid()) {
-		UE_LOG(LogTemp, Warning, TEXT("InventoryGuid none"));
+		UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: InventoryGuid none"));
 		return;
 	}
 	int32 GridColumns =
@@ -297,6 +278,8 @@ void UInventoryGridWidget::RefreshGridUI()
 
 	int32 GridRows =
 		TargetInventoryComp->GetRows(InventoryGUID);
+
+	UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: GUID=%s GridCols=%d GridRows=%d"), *InventoryGUID.ToString(), GridColumns, GridRows);
 
 	if (GridColumns <= 0 || GridRows <= 0)
 	{
@@ -412,6 +395,8 @@ void UInventoryGridWidget::RenderItems()
 			*ItemData,
 			InventoryGUID,
 			TileSize);
+
+		ItemWidget->SetOwnerInventoryComp(TargetInventoryComp);
 
 		UCanvasPanelSlot* CanvasSlot =
 			ItemCanvas->AddChildToCanvas(ItemWidget);
@@ -713,8 +698,9 @@ bool UInventoryGridWidget::NativeOnDrop(
 
 		if (bAdded)
 		{
-			if (UInventorySubSystem* Web =
-				UInventorySubSystem::Get(GetWorld()))
+			// 로컬/서버 분기는 InventorySubSystem::IsLocalOnly()가 단독으로 결정한다.
+			// 여기서는 조건을 따지지 말고 항상 Request 함수를 호출한다.
+			if (UInventorySubSystem* Web = UInventorySubSystem::Get(GetWorld()))
 			{
 				Web->RequestEquipItem(
 					TempInstance.GUID,
@@ -768,12 +754,34 @@ bool UInventoryGridWidget::NativeOnDrop(
 	// 일반 인벤토리 이동
 	// =========================================================
 
-	const bool bMoved =
-		TargetInventoryComp->MoveItem(
-			InventoryGUID,
-			ItemDragOp->DraggedItem.GUID,
-			TargetTile,
-			ItemDragOp->bCurrentRotated);
+	UInventoryComponent* SourceComp =
+		ItemDragOp->SourceInventoryComp.IsValid()
+			? ItemDragOp->SourceInventoryComp.Get()
+			: TargetInventoryComp;
+
+	bool bMoved = false;
+
+	if (SourceComp && SourceComp != TargetInventoryComp)
+	{
+		// 💡 드래그 출발지 컴포넌트가 현재 드롭 대상 컴포넌트와 다른 경우
+		// (예: 다른 InventoryComponent를 가진 InteractActor로 이동)
+		bMoved =
+			TargetInventoryComp->TransferItemFrom(
+				SourceComp,
+				ItemDragOp->DraggedItem.GUID,
+				InventoryGUID,
+				TargetTile,
+				ItemDragOp->bCurrentRotated);
+	}
+	else
+	{
+		bMoved =
+			TargetInventoryComp->MoveItem(
+				InventoryGUID,
+				ItemDragOp->DraggedItem.GUID,
+				TargetTile,
+				ItemDragOp->bCurrentRotated);
+	}
 
 	if (ItemDragOp->WidgetReference)
 	{

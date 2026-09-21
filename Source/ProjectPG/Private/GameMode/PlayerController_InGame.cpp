@@ -17,6 +17,19 @@ void APlayerController_InGame::BeginPlay()
 	Super::BeginPlay();
 
 	UE_LOG(LogTemp, Log, TEXT("APlayerController_InGame::BeginPlay Class=%s NetMode=%d IsLocal=%d"), *GetClass()->GetName(), GetWorld() ? (int32)GetWorld()->GetNetMode() : -1, IsLocalController() ? 1 : 0);
+
+	// 💡 GameMode_InGame의 로컬 전환 정책(SetForceLocalMoves/SetUseWebSocket)은 서버측 InventorySubSystem에만 적용된다.
+	// 실제 UI 드래그/장착 로직은 클라이언트의 UInventorySubSystem을 사용하므로, 클라이언트측에서도
+	// InGame 레벨에 들어오면 즉시 로컬전용 모드로 전환해야 장착/이동이 WebSocket/DB로 새는 것을 방지한다.
+	if (IsLocalController())
+	{
+		if (UInventorySubSystem* InvSub = UInventorySubSystem::Get(GetWorld()))
+		{
+			InvSub->SetUseWebSocket(false);
+			InvSub->SetForceLocalMoves(true);
+			UE_LOG(LogTemp, Log, TEXT("APlayerController_InGame::BeginPlay - Client InventorySubSystem forced to local-only mode."));
+		}
+	}
 }
 
 void APlayerController_InGame::Client_ReceiveInventoryJson_Implementation(const FString& MessageType, const FString& PayloadJson)
@@ -62,9 +75,9 @@ void APlayerController_InGame::InteractPressed()
 
 	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
 	{
-		if (AInteractActor* IA = Cast<AInteractActor>(Hit.GetActor()))
+		if (IInteractable* IA = Cast<IInteractable>(Hit.GetActor()))
 		{
-			IA->Interact(this);
+			IA->Interact_Implementation(Hit.GetActor());
 		}
 	}
 }
@@ -119,7 +132,9 @@ void APlayerController_InGame::OpenCharacterWidgetInGame()
 				{
 					UInventoryComponent* InvenComp = MyPS->GetComponentByClass<UInventoryComponent>();
 					UEquipComponent* EquipComp = MyPS->GetComponentByClass<UEquipComponent>();
-					Win->InitWidget(InvenComp, EquipComp);
+				// InGame에서는 Main 영역을 기본으로 표시하지 않도록 설정
+					// InGame: initialize as player but do not show main inventory until Interact
+					Win->InitForPlayer(InvenComp, EquipComp, false);
 					UE_LOG(LogTemp, Log, TEXT("OpenCharacterWidgetInGame: InventoryWindow initialized (InvenComp=%s EquipComp=%s)"), InvenComp ? TEXT("ok") : TEXT("null"), EquipComp ? TEXT("ok") : TEXT("null"));
 					// InGame에서는 Main inventory grid는 자동으로 열지 않음
 				}
