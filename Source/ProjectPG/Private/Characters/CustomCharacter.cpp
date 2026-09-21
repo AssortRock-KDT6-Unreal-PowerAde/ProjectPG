@@ -150,6 +150,12 @@ void ACustomCharacter::EquipItem(const FString& SocketName, UObject* Item)
 {
 }
 
+void ACustomCharacter::Fire()
+{
+	// TODO : 무기 장비 여부 확인
+	// TODO : Muzzle을 찾고 이펙트, 레이캐스트
+}
+
 void ACustomCharacter::SetAiming(bool bNewAiming)
 {
 	bIsAiming = bNewAiming;

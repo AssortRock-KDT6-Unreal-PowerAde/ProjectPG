@@ -40,6 +40,8 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	virtual void EquipItem(const FString& SocketName, UObject* Item);
 
+	virtual void Fire();
+	
 	void SetAiming(bool bNewAiming);
 
 	UFUNCTION(Server, Reliable)

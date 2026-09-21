@@ -7,6 +7,7 @@
 #include "CustomPlayerCharacter.generated.h"
 
 class UCustomAbilitySystemComponent;
+class UAnimMontage;
 
 /**
  * 
@@ -37,6 +38,12 @@ public:
 
 	UCustomAbilitySystemComponent* GetCustomAbilitySystemComponent() const;
 	USpringArmComponent* GetCameraArm() const;
+	void PlayMontage(UAnimMontage* Montage);
+
+	UFUNCTION(Server, Reliable)
+	void OnReq_PlayMontage(UAnimMontage* Montage);
+	UFUNCTION(NetMulticast, Reliable)
+	void OnRep_PlayMontage(UAnimMontage* Montage);
 
 	UFUNCTION(Server, Unreliable)
 	void OnReq_SyncAimRotation(FVector2D AimDirection);

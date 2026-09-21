@@ -84,6 +84,10 @@ void UCustomCharacterMovementComponent::PhysicsRotation(float DeltaTime)
 	if (HasAnimRootMotion() && !bAllowPhysicsRotationDuringAnimRootMotion)
 		return;
 
+	// Looking around while standing still should not rotate the character body.
+	if (Acceleration.IsNearlyZero())
+		return;
+
 	const FVector GroundVelocity = Velocity.GetSafeNormal2D();
 	const float TargetYaw = IsSprinting() && !GroundVelocity.IsNearlyZero()
 		? GroundVelocity.Rotation().Yaw

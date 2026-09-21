@@ -4,6 +4,7 @@
 #include "Characters/CustomPlayerCharacter.h"
 
 #include "AbilitySystemComponent.h"
+#include "Animation/AnimMontage.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Animations/CustomAnimInstance.h"
@@ -85,7 +86,7 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 
 	const FPlayerDefaultActionTableRow* playerDefaultActionRow = tableSubSystem->FindTableRow<
 		FPlayerDefaultActionTableRow>(
-		"PlayerDefaultActionTable", "PlayerDefault");
+		"PlayerDefaultActionTable", "PlayerDefault_Debug");
 	if (nullptr == playerDefaultActionRow)
 		return;
 
@@ -145,6 +146,37 @@ UCustomAbilitySystemComponent* ACustomPlayerCharacter::GetCustomAbilitySystemCom
 USpringArmComponent* ACustomPlayerCharacter::GetCameraArm() const
 {
 	return CameraArmComp;
+}
+
+void ACustomPlayerCharacter::PlayMontage(UAnimMontage* Montage)
+{
+	if (!IsLocallyControlled() || !IsValid(Montage))
+		return;
+
+	if (HasAuthority())
+	{
+		OnRep_PlayMontage(Montage);
+	}
+	else
+	{
+		PlayAnimMontage(Montage);
+		OnReq_PlayMontage(Montage);
+	}
+}
+
+void ACustomPlayerCharacter::OnReq_PlayMontage_Implementation(UAnimMontage* Montage)
+{
+	if (IsValid(Montage))
+		OnRep_PlayMontage(Montage);
+}
+
+void ACustomPlayerCharacter::OnRep_PlayMontage_Implementation(UAnimMontage* Montage)
+{
+	// The owning client already started playback before sending the request.
+	if (!IsValid(Montage) || (!HasAuthority() && IsLocallyControlled()))
+		return;
+
+	PlayAnimMontage(Montage);
 }
 
 void ACustomPlayerCharacter::OnReq_SyncAimRotation_Implementation(FVector2D AimDirection)
