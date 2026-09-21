@@ -49,6 +49,8 @@ void UInventoryComponent::BeginPlay()
 	{
 		InvenSub->OnInventoryReceived.RemoveDynamic(this, &UInventoryComponent::HandleInventoryReceived);
 		InvenSub->OnInventoryReceived.AddDynamic(this, &UInventoryComponent::HandleInventoryReceived);
+		// 수신 바인딩 이후 이미 서버에서 받은 캐시 데이터가 있다면 즉시 재전파 요청
+		InvenSub->ReplayCachedInventory();
 	}
 }
 
@@ -343,7 +345,9 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	}
 
 	// 6. UI 동기화 알림
+	UE_LOG(LogTemp, Warning, TEXT("[InventoryComponent] MoveItem: Source=%s Target=%s ItemGUID=%s ItemsInSource=%d ItemsInTarget=%d"), *SourceGuid.ToString(), *TargetInvenGuid.ToString(), *ItemGUID.ToString(), ItemsMap.FindRef(SourceGuid).Items.Num(), ItemsMap.FindRef(TargetInvenGuid).Items.Num());
 	OnInventoryUpdated.Broadcast();
+
 	return true;
 }
 

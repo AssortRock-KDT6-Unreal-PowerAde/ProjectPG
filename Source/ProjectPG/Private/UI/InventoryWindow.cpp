@@ -26,10 +26,48 @@ void UInventoryWindow::NativeConstruct()
 
 	if (BackBtn)
 	{
+		BackBtn->SetVisibility(ESlateVisibility::Visible);
+		BackBtn->SetIsEnabled(true);
+		BackBtn->OnClicked.RemoveDynamic(this, &UInventoryWindow::OnClickedBackBtn);
+		BackBtn->OnClicked.AddDynamic(this, &UInventoryWindow::OnClickedBackBtn);
+		UE_LOG(LogTemp, Log, TEXT("UInventoryWindow::NativeConstruct - BackBtn bound, visible, enabled."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryWindow::NativeConstruct - BackBtn is null. Check widget binding."));
+	}
+}
+void UInventoryWindow::InitWidgetForActor(UInventoryComponent* ActorInventory)
+{
+	// Actor inventory should be bound to main inventory overlay only
+	// For actor (interact) binding, we treat this as 'Main' inventory display.
+	// Store separately to avoid clobbering the player-owned InvenComp used for Stash/Backpack.
+	// Introduce a local variable MainInvenComp via a new member if not present.
+	MainInventoryComp = ActorInventory;
+
+	if (InvenComp)
+	{
+		InvenComp->OnInventoryUpdated.RemoveDynamic(this, &UInventoryWindow::RefreshAllGrids);
+		InvenComp->OnInventoryUpdated.AddDynamic(this, &UInventoryWindow::RefreshAllGrids);
+	}
+
+	// Create main inventory grid if class registered in subsystem
+	if (UUIManagerSubSystem* UISub = UUIManagerSubSystem::Get(GetWorld()))
+	{
+		if (TSubclassOf<UUserWidget> MainClass = UISub->GetUIClass(EUIType::Inventory))
+		{
+			SetupMainInventoryWidget(MainClass);
+		}
+	}
+
+
+	if (BackBtn)
+	{
 		BackBtn->OnClicked.RemoveDynamic(this, &UInventoryWindow::OnClickedBackBtn);
 		BackBtn->OnClicked.AddDynamic(this, &UInventoryWindow::OnClickedBackBtn);
 	}
 }
+
 
 void UInventoryWindow::NativeDestruct()
 {
@@ -62,6 +100,10 @@ void UInventoryWindow::InitWidget(UInventoryComponent* InvenComponent, UEquipCom
 
 	}
 
+	// 즉시 현재 상태로 모든 그리드(스태시/포켓/백팩)를 강제 갱신하여
+	// 장비(백팩) 복구 시점에서 UI가 빠르게 반영되도록 합니다.
+	RefreshAllGrids();
+
 }
 
 // 메인 인벤토리(Stash) 위젯 동적 생성 및 배치
@@ -73,6 +115,27 @@ void UInventoryWindow::SetupMainInventoryWidget(TSubclassOf<UUserWidget> InvenCl
 	if (MainInvenWidget)
 	{
 		SetChildMainInvenOverlay(MainInvenWidget);
+		// 즉시 바인딩 및 초기 렌더링 보장
+		// If a MainInventoryComp (interact actor) is bound, show that; otherwise show player's stash
+		UInventoryComponent* GridOwner = MainInventoryComp ? MainInventoryComp.Get() : InvenComp.Get();
+		if (GridOwner)
+		{
+			if (UInventoryGridWidget* GridWidget = Cast<UInventoryGridWidget>(MainInvenWidget))
+			{
+				// If showing actor's inventory, use its first available inventory container (assume stash)
+				FGuid TargetGuid = GridOwner->GetStashInventoryID();
+				if (!TargetGuid.IsValid() && MainInventoryComp)
+				{
+					// Fallback: find any registered container
+					for (const auto& Pair : GridOwner->GetItemsMap())
+					{
+						TargetGuid = Pair.Key;
+						break;
+					}
+				}
+				GridWidget->RefreshGrid(GridOwner, TargetGuid);
+			}
+		}
 	}
 }
 
@@ -85,6 +148,14 @@ void UInventoryWindow::SetupPocketInventoryWidget(TSubclassOf<UUserWidget> Inven
 	if (PocketInvenWidget)
 	{
 		SetChildSubInvenOverlay(PocketInvenWidget);
+		// 즉시 바인딩 및 초기 렌더링 보장
+		if (InvenComp)
+		{
+			if (UInventoryGridWidget* GridWidget = Cast<UInventoryGridWidget>(PocketInvenWidget))
+			{
+				GridWidget->RefreshGrid(InvenComp, InvenComp->GetPocketInventoryID());
+			}
+		}
 	}
 }
 void UInventoryWindow::SetupBackPackInventoryWidget(TSubclassOf<UUserWidget> InvenClass)
@@ -98,8 +169,9 @@ void UInventoryWindow::SetupBackPackInventoryWidget(TSubclassOf<UUserWidget> Inv
 	const FItemInstance* Instance = EquipComp->GetEquipment(EEquipSlot::BackPack);
 	if (Instance && Instance->GUID.IsValid())
 	{
-		// ❌ 매번 ClearChildren / CreateWidget을 수행하면 델리게이트 재귀 시 프리징 발생
-		// 기존 오버레이에 이미 자식이 있다면 새로 생성하지 않도록 확실히 처리
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryWindow::SetupBackPackInventoryWidget called for GUID=%s"), *Instance->GUID.ToString());
+		// 매번 ClearChildren / CreateWidget을 수행하지 않도록 기존 동작 유지
+		// 기존 오버레이에 이미 자식이 있다면 새로 생성하지 않도록 처리
 		if (BackPackInvenOverlay && BackPackInvenOverlay->GetChildrenCount() > 0)
 		{
 			if (UInventoryGridWidget* GridWidget = Cast<UInventoryGridWidget>(BackPackInvenOverlay->GetChildAt(0)))
@@ -193,10 +265,32 @@ void UInventoryWindow::SetChildMainCanvas(UUserWidget* childWidget)
 
 void UInventoryWindow::OnClickedBackBtn()
 {
-	UUIManagerSubSystem* subSystem = UUIManagerSubSystem::Get(GetWorld());
-	if (!IsValid(subSystem)) return;
+	UE_LOG(LogTemp, Log, TEXT("UInventoryWindow::OnClickedBackBtn called."));
 
-	subSystem->CloseUI(EUIType::Character);
+	UUIManagerSubSystem* subSystem = UUIManagerSubSystem::Get(GetWorld());
+
+	if (!IsValid(subSystem))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInventoryWindow::OnClickedBackBtn - UIManagerSubSystem is invalid."));
+	}
+	else
+	{
+		UUserWidget* Registered = subSystem->GetUI(EUIType::Character);
+		UE_LOG(LogTemp, Log, TEXT("UInventoryWindow::OnClickedBackBtn - UIManagerSubSystem reports Character widget %s"), Registered ? TEXT("present") : TEXT("null"));
+	}
+
+	// 요청으로 UIManager에게 닫기 처리를 맡기고,
+	// 안전을 위해 위젯 자신도 뷰포트에서 제거합니다.
+	if (IsValid(subSystem)) subSystem->CloseUI(EUIType::Character);
+
+	UE_LOG(LogTemp, Log, TEXT("UInventoryWindow::OnClickedBackBtn - calling RemoveFromParent/Collapse."));
+
+	if (IsInViewport())
+	{
+		RemoveFromParent();
+	}
+
+	SetVisibility(ESlateVisibility::Collapsed);
 }
 
 void UInventoryWindow::UpdateState()
@@ -238,7 +332,15 @@ void UInventoryWindow::RefreshAllGrids()
 		};
 
 	// 1. 기본 Stash 및 Pocket 인벤토리 UI 갱신
-	BindOverlayGrid(MainInventoryOverlay, InvenComp->GetStashInventoryID());
+	// MainInventoryOverlay may show either player's stash or MainInventoryComp (interact actor)
+	if (MainInventoryComp)
+	{
+		BindOverlayGrid(MainInventoryOverlay, MainInventoryComp->GetStashInventoryID());
+	}
+	else
+	{
+		BindOverlayGrid(MainInventoryOverlay, InvenComp->GetStashInventoryID());
+	}
 	BindOverlayGrid(SubInventoryOverlay, InvenComp->GetPocketInventoryID());
 
 	// 2. 장착된 가방(Backpack) UI 갱신

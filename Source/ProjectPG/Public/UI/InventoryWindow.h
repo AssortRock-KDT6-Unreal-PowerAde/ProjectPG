@@ -13,6 +13,7 @@ class UInventoryComponent;
 class UInventoryGridWidget;
 class UEquipmentWidget;
 class UButton;
+class UEquipComponent;
 /**
  * 캐릭터 장비 및 인벤토리 창 통합 윈도우 UI
  */
@@ -46,13 +47,21 @@ protected:
 	TObjectPtr<UInventoryComponent> InvenComp;
 
 	UPROPERTY()
-	TObjectPtr<class UEquipComponent> EquipComp;
+	TObjectPtr<UEquipComponent> EquipComp;
+
+	// When showing an InteractActor's main inventory, this holds that actor's InventoryComponent
+	UPROPERTY()
+	TObjectPtr<UInventoryComponent> MainInventoryComp;
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
 public:
-	void InitWidget(UInventoryComponent* InvenComponent, class UEquipComponent* EquipComponent);
+	void InitWidget(UInventoryComponent* InvenComponent, UEquipComponent* EquipComponent);
+
+	// Alternative init: bind only actor inventory (for InteractActor)
+	UFUNCTION(BlueprintCallable)
+	void InitWidgetForActor(UInventoryComponent* ActorInventory);
 
 	// 외부(LobbyWidget 등)에서 호출하는 인벤토리 초기 세팅용 함수
 	void SetupMainInventoryWidget(TSubclassOf<UUserWidget> InvenClass);
@@ -70,11 +79,11 @@ public:
 
 	UFUNCTION()
 	void OnClickedBackBtn();
+	UFUNCTION() void RefreshAllGrids();
 
 private:
 	UFUNCTION()	void OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper);
 
-	UFUNCTION() void RefreshAllGrids();
 
 
 };

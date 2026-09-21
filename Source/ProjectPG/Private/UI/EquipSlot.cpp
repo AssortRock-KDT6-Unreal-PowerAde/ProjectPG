@@ -71,12 +71,14 @@ void UEquipSlot::SetItem(const FItemInstance* InItem)
 
 void UEquipSlot::Clear()
 {
+	// 기존 Clear 동작은 드래그 중인 경우 클리어를 건너뛰도록 방어 코드가 있습니다.
+	// 일반적인 호출은 방어 코드를 적용한 Clear로 처리합니다.
+	// 여기서는 기존 동작을 유지합니다.
 	// 방어 코드: 드래그 중인 아이템이 이 슬롯과 관련 있으면 Clear를 건너뜁니다.
 	if (UDragDropOperation* Op = UWidgetBlueprintLibrary::GetDragDroppingContent())
 	{
 		if (UItemDragDropOperation* ItemOp = Cast<UItemDragDropOperation>(Op))
 		{
-			// 출처가 이 슬롯이거나 드래그 중인 아이템 GUID가 현재 장착된 아이템과 같다면 Clear 무시
 			if (ItemOp->WidgetReference == this)
 			{
 				UE_LOG(LogTemp, Verbose, TEXT("[EquipSlot::Clear] Skip clear because drag originates from this slot. Slot=%d"), (int32)Slot);
@@ -105,7 +107,30 @@ void UEquipSlot::Clear()
 		ItemName->SetVisibility(ESlateVisibility::Hidden);
 	}
 
-	// Ensure slot background/border remains visible so slot does not appear removed
+	if (SlotBorder)
+	{
+		SlotBorder->SetVisibility(ESlateVisibility::Visible);
+		SlotBorder->SetBrushColor(FLinearColor::Transparent);
+	}
+}
+
+void UEquipSlot::ForceClear()
+{
+	UE_LOG(LogTemp, Verbose, TEXT("[EquipSlot::ForceClear] Force clearing slot=%d"), (int32)Slot);
+	Item = nullptr;
+
+	if (Icon)
+	{
+		Icon->SetBrushFromTexture(nullptr);
+		Icon->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (ItemName)
+	{
+		ItemName->SetText(FText::GetEmpty());
+		ItemName->SetVisibility(ESlateVisibility::Hidden);
+	}
+
 	if (SlotBorder)
 	{
 		SlotBorder->SetVisibility(ESlateVisibility::Visible);
@@ -145,6 +170,24 @@ bool UEquipSlot::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 		if (ItemOp->WidgetReference)
 			ItemOp->WidgetReference->SetRenderOpacity(1.0f);
 
+		if (bResult)
+		{
+			// 드래그 비주얼 제거
+			if (ItemOp->DefaultDragVisual)
+			{
+				if (UItemWidget* DV = Cast<UItemWidget>(ItemOp->DefaultDragVisual))
+				{
+					DV->RemoveFromParent();
+				}
+			}
+
+			// 원본 위젯 제거 또는 강제 갱신
+			if (ItemOp->WidgetReference)
+			{
+				// 일반 아이템 위젯이면 부모에서 제거
+				ItemOp->WidgetReference->RemoveFromParent();
+			}
+		}
 
 		return bResult;
 	}
@@ -361,9 +404,10 @@ bool UEquipSlot::RequestUnEquip()
 {
 	if (!EquipComp) return false;
 	// 안전하게 현재 슬롯의 장착 해제 요청
-	bool bResult = EquipComp->UnEquip(Slot);
-	// 로컬 UI 즉시 정리
-	Clear();
+	// 드래그로 인해 UI가 직접 목표 인벤토리에 배치할 것이므로 자동 복구는 하지 않음
+	bool bResult = EquipComp->UnEquip(Slot, false);
+	// 로컬 UI 즉시 정리 (드래그 중에도 강제 클리어)
+	ForceClear();
 	return bResult;
 }
 

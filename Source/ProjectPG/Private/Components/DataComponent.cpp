@@ -10,6 +10,30 @@ UDataComponent::UDataComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+void UDataComponent::FlushAndSendToServer()
+{
+	if (!GetWorld()) return;
+
+	if (UInventorySubSystem* InvSub = UInventorySubSystem::Get(GetWorld()))
+	{
+		FInventoryMapWrapper Wrapper;
+		// copy stored ItemData into Wrapper.InventoryMap
+		Wrapper.InventoryMap = ItemData;
+
+		// overwrite cached inventory inside subsystem
+		InvSub->CachedInventory.InventoryMap = Wrapper.InventoryMap;
+		InvSub->bHasCachedInventory = true;
+		InvSub->bHasLocalChanges = true;
+
+		UE_LOG(LogTemp, Warning, TEXT("[DataComponent] FlushAndSendToServer: invoking ForceSaveToServer"));
+		InvSub->ForceSaveToServer();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[DataComponent] FlushAndSendToServer: InventorySubSystem not found"));
+	}
+}
+
 void UDataComponent::BeginPlay()
 {
 	Super::BeginPlay();

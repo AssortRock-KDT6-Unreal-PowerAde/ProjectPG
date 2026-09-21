@@ -30,7 +30,9 @@ public:
 	const TMap<EEquipSlot, TObjectPtr<class AEquipActor>>& GetEquipActors() const { return EquipActors; }
 	bool Equip(const FItemInstance& Item);
 	bool UnEquip(const FItemInstance Item);
-	bool UnEquip(EEquipSlot slot);
+	// bRestoreToInventory: 드래그로 인한 해제 시에는 false로 전달하여
+	// UI 쪽에서 직접 목표 인벤토리에 배치하도록 할 수 있습니다.
+	bool UnEquip(EEquipSlot slot, bool bRestoreToInventory = true);
 
 	bool Swap(EEquipSlot slot1, EEquipSlot slot2);
 

@@ -1,6 +1,7 @@
 #include "Server/InventorySubSystem.h"
 #include "Server/WebSocketSubSystem.h"
 #include "Dom/JsonObject.h"
+#include "Json.h"
 #include "Core/ItemSubSystem.h"
 
 UInventorySubSystem* UInventorySubSystem::Get(UWorld* World)
@@ -25,6 +26,7 @@ void UInventorySubSystem::Deinitialize()
 
 void UInventorySubSystem::HandleInventoryMessage(const FString& MessageType, TSharedPtr<FJsonObject> PayloadObject)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[InventorySubSystem] HandleInventoryMessage: Type=%s PayloadValid=%s"), *MessageType, PayloadObject.IsValid() ? TEXT("true") : TEXT("false"));
 	if (!PayloadObject.IsValid()) return;
 
 	if (MessageType == TEXT("INVENTORY_DATA"))
@@ -171,8 +173,17 @@ void UInventorySubSystem::HandleInventoryMessage(const FString& MessageType, TSh
 		InventoryMapWrapper.InventoryMap = InventoryItems;
 		EquipMapWrapper.InventoryMap = EquipItems;
 
-		OnInventoryReceived.Broadcast(InventoryMapWrapper);
+		// 캐시에 저장하고 브로드캐스트
+		CachedInventory = InventoryMapWrapper;
+		bHasCachedInventory = true;
+
+		// 장착 데이터도 캐시로 저장 (EquipMapWrapper의 InventoryMap 사용)
+		CachedEquip = EquipMapWrapper;
+		bHasCachedEquip = true;
+
+		// Broadcast equip first so EquipComponents can register containers (backpacks) before inventory UI rebuild
 		OnEquipReceived.Broadcast(EquipMapWrapper);
+		OnInventoryReceived.Broadcast(CachedInventory);
 	}
 	else if (MessageType == TEXT("RES_MOVE_ITEM"))
 	{
@@ -186,10 +197,47 @@ void UInventorySubSystem::HandleInventoryMessage(const FString& MessageType, TSh
 			RequestGetInventory();
 		}
 	}
+
+	// 추가: 장착/해제 응답 처리 예시(서버에서 장착 응답 오는 경우에 대비)
+	else if (MessageType == TEXT("RES_EQUIP_ITEM"))
+	{
+		bool bSuccess = false;
+		if (PayloadObject->TryGetBoolField(TEXT("success"), bSuccess))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[InventorySubSystem] RES_EQUIP_ITEM received success=%d"), bSuccess ? 1 : 0);
+			// 성공 시 서버에서 최신 인벤토리/장착 데이터를 요청
+			RequestGetInventory();
+		}
+	}
 }
+
+void UInventorySubSystem::ReplayCachedInventory()
+{
+	if (!bHasCachedInventory && !bHasCachedEquip) return;
+
+	UE_LOG(LogTemp, Log, TEXT("InventorySubSystem::ReplayCachedInventory called. HasInventory=%d HasEquip=%d"), bHasCachedInventory ? 1 : 0, bHasCachedEquip ? 1 : 0);
+
+	// Ensure equip handlers run before inventory handlers to allow container registration
+	if (bHasCachedEquip)
+	{
+		OnEquipReceived.Broadcast(CachedEquip);
+	}
+	if (bHasCachedInventory)
+	{
+		OnInventoryReceived.Broadcast(CachedInventory);
+	}
+}
+
 
 void UInventorySubSystem::RequestGetInventory()
 {
+	// WebSocket 사용이 비활성화된 경우 로컬 캐시가 존재하면 캐시를 바로 전파
+	if (!bUseWebSocket)
+	{
+		ReplayCachedInventory();
+		return;
+	}
+
 	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
 	{
 		TSharedPtr<FJsonObject> Payload = MakeShared<FJsonObject>();
@@ -199,6 +247,46 @@ void UInventorySubSystem::RequestGetInventory()
 
 void UInventorySubSystem::RequestMoveItem(const FGuid& FromInventoryGuid, const FGuid& ToInventoryGuid, const FGuid& ItemGuid, const FIntPoint& TargetPosition, bool bIsRotated)
 {
+	// WebSocket 사용 안할 때는 로컬 캐시에서 이동 처리 및 브로드캐스트
+	if (!bUseWebSocket && bHasCachedInventory)
+	{
+		bool bFound = false;
+		FItemInstance FoundItem;
+
+		FGuid SourceGuid;
+
+		for (auto& Pair : CachedInventory.InventoryMap)
+		{
+			TArray<FItemInstance>& Items = Pair.Value.Items;
+			for (int32 i = 0; i < Items.Num(); ++i)
+			{
+				if (Items[i].GUID == ItemGuid)
+				{
+					FoundItem = Items[i];
+					SourceGuid = Pair.Key;
+					Items.RemoveAt(i);
+					bFound = true;
+					break;
+				}
+			}
+			if (bFound) break;
+		}
+
+		if (bFound)
+		{
+			FoundItem.parent_inventory_guid = ToInventoryGuid;
+			FoundItem.Position = TargetPosition;
+			FoundItem.bIsRotated = bIsRotated;
+
+			CachedInventory.InventoryMap.FindOrAdd(ToInventoryGuid).Items.Add(FoundItem);
+			// 캐시 갱신 완료 후 브로드캐스트
+			OnInventoryReceived.Broadcast(CachedInventory);
+			// 로컬 변경 플래그 설정
+			bHasLocalChanges = true;
+		}
+		return;
+	}
+
 	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
 	{
 		TSharedPtr<FJsonObject> PayloadObject = MakeShared<FJsonObject>();
@@ -215,6 +303,42 @@ void UInventorySubSystem::RequestMoveItem(const FGuid& FromInventoryGuid, const 
 
 void UInventorySubSystem::RequestEquipItem(const FGuid& ItemGuid, const FGuid& TargetParentGuid, bool bIsEquipped)
 {
+	// 로컬 모드이면 캐시에서 장착/해제 처리
+	if (!bUseWebSocket && bHasCachedInventory)
+	{
+		bool bFound = false;
+		for (auto& Pair : CachedInventory.InventoryMap)
+		{
+			for (int32 i = 0; i < Pair.Value.Items.Num(); ++i)
+			{
+				if (Pair.Value.Items[i].GUID == ItemGuid)
+				{
+					FItemInstance Item = Pair.Value.Items[i];
+					// 원래 위치에서 제거
+					Pair.Value.Items.RemoveAt(i);
+					// 업데이트
+					Item.parent_inventory_guid = TargetParentGuid;
+					Item.bEquip = bIsEquipped;
+					// 타겟에 추가
+					CachedInventory.InventoryMap.FindOrAdd(TargetParentGuid).Items.Add(Item);
+					bFound = true;
+					break;
+				}
+			}
+			if (bFound) break;
+		}
+
+		if (bFound)
+		{
+			// Ensure equip handlers run before inventory handlers so containers (e.g., backpacks) are registered
+			OnEquipReceived.Broadcast(CachedInventory);
+			OnInventoryReceived.Broadcast(CachedInventory);
+			// 로컬 변경 플래그 설정
+			bHasLocalChanges = true;
+		}
+		return;
+	}
+
 	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
 	{
 		TSharedPtr<FJsonObject> PayloadObject = MakeShared<FJsonObject>();
@@ -222,6 +346,100 @@ void UInventorySubSystem::RequestEquipItem(const FGuid& ItemGuid, const FGuid& T
 		PayloadObject->SetStringField(TEXT("TargetParentGuid"), TargetParentGuid.ToString(EGuidFormats::DigitsWithHyphens));
 		PayloadObject->SetBoolField(TEXT("bIsEquipped"), bIsEquipped);
 
-		WS->SendJsonMessage(TEXT("REQ_EQUIP_ITEM"), PayloadObject);
+		bool bSent = false;
+		if (WS)
+		{
+			bSent = WS->SendPayload(TEXT("REQ_EQUIP_ITEM"), PayloadObject);
+		}
+		UE_LOG(LogTemp, Warning, TEXT("[InventorySubSystem] RequestEquipItem: ItemGUID=%s Target=%s bIsEquipped=%d WebSocketAvailable=%s Sent=%s"), *ItemGuid.ToString(), *TargetParentGuid.ToString(), bIsEquipped ? 1 : 0, WS ? TEXT("true") : TEXT("false"), bSent ? TEXT("true") : TEXT("false"));
+	}
+}
+
+void UInventorySubSystem::SetUseWebSocket(bool bUse)
+{
+	bUseWebSocket = bUse;
+	UE_LOG(LogTemp, Log, TEXT("InventorySubSystem: SetUseWebSocket => %s"), bUse ? TEXT("true") : TEXT("false"));
+}
+
+void UInventorySubSystem::ForceSaveToServer()
+{
+	if (!bHasCachedInventory)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ForceSaveToServer: no cached inventory to save."));
+		return;
+	}
+
+	if (!bHasLocalChanges)
+	{
+		UE_LOG(LogTemp, Log, TEXT("ForceSaveToServer: no local changes to save."));
+		return;
+	}
+
+	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
+	{
+		TSharedPtr<FJsonObject> Payload = MakeShared<FJsonObject>();
+
+		if (CachedInventory.StashGuid.IsValid()) Payload->SetStringField(TEXT("stashGuid"), CachedInventory.StashGuid.ToString(EGuidFormats::DigitsWithHyphens));
+		if (CachedInventory.PocketGuid.IsValid()) Payload->SetStringField(TEXT("pocketGuid"), CachedInventory.PocketGuid.ToString(EGuidFormats::DigitsWithHyphens));
+
+		auto SetEquipField = [&](const TCHAR* Name, const FGuid& Guid)
+		{
+			if (Guid.IsValid()) Payload->SetStringField(Name, Guid.ToString(EGuidFormats::DigitsWithHyphens));
+		};
+		SetEquipField(TEXT("MainWeaponGuid"), CachedInventory.MainWeapon);
+		SetEquipField(TEXT("SubWeaponGuid"), CachedInventory.SubWeapon);
+		SetEquipField(TEXT("HelMetGuid"), CachedInventory.HelMet);
+		SetEquipField(TEXT("ClothGuid"), CachedInventory.Cloth);
+		SetEquipField(TEXT("PantsGuid"), CachedInventory.Pants);
+		SetEquipField(TEXT("ShoseGuid"), CachedInventory.Shose);
+		SetEquipField(TEXT("BackPackGuid"), CachedInventory.BackPack);
+		SetEquipField(TEXT("Accuracy1Guid"), CachedInventory.Accuracy1);
+		SetEquipField(TEXT("Accuracy2Guid"), CachedInventory.Accuracy2);
+
+		TArray<TSharedPtr<FJsonValue>> InventoriesArray;
+		for (const auto& Pair : CachedInventory.InventorySizeMap)
+		{
+			TSharedPtr<FJsonObject> InvenObj = MakeShared<FJsonObject>();
+			InvenObj->SetStringField(TEXT("inventory_id"), Pair.Key.ToString(EGuidFormats::DigitsWithHyphens));
+			InvenObj->SetNumberField(TEXT("cols"), Pair.Value.X);
+			InvenObj->SetNumberField(TEXT("rows"), Pair.Value.Y);
+			InventoriesArray.Add(MakeShared<FJsonValueObject>(InvenObj));
+		}
+		Payload->SetArrayField(TEXT("inventories"), InventoriesArray);
+
+		TArray<TSharedPtr<FJsonValue>> ItemsArray;
+		for (const auto& Pair : CachedInventory.InventoryMap)
+		{
+			for (const FItemInstance& Item : Pair.Value.Items)
+			{
+				TSharedPtr<FJsonObject> ItemObj = MakeShared<FJsonObject>();
+				if (Item.GUID.IsValid()) ItemObj->SetStringField(TEXT("guid"), Item.GUID.ToString(EGuidFormats::DigitsWithHyphens));
+				if (Item.parent_inventory_guid.IsValid()) ItemObj->SetStringField(TEXT("parent_inventory_guid"), Item.parent_inventory_guid.ToString(EGuidFormats::DigitsWithHyphens));
+				ItemObj->SetStringField(TEXT("item_id"), Item.ItemID.ToString());
+				ItemObj->SetNumberField(TEXT("stack_count"), Item.StackCount);
+				ItemObj->SetNumberField(TEXT("current_durability"), Item.Durability);
+				ItemObj->SetNumberField(TEXT("pos_x"), Item.Position.X);
+				ItemObj->SetNumberField(TEXT("pos_y"), Item.Position.Y);
+				ItemObj->SetNumberField(TEXT("is_equipped"), Item.bEquip ? 1 : 0);
+				ItemObj->SetBoolField(TEXT("bIsRotated"), Item.bIsRotated);
+
+				ItemsArray.Add(MakeShared<FJsonValueObject>(ItemObj));
+			}
+		}
+		Payload->SetArrayField(TEXT("items"), ItemsArray);
+
+		if (WS->SendPayload(TEXT("SYNC_INVENTORY"), Payload))
+		{
+			UE_LOG(LogTemp, Log, TEXT("ForceSaveToServer: SYNC_INVENTORY sent."));
+			bHasLocalChanges = false;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ForceSaveToServer: WebSocket not connected. SYNC_INVENTORY not sent."));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ForceSaveToServer: WebSocket subsystem not available."));
 	}
 }

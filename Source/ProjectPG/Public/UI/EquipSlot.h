@@ -45,6 +45,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool RequestUnEquip();
 
+	// 강제 클리어: 드래그 중에도 슬롯을 즉시 비우기 위해 사용
+	UFUNCTION(BlueprintCallable)
+	void ForceClear();
+
 	// 하이라이트 상태 설정 (InventoryGrid와 동일 방식)
 	UFUNCTION(BlueprintCallable)
 	void SetHighlightState(EBorderHighlightState InState);

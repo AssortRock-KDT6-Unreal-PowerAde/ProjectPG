@@ -48,6 +48,12 @@ void ULobbyWidget::OnClickedCharacterButton()
 	UUserWidget* CharacterWidget = UISubsystem->OpenUI(EUIType::Character);
 	UInventoryWindow* Window = Cast<UInventoryWindow>(CharacterWidget);
 
+	// OpenUI가 이미 위젯 인스턴스를 반환하지만 뷰포트에 없을 수 있으니 강제 추가
+	if (CharacterWidget && !CharacterWidget->IsInViewport())
+	{
+		CharacterWidget->AddToViewport(100);
+	}
+
 	if (Window)
 	{
 		APlayerController* PC = GetOwningPlayer();

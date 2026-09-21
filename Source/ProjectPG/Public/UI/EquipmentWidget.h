@@ -28,7 +28,7 @@ private:
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UEquipSlot> BackPackSlot;
 
 	/** 슬롯 타입별 위젯 매핑 테이블 */
-	UPROPERTY()
+	// Key는 슬롯 타입(enum)이어야 하며, Value는 슬롯 위젯 포인터입니다.
 	TMap<EEquipSlot, TObjectPtr<UEquipSlot>> SlotWidgetMap;
 
 	UPROPERTY()

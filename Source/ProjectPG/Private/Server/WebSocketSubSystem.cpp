@@ -7,6 +7,8 @@
 #include "Server/AuthSubSystem.h"
 #include "Server/MatchmakingSubSystem.h"
 #include "Server/InventorySubSystem.h"
+// Include InGame player controller to call client RPC
+#include "GameMode/PlayerController_InGame.h"
 
 UWebSocketSubSystem* UWebSocketSubSystem::Get(const UObject* worldContext)
 {
@@ -127,6 +129,33 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 		{
 			InvSub->HandleInventoryMessage(UpperType, PayloadObject);
 		}
+
+		// Additionally, if running as dedicated server, forward the message to owning player's client(s)
+		if (IsRunningDedicatedServer())
+		{
+			// Serialize payload back to JSON string
+			FString PayloadJson;
+			TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&PayloadJson);
+			if (FJsonSerializer::Serialize(PayloadObject.ToSharedRef(), Writer))
+			{
+				// Iterate all player controllers and call client RPC
+				UWorld* World = GetWorld();
+				if (World)
+				{
+					for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+					{
+						if (APlayerController* PC = It->Get())
+						{
+							// Only forward to InGame player controllers
+							if (APlayerController_InGame* InGamePC = Cast<APlayerController_InGame>(PC))
+							{
+								InGamePC->Client_ReceiveInventoryJson(UpperType, PayloadJson);
+							}
+						}
+					}
+				}
+			}
+		}
 		return;
 	}
 }
@@ -141,13 +170,28 @@ void UWebSocketSubSystem::SendJsonMessage(const FString& Type, TSharedPtr<FJsonO
 	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
 	if (FJsonSerializer::Serialize(RootObject.ToSharedRef(), Writer))
 	{
+		if (!WebSocket.IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UWebSocketSubSystem::SendJsonMessage - WebSocket is not valid, cannot send Type=%s"), *Type);
+			return;
+		}
+
+		if (!WebSocket->IsConnected())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UWebSocketSubSystem::SendJsonMessage - WebSocket is not connected, cannot send Type=%s"), *Type);
+			return;
+		}
+
 		WebSocket->Send(OutputString);
 	}
 }
 
 bool UWebSocketSubSystem::SendPayload(const FString& Type, TSharedPtr<FJsonObject> PayloadObject)
 {
-	if (!WebSocket.IsValid() || !WebSocket->IsConnected()) return false;
+	bool bConnected = WebSocket.IsValid() && WebSocket->IsConnected();
+	UE_LOG(LogTemp, Warning, TEXT("[WebSocketSubSystem] SendPayload: Type=%s Connected=%s"), *Type, bConnected ? TEXT("true") : TEXT("false"));
+	if (!bConnected) return false;
 	SendJsonMessage(Type, PayloadObject);
+	UE_LOG(LogTemp, Warning, TEXT("[WebSocketSubSystem] SendPayload: Type=%s Sent"), *Type);
 	return true;
 }

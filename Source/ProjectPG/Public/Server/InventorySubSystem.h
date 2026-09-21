@@ -32,10 +32,43 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void RequestEquipItem(const FGuid& ItemGuid, const FGuid& TargetParentGuid, bool bIsEquipped);
 
+	// 로컬 캐시 및 WebSocket 사용 제어
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void SetUseWebSocket(bool bUse);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool IsUsingWebSocket() const { return bUseWebSocket; }
+
+	// 로컬에 변경된 캐시를 강제로 서버에 저장(필요 시 GameMode에서 호출)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void ForceSaveToServer();
+
+	// Replay cached inventory/equip data to newly bound listeners
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void ReplayCachedInventory();
+
 	// Inventory 관련 델리게이트 배치
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
 	FOnInventoryReceived OnInventoryReceived;
 
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
 	FOnEquipReceived OnEquipReceived;
+
+	bool bHasCachedInventory = false;
+	// 서버에서 받은 장착(Equip) 캐시
+	FInventoryMapWrapper CachedEquip;
+	bool bHasCachedEquip = false;
+	// 로컬에서 변경이 발생했는지 여부 (InGame 모드에서 로컬 변경 후 Lobby 복귀 시 동기화 필요)
+	bool bHasLocalChanges = false;
+	// 기본은 WebSocket 사용(로비 등)
+	UPROPERTY()
+	bool bUseWebSocket = true;
+
+	FInventoryMapWrapper CachedInventory;
+
+
+public:
+	// 로컬 변경 여부 확인
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool HasLocalChanges() const { return bHasLocalChanges; }
 };

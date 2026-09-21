@@ -167,50 +167,77 @@ UUserWidget* UUIManagerSubSystem::OpenUI(EUIType UIType)
 	UUserWidget** FoundWidget = ActiveWidgets.Find(UIType);
 	UUserWidget* TargetWidget = FoundWidget ? *FoundWidget : nullptr;
 
-	if (!TargetWidget)
+	// 이미 생성된 위젯이 ActiveWidgets에 존재하는데 뷰포트에 없으면 강제로 보여줍니다.
+	if (TargetWidget)
 	{
-		TSubclassOf<UUserWidget>* TargetClass = UIClassMap.Find(UIType);
-
-		if (TargetClass && *TargetClass)
+		if (!TargetWidget->IsInViewport())
 		{
-			TargetWidget = CreateWidget<UUserWidget>(PC, *TargetClass);
+			int32 ZOrder = 100;
+
+			switch (UIType)
+			{
+			case EUIType::Inventory:
+				ZOrder = 100;
+				break;
+
+			case EUIType::ItemContext:
+				ZOrder = 300;
+				break;
+
+			case EUIType::MessagePopup:
+				ZOrder = 1000;
+				break;
+
+			default:
+				ZOrder = 100;
+				break;
+			}
+
+			TargetWidget->AddToViewport(ZOrder);
+			// 뷰포트로 복원할 때 가시성도 확실히 설정
+			TargetWidget->SetVisibility(ESlateVisibility::Visible);
+		}
+
+		UpdateInputMode();
+		return TargetWidget;
+	}
+
+	// 없으면 새로 생성
+	TSubclassOf<UUserWidget>* TargetClass = UIClassMap.Find(UIType);
+
+	if (TargetClass && *TargetClass)
+	{
+		TargetWidget = CreateWidget<UUserWidget>(PC, *TargetClass);
 
 			if (TargetWidget)
 			{
 				ActiveWidgets.Add(UIType, TargetWidget);
+
+				// 생성 직후 뷰포트에 추가 및 가시성 설정
+				int32 ZOrder = 100;
+				switch (UIType)
+				{
+				case EUIType::Inventory:
+					ZOrder = 100;
+					break;
+				case EUIType::ItemContext:
+					ZOrder = 300;
+					break;
+				case EUIType::MessagePopup:
+					ZOrder = 1000;
+					break;
+				default:
+					ZOrder = 100;
+					break;
+				}
+				TargetWidget->AddToViewport(ZOrder);
+				TargetWidget->SetVisibility(ESlateVisibility::Visible);
 			}
-		}
 	}
 
 	if (!TargetWidget)
 	{
 		return nullptr;
-	}
-
-	if (!TargetWidget->IsInViewport())
-	{
-		int32 ZOrder = 100;
-
-		switch (UIType)
-		{
-		case EUIType::Inventory:
-			ZOrder = 100;
-			break;
-
-		case EUIType::ItemContext:
-			ZOrder = 300;
-			break;
-
-		case EUIType::MessagePopup:
-			ZOrder = 1000;
-			break;
-
-		default:
-			ZOrder = 100;
-			break;
-		}
-
-		TargetWidget->AddToViewport(ZOrder);
 	}
 
 	UpdateInputMode();
@@ -372,18 +399,13 @@ void UUIManagerSubSystem::UpdateInputMode()
 	{
 		PC->SetShowMouseCursor(true);
 
-		FInputModeUIOnly InputMode;
+		// 메시지 팝업에서는 UIOnly로 전환하면 포커스 불가 위젯에 대한 시도가 발생해
+		// 입력이 차단될 수 있으므로 GameAndUI로 설정합니다. (게임 입력도 허용)
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
 
-		if (UUserWidget** MsgWidget =
-			ActiveWidgets.Find(EUIType::MessagePopup))
-		{
-			if (MsgWidget && *MsgWidget)
-			{
-				InputMode.SetWidgetToFocus(
-					(*MsgWidget)->TakeWidget()
-				);
-			}
-		}
+		// 포커스 시도는 제거하여 Non-Focusable 위젯 경고를 방지
+		// 필요시 팝업 위젯이 포커스를 지원하면 이후에 명시적으로 포커스 설정 가능
 
 		PC->SetInputMode(InputMode);
 

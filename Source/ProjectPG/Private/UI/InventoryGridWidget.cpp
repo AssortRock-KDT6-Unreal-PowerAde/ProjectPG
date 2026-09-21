@@ -737,18 +737,29 @@ bool UInventoryGridWidget::NativeOnDrop(
 				TargetTile.Y);
 		}
 
-		if (ItemDragOp->WidgetReference)
-		{
-			ItemDragOp->WidgetReference
-				->SetRenderOpacity(1.0f);
-
-			if (UEquipSlot* SrcSlot =
-				Cast<UEquipSlot>(
-					ItemDragOp->WidgetReference))
+			// 드래그 비주얼 원복 및 원본 슬롯 강제 클리어
+			if (ItemDragOp->DefaultDragVisual)
 			{
-				SrcSlot->Clear();
+				if (UItemWidget* DV = Cast<UItemWidget>(ItemDragOp->DefaultDragVisual))
+				{
+					DV->RemoveFromParent();
+				}
 			}
-		}
+
+			if (ItemDragOp->WidgetReference)
+			{
+				ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
+
+				if (UEquipSlot* SrcSlot = Cast<UEquipSlot>(ItemDragOp->WidgetReference))
+				{
+					SrcSlot->ForceClear();
+				}
+				else
+				{
+					// 일반 아이템 위젯이면 부모에서 제거하여 시각적 잔류 방지
+					ItemDragOp->WidgetReference->RemoveFromParent();
+				}
+			}
 
 		return bAdded;
 	}

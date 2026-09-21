@@ -115,7 +115,7 @@ void UEquipmentWidget::HandleBackpackContainerUpdate()
 	if (BackpackItem && BackpackItem->GUID.IsValid())
 	{
 		// 로그 출력은 포인터 검증이 끝난 안전한 이곳에서 수행합니다.
-		UE_LOG(LogTemp, Warning, TEXT("아이템 장착 상태 : %d"), BackpackItem->bEquip);
+		UE_LOG(LogTemp, Warning, TEXT("아이템 장착 상태 : %d (GUID=%s, ItemID=%s)"), BackpackItem->bEquip, *BackpackItem->GUID.ToString(), *BackpackItem->ItemID.ToString());
 
 		UTableSubSystem* subSystem = UTableSubSystem::Get(GetWorld());
 		if (!subSystem) return;

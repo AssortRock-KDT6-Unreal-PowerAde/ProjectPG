@@ -14,5 +14,6 @@ class PROJECTPG_API AGameMode_InLobby : public AGameModeBase
 {
 	GENERATED_BODY()
 public:
+	AGameMode_InLobby();
 	void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage);
 };

@@ -29,6 +29,8 @@ void UEquipComponent::BeginPlay()
 	{
 		InvenSub->OnEquipReceived.RemoveDynamic(this, &UEquipComponent::SetServerEquipData);
 		InvenSub->OnEquipReceived.AddDynamic(this, &UEquipComponent::SetServerEquipData);
+		// Late binding 대비: 서버/서브시스템에 캐시된 장착 데이터를 즉시 재생
+		InvenSub->ReplayCachedInventory();
 	}
 }
 
@@ -56,7 +58,10 @@ bool UEquipComponent::Equip(const FItemInstance& Item)
 	}
 
 	// 장착 맵에 추가
-	Equipments.Add(Slot, Item);
+	// 장착 플래그 설정 후 맵에 추가
+	FItemInstance ItemToStore = Item;
+	ItemToStore.bEquip = true;
+	Equipments.Add(Slot, ItemToStore);
 
 	// 가방 등 추가 데이터 적용
 	ApplyItemData(Item);
@@ -77,10 +82,31 @@ bool UEquipComponent::Equip(const FItemInstance& Item)
 		UE_LOG(LogTemp, Error, TEXT("[EquipComponent] 장착 실패: 슬롯 타입(%d)에 해당하는 유효한 TargetSlotGuid를 찾지 못했습니다!"), (int32)Slot);
 		return false;
 	}
+	// 로컬 인벤토리에서도 즉시 반영: 소스 인벤토리에서 장비 슬롯 GUID로 이동
+	if (UInventoryComponent* OwnerInv = GetOwnerInventoryComponent())
+	{
+		// 장비 슬롯 GUID가 InventoryComponent에 컨테이너로 등록되어 있지 않으면
+		// 장비 슬롯을 1x1 크기의 컨테이너로 등록합니다. (장비 슬롯은 단일 셀)
+		if (TargetSlotGuid.IsValid())
+		{
+			FIntPoint ExistingSize = OwnerInv->GetInventorySizeByGuid(TargetSlotGuid);
+			if (ExistingSize.X <= 0 || ExistingSize.Y <= 0)
+			{
+				OwnerInv->RegisterContainer(TargetSlotGuid, FIntPoint(1, 1));
+			}
+		}
+
+		// NewPos는 장비 슬롯의 내부 인덱스이므로 0,0으로 설정
+		OwnerInv->MoveItem(TargetSlotGuid, Item.GUID, FIntPoint(0, 0), Item.bIsRotated);
+	}
+
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] RequestEquipItem: ItemGUID=%s TargetSlot=%s"), *Item.GUID.ToString(), *TargetSlotGuid.ToString());
 		InvenSub->RequestEquipItem(Item.GUID, TargetSlotGuid, true);
 	}
+
+	// UI는 OnEquipmentChanged와 OnInventoryUpdated 델리게이트로 갱신됩니다.
 	// 장착 변경 이벤트 전파 (UI 가 이 델리게이트 내부에서 다시 Equip을 부르지 않는지 확인 필요!)
 	OnEquipmentChanged.Broadcast();
 	return true;
@@ -97,7 +123,7 @@ bool UEquipComponent::UnEquip(const FItemInstance Item)
 	return UnEquip(ItemData->EquipSlotType);
 }
 
-bool UEquipComponent::UnEquip(EEquipSlot slot)
+bool UEquipComponent::UnEquip(EEquipSlot slot, bool bRestoreToInventory /*= true*/)
 {
 	if (!Equipments.Contains(slot))
 		return false;
@@ -111,11 +137,43 @@ bool UEquipComponent::UnEquip(EEquipSlot slot)
 	// 2. 맵에서 완전 제거
 	Equipments.Remove(slot);
 
-	// 3. 웹소켓 서버로 해제 패킷 전송
-	//if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
-	//{
-	//	WebSocketSub->RequestEquipItem(RemovedItem.GUID, RemovedItem.parent_inventory_guid, false);
-	//}
+	// 3. 필요 시 소유자 인벤토리에 아이템을 되돌려 놓음
+	if (bRestoreToInventory)
+	{
+		if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
+		{
+			if (APlayerState* PS = PawnOwner->GetPlayerState())
+			{
+				if (UInventoryComponent* InvenComp = PS->GetComponentByClass<UInventoryComponent>())
+				{
+					// 기본적으로 Pocket(호주머니)로 되돌리기 시도
+					FGuid TargetGuid = InvenComp->GetPocketInventoryID();
+					if (!TargetGuid.IsValid())
+					{
+						TargetGuid = InvenComp->GetStashInventoryID();
+					}
+
+					if (TargetGuid.IsValid())
+					{
+						RemovedItem.parent_inventory_guid = TargetGuid;
+						// 되돌릴 때는 장착 플래그 해제
+						RemovedItem.bEquip = false;
+						// AddItem은 가능한 공간을 찾아 자동 배치
+						if (!InvenComp->AddItem(RemovedItem))
+						{
+							UE_LOG(LogTemp, Warning, TEXT("UnEquip: 아이템을 인벤토리에 되돌리지 못했습니다: %s"), *RemovedItem.ItemID.ToString());
+						}
+
+						// 서버 동기화 요청 (InventorySubSystem을 통해 처리)
+						if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
+						{
+							InvenSub->RequestEquipItem(RemovedItem.GUID, TargetGuid, false);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	OnEquipmentChanged.Broadcast();
 	return true;
@@ -268,6 +326,7 @@ void UEquipComponent::ApplyItemData(const FItemInstance& Item)
 {
 	if (Item.type == EItemType::Bag)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] ApplyItemData for Bag called: ItemGUID=%s ItemID=%s"), *Item.GUID.ToString(), *Item.ItemID.ToString());
 		UTableSubSystem* subsystem = UTableSubSystem::Get(GetWorld());
 		if (!IsValid(subsystem)) return;
 
@@ -282,6 +341,7 @@ void UEquipComponent::ApplyItemData(const FItemInstance& Item)
 				if (UInventoryComponent* InvenComp = PS->GetComponentByClass<UInventoryComponent>())
 				{
 					InvenComp->RegisterContainer(Item.GUID, FIntPoint(data->SlotSize.X, data->SlotSize.Y));
+					UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] Registered backpack container: GUID=%s Size=%d,%d"), *Item.GUID.ToString(), data->SlotSize.X, data->SlotSize.Y);
 				}
 			}
 		}

@@ -22,6 +22,8 @@ void ACustomPlayerState::BeginPlay()
 {
 	Super::BeginPlay();
 
+	UE_LOG(LogTemp, Log, TEXT("ACustomPlayerState::BeginPlay PlayerState=%s IsNetMode=%d IsLocal=%d"), *GetName(), GetWorld() ? (int32)GetWorld()->GetNetMode() : -1, GetOwner() && GetOwner()->IsA<APlayerController>() ? Cast<APlayerController>(GetOwner())->IsLocalController() : false);
+
 
 }
 
