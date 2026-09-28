@@ -15,6 +15,17 @@
 #include <GameMode/CustomPlayerState.h>
 #include <functional>
 
+namespace
+{
+	void SafeRemoveWidget(UWidget* Widget)
+	{
+		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
+		{
+			Widget->RemoveFromParent();
+		}
+	}
+}
+
 
 void UInventoryWindow::NativeConstruct()
 {
@@ -319,7 +330,7 @@ void UInventoryWindow::SetChildMainInvenOverlay(UUserWidget* ChildWidget)
 {
 	if (MainInventoryOverlay && ChildWidget)
 	{
-		ChildWidget->RemoveFromParent();
+		SafeRemoveWidget(ChildWidget);
 		MainInventoryOverlay->ClearChildren();
 
 		if (UOverlaySlot* OverlaySlot = MainInventoryOverlay->AddChildToOverlay(ChildWidget))
@@ -335,7 +346,7 @@ void UInventoryWindow::SetChildSubInvenOverlay(UUserWidget* childWidget)
 {
 	if (SubInventoryOverlay && childWidget)
 	{
-		childWidget->RemoveFromParent();
+		SafeRemoveWidget(childWidget);
 		SubInventoryOverlay->ClearChildren();
 
 		if (UOverlaySlot* OverlaySlot = SubInventoryOverlay->AddChildToOverlay(childWidget))
@@ -351,7 +362,7 @@ void UInventoryWindow::SetChildEquipOverlay(UUserWidget* childWidget)
 {
 	if (EquipOverlay && childWidget)
 	{
-		childWidget->RemoveFromParent();
+		SafeRemoveWidget(childWidget);
 		EquipOverlay->ClearChildren();
 		EquipOverlay->AddChild(childWidget);
 	}
@@ -361,7 +372,7 @@ void UInventoryWindow::SetChildBackpackInvenOverlay(UUserWidget* childWidget)
 {
 	if (BackPackInvenOverlay && childWidget)
 	{
-		childWidget->RemoveFromParent();
+		SafeRemoveWidget(childWidget);
 		BackPackInvenOverlay->ClearChildren();
 		BackPackInvenOverlay->AddChild(childWidget);
 	}
@@ -371,7 +382,7 @@ void UInventoryWindow::SetChildMainCanvas(UUserWidget* childWidget)
 {
 	if (MainCanvas && childWidget)
 	{
-		childWidget->RemoveFromParent();
+		SafeRemoveWidget(childWidget);
 		MainCanvas->ClearChildren();
 		MainCanvas->AddChild(childWidget);
 	}
@@ -426,6 +437,15 @@ void UInventoryWindow::UpdateState()
 
 void UInventoryWindow::OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper)
 {
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
+	{
+		if (InvenSub->IsLocalOnly())
+		{
+			UE_LOG(LogTemp, Log, TEXT("[InventoryWindow] OnInventoryDataReceived ignored while LocalOnly."));
+			return;
+		}
+	}
+
 	if (InvenComp)
 	{
 		InvenComp->SetServerInventoryData(InventoryMapWrapper);
@@ -485,6 +505,7 @@ void UInventoryWindow::ApplyInit(UInventoryComponent* PlayerInv, UEquipComponent
 void UInventoryWindow::RefreshAllGrids()
 {
 	if (!InvenComp) return;
+	UE_LOG(LogTemp, Warning, TEXT("[InventoryWindow] RefreshAllGrids begin bBoundToInteractTarget=%d MainInv=%p Equip=%p MainGuid=%s Pocket=%s"), bBoundToInteractTarget ? 1 : 0, MainInventoryComp.Get(), EquipComp.Get(), *MainInventoryGUID.ToString(), *InvenComp->GetPocketInventoryID().ToString());
 
 	// recursive finder to locate an InventoryGridWidget anywhere under a widget
 	std::function<UInventoryGridWidget*(UWidget*)> FindInventoryGrid = [&](UWidget* Root) -> UInventoryGridWidget*
@@ -587,6 +608,7 @@ void UInventoryWindow::RefreshAllGrids()
 	if (EquipComp)
 	{
 		const FItemInstance* BackpackItem = EquipComp->GetEquipment(EEquipSlot::BackPack);
+		UE_LOG(LogTemp, Warning, TEXT("[InventoryWindow] Backpack check item=%s guid=%s"), BackpackItem ? *BackpackItem->ItemID.ToString() : TEXT("null"), BackpackItem ? *BackpackItem->GUID.ToString() : TEXT("(null)"));
 		if (BackpackItem && BackpackItem->GUID.IsValid())
 		{
 			// 💡 [수정] 컴포넌트에 이미 크기 정보가 등록되어 있다면 RegisterContainer를 건너뜁니다.
@@ -605,6 +627,11 @@ void UInventoryWindow::RefreshAllGrids()
 				}
 			}
 
+			// backpack grid를 다시 붙일 때, 예전 GUID 컨테이너에 남아 있던 child item이
+			// 재사용되는 것을 막기 위해 현재 장착된 backpack GUID 기준으로만 바인딩한다.
+			// 즉, 새로 아이템을 생성하는 것이 아니라 현재 BackpackItem->GUID에 연결된
+			// 기존 컨테이너 내용을 그대로 표시해야 한다.
+
 			// 가방 UI 오버레이 바인딩 시도
 			if (!BindOverlayGrid(BackPackInvenOverlay, InvenComp, BackpackItem->GUID))
 			{
@@ -617,16 +644,13 @@ void UInventoryWindow::RefreshAllGrids()
 		}
 		else
 		{
+			UE_LOG(LogTemp, Warning, TEXT("[InventoryWindow] Backpack not equipped -> clearing backpack overlay"));
 			if (BackPackInvenOverlay)
 			{
 				BackPackInvenOverlay->ClearChildren();
 			}
 		}
 	}
-	if (EquipmentWidget) {
-		EquipmentWidget->HandleBackpackContainerUpdate();
-	}
-
 	UE_LOG(LogTemp, Warning, TEXT("UInventoryWindow::RefreshAllGrids - MainOverlayChildCount=%d BackPackChildCount=%d SubChildCount=%d"),
 		MainInventoryOverlay ? MainInventoryOverlay->GetAllChildren().Num() : -1,
 		BackPackInvenOverlay ? BackPackInvenOverlay->GetAllChildren().Num() : -1,

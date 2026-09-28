@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Common/GameData.h"
+class UInventoryComponent;
+
 #include "EquipComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEquipmentChanged);
@@ -20,6 +22,10 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equip", meta = (AllowPrivateAccess = "true"))	TMap<EEquipSlot, FItemInstance> Equipments;
 	UPROPERTY()TMap < EEquipSlot, TObjectPtr<class AEquipActor>> EquipActors;
 	UPROPERTY()TMap<FGuid,EEquipSlot> EquipSlotGuids;
+
+	// ★ local-only(InGame) 모드에서 최초 동기화 이후에는 스테일 캐시 재생으로 인한
+	// SetServerEquipData() 전체 재적용을 막기 위한 플래그 (InventoryComponent와 동일한 이유)
+	bool bHasReceivedInitialEquipSync = false;
 public:
 	FOnEquipmentChanged OnEquipmentChanged;
 protected:
@@ -29,6 +35,7 @@ protected:
 public:
 	const TMap<EEquipSlot, TObjectPtr<class AEquipActor>>& GetEquipActors() const { return EquipActors; }
 	bool Equip(const FItemInstance& Item);
+	bool Equip(const FItemInstance& Item, UInventoryComponent* SourceInventory);
 	bool UnEquip(const FItemInstance Item);
 	// bRestoreToInventory: 드래그로 인한 해제 시에는 false로 전달하여
 	// UI 쪽에서 직접 목표 인벤토리에 배치하도록 할 수 있습니다.

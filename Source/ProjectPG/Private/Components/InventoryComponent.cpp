@@ -5,7 +5,7 @@
 #include "Server/InventorySubSystem.h" // 💡 UInventorySubSystem 연동을 위해 포함
 #include <Core/ItemSubSystem.h>
 #include <Core/TableSubSystem.h>
-
+#include "Net/UnrealNetwork.h"
 UInventoryComponent::UInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -19,8 +19,8 @@ bool UInventoryComponent::AddItemAt(FItemInstance NewItem, FIntPoint TargetPos)
 	const FItemTableRow* Data = GetItemData(NewItem.ItemID);
 	if (!Data) return false;
 
-	// 배치 가능 여부 검사
-	if (!CanPlaceItemByGuid(TargetGuid, NewItem.ItemID, TargetPos, NewItem.bIsRotated))
+
+	if (!CanPlaceItemByGuid(TargetGuid, NewItem.ItemID, TargetPos, NewItem.bIsRotated, NewItem.GUID))
 	{
 		return false;
 	}
@@ -32,10 +32,15 @@ bool UInventoryComponent::AddItemAt(FItemInstance NewItem, FIntPoint TargetPos)
 	}
 
 	NewItem.Position = TargetPos;
+	NewItem.inventory_guid = NewItem.GUID;
 
-	ItemsMap.FindOrAdd(TargetGuid).Items.Add(NewItem);
+	PurgeDuplicateGuidExcept(NewItem.GUID, TargetGuid);
+
+	const FIntPoint NewItemSize = NewItem.bIsRotated ? FIntPoint(Data->GridSize.Y, Data->GridSize.X) : Data->GridSize;
+	PurgeOverlappingItems(TargetGuid, TargetPos, NewItemSize, NewItem.GUID);
+
+	ItemsMap.FindOrAdd(TargetGuid).Items.Add(NewItem);	
 	RebuildGridMapByGuid(TargetGuid);
-
 	OnInventoryUpdated.Broadcast();
 	return true;
 }
@@ -270,12 +275,14 @@ bool UInventoryComponent::AddItem(FItemInstance NewItem)
 			if (CanPlaceItemByGuid(TargetGuid, NewItem.ItemID, TestPos, NewItem.bIsRotated))
 			{
 				NewItem.Position = TestPos;
-				if (!NewItem.GUID.IsValid())
-				{
-					NewItem.GUID = FGuid::NewGuid();
-				}
+			if (!NewItem.GUID.IsValid())
+			{
+				NewItem.GUID = FGuid::NewGuid();
+			}
 
-				ItemsMap.FindOrAdd(TargetGuid).Items.Add(NewItem);
+			PurgeDuplicateGuidExcept(NewItem.GUID, TargetGuid);
+
+			ItemsMap.FindOrAdd(TargetGuid).Items.Add(NewItem);
 				RebuildGridMapByGuid(TargetGuid);
 				OnInventoryUpdated.Broadcast();
 				return true;
@@ -323,6 +330,8 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 		return false;
 	}
 
+	const FItemTableRow* MoveItemData = GetItemData(Item.ItemID);
+
 	// 1. 기존 위치에서 삭제
 	ItemsMap[SourceGuid].Items.RemoveAt(ItemIndex);
 
@@ -332,6 +341,13 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	Item.parent_inventory_guid = TargetInvenGuid;
 
 	// 3. 타겟 위치에 추가
+	// ★ 방어: 이동 직전에 동일 GUID가 다른 컨테이너에 유령으로 남아있다면 제거
+	PurgeDuplicateGuidExcept(ItemGUID, TargetInvenGuid);
+	if (MoveItemData)
+	{
+		const FIntPoint ItemSize = Item.bIsRotated ? FIntPoint(MoveItemData->GridSize.Y, MoveItemData->GridSize.X) : MoveItemData->GridSize;
+		PurgeOverlappingItems(TargetInvenGuid, NewPos, ItemSize, ItemGUID);
+	}
 	ItemsMap.FindOrAdd(TargetInvenGuid).Items.Add(Item);
 
 	// 4. 그리드 재구축
@@ -343,7 +359,10 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	// 여기서는 조건을 따지지 말고 항상 RequestMoveItem을 호출한다.
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
-		InvenSub->RequestMoveItem(SourceGuid, TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
+		if (!InvenSub->IsLocalOnly())
+		{
+			InvenSub->RequestMoveItem(SourceGuid, TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
+		}
 	}
 
 	// 6. UI 동기화 알림
@@ -355,23 +374,86 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 
 bool UInventoryComponent::RemoveItemByGUID(const FGuid& ItemGUID, FItemInstance& OutItem)
 {
+	// 방어 코드: 어떤 경로로든 동일 GUID 항목이 이 컴포넌트의 여러 컨테이너(혹은 같은 컨테이너)에
+	// 중복으로 남아있을 수 있으므로, 첫 번째 항목만 제거하고 끝내지 않고 발견되는 모든 중복 항목을
+	// 제거한다. 그렇지 않으면 하나만 제거된 뒤 나머지 고스트 항목이 ItemsMap에 남아 있다가,
+	// 이후 다른 아이템 이동으로 OnInventoryUpdated가 브로드캐스트될 때 다시 화면에 나타난다.
+	bool bFoundAny = false;
+	TArray<FGuid> ContainersTouched;
+
 	for (auto& Pair : ItemsMap)
 	{
 		TArray<FItemInstance>& Items = Pair.Value.Items;
-		for (int32 i = 0; i < Items.Num(); ++i)
+		for (int32 i = Items.Num() - 1; i >= 0; --i)
 		{
 			if (Items[i].GUID == ItemGUID)
 			{
-				OutItem = Items[i];
-				const FGuid SourceGuid = Pair.Key;
+				if (!bFoundAny)
+				{
+					OutItem = Items[i];
+					bFoundAny = true;
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("[InventoryComponent] RemoveItemByGUID: 중복된 GUID 항목 추가 발견 및 제거. ItemGUID=%s Container=%s"), *ItemGUID.ToString(), *Pair.Key.ToString());
+				}
+
 				Items.RemoveAt(i);
-				RebuildGridMapByGuid(SourceGuid);
-				OnInventoryUpdated.Broadcast();
-				return true;
+				ContainersTouched.AddUnique(Pair.Key);
 			}
 		}
 	}
-	return false;
+
+	if (!bFoundAny)
+	{
+		return false;
+	}
+
+	for (const FGuid& Guid : ContainersTouched)
+	{
+		RebuildGridMapByGuid(Guid);
+	}
+
+	OnInventoryUpdated.Broadcast();
+	return true;
+}
+
+bool UInventoryComponent::RemoveItemByGUIDFromContainer(const FGuid& ContainerGuid, const FGuid& ItemGUID, FItemInstance& OutItem)
+{
+	FItemArrayWrapper* Wrapper = ItemsMap.Find(ContainerGuid);
+	if (!Wrapper) return false;
+	UE_LOG(LogTemp, Warning, TEXT("[InventoryComponent] RemoveItemByGUIDFromContainer start Container=%s ItemGUID=%s Count=%d"), *ContainerGuid.ToString(), *ItemGUID.ToString(), Wrapper->Items.Num());
+
+	// 방어 코드: 동일 컨테이너 내에 동일 GUID 항목이 중복으로 남아있을 수 있으므로
+	// 첫 번째만 제거하지 않고 발견되는 모든 항목을 제거한다.
+	TArray<FItemInstance>& Items = Wrapper->Items;
+	bool bFoundAny = false;
+	for (int32 i = Items.Num() - 1; i >= 0; --i)
+	{
+		if (Items[i].GUID == ItemGUID)
+		{
+			if (!bFoundAny)
+			{
+				OutItem = Items[i];
+				bFoundAny = true;
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("[InventoryComponent] RemoveItemByGUIDFromContainer: 중복된 GUID 항목 추가 발견 및 제거. Container=%s ItemGUID=%s"), *ContainerGuid.ToString(), *ItemGUID.ToString());
+			}
+
+			Items.RemoveAt(i);
+		}
+	}
+
+	if (!bFoundAny)
+	{
+		return false;
+	}
+
+	RebuildGridMapByGuid(ContainerGuid);
+	OnInventoryUpdated.Broadcast();
+	return true;
 }
 
 bool UInventoryComponent::TransferItemFrom(UInventoryComponent* SourceComp, const FGuid& ItemGUID, const FGuid& TargetInvenGuid, FIntPoint NewPos, bool bNewRotated)
@@ -380,6 +462,7 @@ bool UInventoryComponent::TransferItemFrom(UInventoryComponent* SourceComp, cons
 	{
 		return false;
 	}
+	UE_LOG(LogTemp, Warning, TEXT("[InventoryComponent] TransferItemFrom start SourceComp=%p TargetComp=%p ItemGUID=%s TargetInven=%s Pos=(%d,%d) Rot=%d"), SourceComp, this, *ItemGUID.ToString(), *TargetInvenGuid.ToString(), NewPos.X, NewPos.Y, bNewRotated ? 1 : 0);
 
 	// 동일 컴포넌트라면 기존 MoveItem 로직을 그대로 사용
 	if (SourceComp == this)
@@ -393,12 +476,12 @@ bool UInventoryComponent::TransferItemFrom(UInventoryComponent* SourceComp, cons
 		UE_LOG(LogTemp, Warning, TEXT("[InventoryComponent] TransferItemFrom: Item not found in source component ItemGUID=%s"), *ItemGUID.ToString());
 		return false;
 	}
+	UE_LOG(LogTemp, Warning, TEXT("[InventoryComponent] TransferItemFrom removed from source ItemGUID=%s Parent=%s Type=%d"), *Item.GUID.ToString(), *Item.parent_inventory_guid.ToString(), (int32)Item.type);
 
 	const FGuid SourceOwnerGuid = Item.parent_inventory_guid;
 
 	if (!CanPlaceItemByGuid(TargetInvenGuid, Item.ItemID, NewPos, bNewRotated, ItemGUID))
 	{
-		// 배치 불가 시 원래 소스 컴포넌트로 되돌린다
 		SourceComp->AddItemAt(Item, Item.Position);
 		return false;
 	}
@@ -407,15 +490,22 @@ bool UInventoryComponent::TransferItemFrom(UInventoryComponent* SourceComp, cons
 	Item.bIsRotated = bNewRotated;
 	Item.parent_inventory_guid = TargetInvenGuid;
 
+	PurgeDuplicateGuidExcept(ItemGUID, TargetInvenGuid);
+	if (const FItemTableRow* TransferItemData = GetItemData(Item.ItemID))
+	{
+		const FIntPoint ItemSize = Item.bIsRotated ? FIntPoint(TransferItemData->GridSize.Y, TransferItemData->GridSize.X) : TransferItemData->GridSize;
+		PurgeOverlappingItems(TargetInvenGuid, NewPos, ItemSize, ItemGUID);
+	}
 	ItemsMap.FindOrAdd(TargetInvenGuid).Items.Add(Item);
 	RebuildGridMapByGuid(TargetInvenGuid);
-
+	
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
-		InvenSub->RequestMoveItem(SourceOwnerGuid, TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
+		if (!InvenSub->IsLocalOnly())
+		{
+			InvenSub->RequestMoveItem(SourceOwnerGuid, TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
+		}
 	}
-
-	UE_LOG(LogTemp, Warning, TEXT("[InventoryComponent] TransferItemFrom: Source=%s Target=%s ItemGUID=%s (cross-component)"), *SourceOwnerGuid.ToString(), *TargetInvenGuid.ToString(), *ItemGUID.ToString());
 
 	OnInventoryUpdated.Broadcast();
 	return true;
@@ -439,7 +529,7 @@ void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWr
 
 			if (!InventorySizeMap.Contains(Guid))
 			{
-				InventorySizeMap.Add(Guid, ServerSize);
+				InventorySizeMap.FindOrAdd(Guid, ServerSize);
 				UE_LOG(LogTemp, Warning, TEXT("SetServerInventoryData: Added server container size GUID=%s Size=(%d,%d)"), *Guid.ToString(), ServerSize.X, ServerSize.Y);
 			}
 			else
@@ -454,8 +544,12 @@ void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWr
 		}
 	}
 
-	ItemsMap.Empty();
-	InvenGridMap.Empty();
+
+	for (const auto& Pair : InWrapper.InventoryMap)
+	{
+		ItemsMap.Remove(Pair.Key);
+		InvenGridMap.Remove(Pair.Key);
+	}
 
 	if (InWrapper.StashGuid.IsValid()) StashInventoryID = InWrapper.StashGuid;
 	if (InWrapper.PocketGuid.IsValid()) PocketInventoryID = InWrapper.PocketGuid;
@@ -544,5 +638,91 @@ void UInventoryComponent::RebuildGridMapByGuid(const FGuid& InvenGuid)
 
 void UInventoryComponent::HandleInventoryReceived(const FInventoryMapWrapper& InventoryMapWrapper)
 {
+
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
+	{
+		if (bHasReceivedInitialSync && InvenSub->IsLocalOnly())
+		{
+			UE_LOG(LogTemp, Log, TEXT("[InventoryComponent] HandleInventoryReceived: Ignored stale replay/snapshot while LocalOnly and already synced once."));
+			return;
+		}
+	}
+
 	SetServerInventoryData(InventoryMapWrapper);
+	bHasReceivedInitialSync = true;
+}
+
+void UInventoryComponent::PurgeOverlappingItems(const FGuid& ContainerGuid, FIntPoint TargetPos, FIntPoint ItemSize, const FGuid& IgnoreItemGUID)
+{
+	if (!ContainerGuid.IsValid()) return;
+
+	FItemArrayWrapper* Wrapper = ItemsMap.Find(ContainerGuid);
+	if (!Wrapper) return;
+
+	TArray<FItemInstance>& Items = Wrapper->Items;
+	bool bRemovedAny = false;
+
+	for (int32 i = Items.Num() - 1; i >= 0; --i)
+	{
+		const FItemInstance& Candidate = Items[i];
+
+		if (IgnoreItemGUID.IsValid() && Candidate.GUID == IgnoreItemGUID)
+		{
+			continue;
+		}
+
+		const FItemTableRow* Data = GetItemData(Candidate.ItemID);
+		if (!Data) continue;
+
+		const FIntPoint CandidateSize = Candidate.bIsRotated ? FIntPoint(Data->GridSize.Y, Data->GridSize.X) : Data->GridSize;
+
+		const bool bOverlap =
+			TargetPos.X < Candidate.Position.X + CandidateSize.X &&
+			Candidate.Position.X < TargetPos.X + ItemSize.X &&
+			TargetPos.Y < Candidate.Position.Y + CandidateSize.Y &&
+			Candidate.Position.Y < TargetPos.Y + ItemSize.Y;
+
+		if (bOverlap)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[InventoryComponent] PurgeOverlappingItems: 겹치는 유령 아이템 발견 및 제거. Container=%s GhostGUID=%s IgnoreGUID=%s TargetPos=(%d,%d)"),
+				*ContainerGuid.ToString(), *Candidate.GUID.ToString(), *IgnoreItemGUID.ToString(), TargetPos.X, TargetPos.Y);
+
+			Items.RemoveAt(i);
+			bRemovedAny = true;
+		}
+	}
+
+	if (bRemovedAny)
+	{
+		RebuildGridMapByGuid(ContainerGuid);
+	}
+}
+
+void UInventoryComponent::PurgeDuplicateGuidExcept(const FGuid& ItemGUID, const FGuid& ExceptContainerGuid)
+{
+	if (!ItemGUID.IsValid()) return;
+
+	TArray<FGuid> ContainersTouched;
+
+	for (auto& Pair : ItemsMap)
+	{
+		TArray<FItemInstance>& Items = Pair.Value.Items;
+		for (int32 i = Items.Num() - 1; i >= 0; --i)
+		{
+			if (Items[i].GUID == ItemGUID)
+			{
+				UE_LOG(LogTemp, Error, TEXT("[InventoryComponent] PurgeDuplicateGuidExcept: 중복된 GUID 항목 발견 및 제거. ItemGUID=%s Container=%s (TargetContainer=%s)"),
+					*ItemGUID.ToString(), *Pair.Key.ToString(), *ExceptContainerGuid.ToString());
+
+				Items.RemoveAt(i);
+				ContainersTouched.Add(Pair.Key);
+			}
+		}
+	}
+
+	for (const FGuid& Guid : ContainersTouched)
+	{
+		RebuildGridMapByGuid(Guid);
+	}
+
 }

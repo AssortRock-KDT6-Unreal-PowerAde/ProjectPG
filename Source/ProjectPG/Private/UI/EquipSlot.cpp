@@ -13,6 +13,17 @@
 #include "Components/EquipComponent.h"
 #include "Server/WebSocketSubSystem.h"
 
+namespace
+{
+	void SafeRemoveWidget(UWidget* Widget)
+	{
+		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
+		{
+			Widget->RemoveFromParent();
+		}
+	}
+}
+
 void UEquipSlot::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -26,12 +37,17 @@ void UEquipSlot::SetSlot(EEquipSlot InSlot)
 
 void UEquipSlot::SetItem(const FItemInstance* InItem)
 {
-	Item = InItem;
-	if (!Item)
+	if (!InItem)
 	{
+		bHasItem = false;
 		Clear();
 		return;
 	}
+
+	// 값으로 스냅샷 저장: EquipComponent::Equipments(TMap)의 포인터를 직접 들고 있으면
+	// 다른 슬롯의 Add/Remove로 인한 재해싱 때문에 댕글링 포인터가 될 수 있다.
+	Item = *InItem;
+	bHasItem = true;
 
 	UItemSubSystem* ItemSubsystem = UItemSubSystem::Get(GetWorld());
 	if (!ItemSubsystem)
@@ -40,7 +56,7 @@ void UEquipSlot::SetItem(const FItemInstance* InItem)
 		return;
 	}
 
-	const FItemTableRow* Data = ItemSubsystem->GetItem(Item->ItemID);
+	const FItemTableRow* Data = ItemSubsystem->GetItem(Item.ItemID);
 	if (!Data)
 	{
 		Clear();
@@ -84,16 +100,16 @@ void UEquipSlot::Clear()
 				UE_LOG(LogTemp, Verbose, TEXT("[EquipSlot::Clear] Skip clear because drag originates from this slot. Slot=%d"), (int32)Slot);
 				return;
 			}
-			if (Item && ItemOp->DraggedItem.GUID == Item->GUID)
+			if (bHasItem && ItemOp->DraggedItem.GUID == Item.GUID)
 			{
-				UE_LOG(LogTemp, Verbose, TEXT("[EquipSlot::Clear] Skip clear because dragged item matches equipped item. Slot=%d GUID=%s"), (int32)Slot, *Item->GUID.ToString());
+				UE_LOG(LogTemp, Verbose, TEXT("[EquipSlot::Clear] Skip clear because dragged item matches equipped item. Slot=%d GUID=%s"), (int32)Slot, *Item.GUID.ToString());
 				return;
 			}
 		}
 	}
 
 	UE_LOG(LogTemp, Verbose, TEXT("[EquipSlot::Clear] Clearing slot=%d"), (int32)Slot);
-	Item = nullptr;
+	bHasItem = false;
 
 	if (Icon)
 	{
@@ -117,7 +133,7 @@ void UEquipSlot::Clear()
 void UEquipSlot::ForceClear()
 {
 	UE_LOG(LogTemp, Verbose, TEXT("[EquipSlot::ForceClear] Force clearing slot=%d"), (int32)Slot);
-	Item = nullptr;
+	bHasItem = false;
 
 	if (Icon)
 	{
@@ -166,26 +182,22 @@ bool UEquipSlot::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 		}
 
 		// 장착 수행 (로컬 적용 및 서버 요청은 Equip 내부에서 처리)
-		bool bResult = EquipComp->Equip(ItemOp->DraggedItem);
+		bool bResult = EquipComp->Equip(
+			ItemOp->DraggedItem,
+			ItemOp->SourceInventoryComp.IsValid() ? ItemOp->SourceInventoryComp.Get() : nullptr);
 		if (ItemOp->WidgetReference)
 			ItemOp->WidgetReference->SetRenderOpacity(1.0f);
 
 		if (bResult)
 		{
 			// 드래그 비주얼 제거
-			if (ItemOp->DefaultDragVisual)
-			{
-				if (UItemWidget* DV = Cast<UItemWidget>(ItemOp->DefaultDragVisual))
-				{
-					DV->RemoveFromParent();
-				}
-			}
-
+			SafeRemoveWidget(ItemOp->DefaultDragVisual);
+			ItemOp->SourceInventoryComp->RemoveItemByGUID(ItemOp->DraggedItem.GUID, ItemOp->DraggedItem);
 			// 원본 위젯 제거 또는 강제 갱신
 			if (ItemOp->WidgetReference)
 			{
 				// 일반 아이템 위젯이면 부모에서 제거
-				ItemOp->WidgetReference->RemoveFromParent();
+				SafeRemoveWidget(ItemOp->WidgetReference);
 			}
 		}
 
@@ -244,7 +256,7 @@ void UEquipSlot::NativeOnDragDetected(
 		InMouseEvent,
 		OutOperation);
 
-	if (!Item)
+	if (!bHasItem)
 	{
 		return;
 	}
@@ -267,8 +279,8 @@ void UEquipSlot::NativeOnDragDetected(
 	// =========================================================
 
 	DragOp->bFromEquip = true;
-	DragOp->DraggedItem = *Item;
-	DragOp->bCurrentRotated = Item->bIsRotated;
+	DragOp->DraggedItem = Item;
+	DragOp->bCurrentRotated = Item.bIsRotated;
 
 	// =========================================================
 	// ★ 핵심
@@ -304,7 +316,7 @@ void UEquipSlot::NativeOnDragDetected(
 	if (ItemSubsystem)
 	{
 		const FItemTableRow* Data =
-			ItemSubsystem->GetItem(Item->ItemID);
+			ItemSubsystem->GetItem(Item.ItemID);
 
 		if (Data)
 		{
@@ -318,7 +330,7 @@ void UEquipSlot::NativeOnDragDetected(
 				// Inventory와 동일한 TileSize를 사용하는 것이 가장 좋음.
 				// 일단 기존 64.f 유지.
 				Visual->InitWidget(
-					*Item,
+					Item,
 					*Data,
 					FGuid(),
 					64.0f);

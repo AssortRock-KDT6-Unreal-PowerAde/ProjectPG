@@ -23,6 +23,17 @@
 #include <Core/UIManagerSubSystem.h>
 #include <Server/InventorySubSystem.h>
 
+namespace
+{
+	void SafeRemoveWidget(UWidget* Widget)
+	{
+		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
+		{
+			Widget->RemoveFromParent();
+		}
+	}
+}
+
 void UInventoryGridWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -36,6 +47,15 @@ void UInventoryGridWidget::RefreshGrid(UInventoryComponent* InComp, const FGuid&
 
 	InventoryGUID = InvenGuid;
 	BindInventoryComponent(InComp);
+
+	// ★ 중요: BindInventoryComponent()는 OnInventoryUpdated 델리게이트를 "구독"만 할 뿐,
+	// 이미 지나간 RegisterContainer()/OnInventoryUpdated 브로드캐스트(예: 가방 재장착 시
+	// HandleBackpackContainerUpdate()가 먼저 RegisterContainer를 호출해 크기를 등록하고,
+	// 그 다음에야 이 그리드 위젯을 생성/바인딩하는 순서)를 소급해서 받을 수 없다.
+	// 그 결과 다음 번 우연한 OnInventoryUpdated(다른 아이템 이동 등)가 발생하기 전까지
+	// 배경 그리드가 만들어지지 않아 "가방을 장착해도 인벤토리 그리드가 안 생긴다"는
+	// 증상이 나타난다. 바인딩 직후 즉시 한 번 그려서 이 문제를 해결한다.
+	RefreshGridUI();
 }
 
 FIntPoint UInventoryGridWidget::CalculateDropTile(
@@ -618,17 +638,6 @@ bool UInventoryGridWidget::NativeOnDrop(
 			MouseScreenPosition,
 			ItemDragOp);
 
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("[NativeOnDrop] TargetTile=(%d,%d) Mouse=(%.1f,%.1f) OffsetAbs=(%.1f,%.1f)"),
-		TargetTile.X,
-		TargetTile.Y,
-		MouseScreenPosition.X,
-		MouseScreenPosition.Y,
-		ItemDragOp->DragOffsetAbs.X,
-		ItemDragOp->DragOffsetAbs.Y);
-
 	if (TargetTile.X < 0 ||
 		TargetTile.Y < 0)
 	{
@@ -658,14 +667,6 @@ bool UInventoryGridWidget::NativeOnDrop(
 			ItemDragOp->WidgetReference
 				->SetRenderOpacity(1.0f);
 		}
-
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT("[NativeOnDrop] 배치 불가능 TargetTile=(%d,%d)"),
-			TargetTile.X,
-			TargetTile.Y);
-
 		return false;
 	}
 
@@ -675,32 +676,77 @@ bool UInventoryGridWidget::NativeOnDrop(
 
 	if (ItemDragOp->bFromEquip)
 	{
-		if (ItemDragOp->WidgetReference)
-		{
-			if (UEquipSlot* SrcSlot =
-				Cast<UEquipSlot>(
-					ItemDragOp->WidgetReference))
-			{
-				SrcSlot->RequestUnEquip();
-			}
-		}
-
 		const FGuid SourceGuid =
 			ItemDragOp->DraggedItem.parent_inventory_guid;
 
-		TempInstance.parent_inventory_guid =
-			InventoryGUID;
+		TempInstance.parent_inventory_guid = InventoryGUID;
 
+		// ★ 중요: "복사 후 정리" 방식(먼저 AddItemAt으로 새 위치에 추가한 뒤 나중에
+		// 장착 해제)은 정리 단계가 실패/누락되면 원본 장비 슬롯 컨테이너에 항목이
+		// 그대로 남아 아이템이 중복 생성되는 문제가 있었다.
+		// 대신 "이동" 시맨틱으로 바꾼다: 먼저 장착 해제(원본 제거)를 수행하고,
+		// 목적지 배치가 실패하면 다시 장착하여 롤백한다. 이렇게 하면 아이템은
+		// 항상 정확히 한 곳에만 존재하게 된다.
+		UEquipSlot* SrcSlot =
+			Cast<UEquipSlot>(ItemDragOp->WidgetReference);
+
+		UEquipComponent* SrcEquipComp =
+			SrcSlot ? SrcSlot->GetEquipComponent() : nullptr;
+
+		if (!SrcEquipComp)
+		{
+			if (ItemDragOp->WidgetReference)
+			{
+				ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
+			}
+			return false;
+		}
+
+		// 1. 원본(장비 슬롯)에서 먼저 제거. bRestoreToInventory=false로 호출해야
+		//    Pocket/Stash로 자동 복구되지 않고, UnEquip() 내부에서 장비 슬롯
+		//    컨테이너 항목까지 완전히 정리된다.
+		const bool bUnequipped = SrcEquipComp->UnEquip(SrcSlot->GetSlot(), false);
+
+		if (!bUnequipped)
+		{
+			if (ItemDragOp->WidgetReference)
+			{
+				ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
+			}
+			return false;
+		}
+
+		// 2. 목적지에 배치 시도
 		const bool bAdded =
 			TargetInventoryComp->AddItemAt(
 				TempInstance,
 				TargetTile);
 
-		if (bAdded)
+		if (!bAdded)
 		{
-			// 로컬/서버 분기는 InventorySubSystem::IsLocalOnly()가 단독으로 결정한다.
-			// 여기서는 조건을 따지지 말고 항상 Request 함수를 호출한다.
-			if (UInventorySubSystem* Web = UInventorySubSystem::Get(GetWorld()))
+			// 배치 실패 시 롤백: 원래 장비 슬롯으로 다시 장착
+			FItemInstance RollbackItem = TempInstance;
+			RollbackItem.parent_inventory_guid = SourceGuid;
+			SrcEquipComp->Equip(RollbackItem);
+
+			if (ItemDragOp->WidgetReference)
+			{
+				ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
+			}
+			return false;
+		}
+
+		// UI 슬롯 즉시 정리 (드래그 중에도 강제 클리어)
+		if (SrcSlot)
+		{
+			SrcSlot->ForceClear();
+		}
+
+		// 로컬/서버 분기는 InventorySubSystem::IsLocalOnly()가 단독으로 결정한다.
+		// 여기서는 조건을 따지지 말고 항상 Request 함수를 호출한다.
+		if (UInventorySubSystem* Web = UInventorySubSystem::Get(GetWorld()))
+		{
+			if (!Web->IsLocalOnly())
 			{
 				Web->RequestEquipItem(
 					TempInstance.GUID,
@@ -714,40 +760,26 @@ bool UInventoryGridWidget::NativeOnDrop(
 					TargetTile,
 					TempInstance.bIsRotated);
 			}
+		}
+		// 드래그 비주얼 원복 및 원본 슬롯 강제 클리어
+		SafeRemoveWidget(ItemDragOp->DefaultDragVisual);
 
-			UE_LOG(
-				LogTemp,
-				Warning,
-				TEXT("[NativeOnDrop] Unequip Success Target=(%d,%d)"),
-				TargetTile.X,
-				TargetTile.Y);
+		if (ItemDragOp->WidgetReference)
+		{
+			ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
+
+			if (UEquipSlot* cmpSlot = Cast<UEquipSlot>(ItemDragOp->WidgetReference))
+			{
+				cmpSlot->ForceClear();
+			}
+			else
+			{
+				// 일반 아이템 위젯이면 부모에서 제거하여 시각적 잔류 방지
+				SafeRemoveWidget(ItemDragOp->WidgetReference);
+			}
 		}
 
-			// 드래그 비주얼 원복 및 원본 슬롯 강제 클리어
-			if (ItemDragOp->DefaultDragVisual)
-			{
-				if (UItemWidget* DV = Cast<UItemWidget>(ItemDragOp->DefaultDragVisual))
-				{
-					DV->RemoveFromParent();
-				}
-			}
-
-			if (ItemDragOp->WidgetReference)
-			{
-				ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
-
-				if (UEquipSlot* SrcSlot = Cast<UEquipSlot>(ItemDragOp->WidgetReference))
-				{
-					SrcSlot->ForceClear();
-				}
-				else
-				{
-					// 일반 아이템 위젯이면 부모에서 제거하여 시각적 잔류 방지
-					ItemDragOp->WidgetReference->RemoveFromParent();
-				}
-			}
-
-		return bAdded;
+		return true;
 	}
 
 	// =========================================================
@@ -788,14 +820,6 @@ bool UInventoryGridWidget::NativeOnDrop(
 		ItemDragOp->WidgetReference
 			->SetRenderOpacity(1.0f);
 	}
-
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("[NativeOnDrop] MoveItem Target=(%d,%d) Success=%s"),
-		TargetTile.X,
-		TargetTile.Y,
-		bMoved ? TEXT("true") : TEXT("false"));
 
 	return bMoved;
 }

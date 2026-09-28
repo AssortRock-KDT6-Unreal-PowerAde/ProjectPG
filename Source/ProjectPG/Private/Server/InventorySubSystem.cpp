@@ -263,53 +263,8 @@ void UInventorySubSystem::RequestMoveItem(const FGuid& FromInventoryGuid, const 
 	// 항상 RequestMoveItem을 호출하면 된다.
 	if (IsLocalOnly())
 	{
-		bool bFound = false;
-		FItemInstance FoundItem;
-		FGuid SourceGuid;
-
-		// Ensure we have a cache map to operate on
-		if (!bHasCachedInventory)
-		{
-			// create empty cache if none exists
-			CachedInventory = FInventoryMapWrapper();
-			bHasCachedInventory = true;
-		}
-
-		for (auto& Pair : CachedInventory.InventoryMap)
-		{
-			TArray<FItemInstance>& Items = Pair.Value.Items;
-			for (int32 i = 0; i < Items.Num(); ++i)
-			{
-				if (Items[i].GUID == ItemGuid)
-				{
-					FoundItem = Items[i];
-					SourceGuid = Pair.Key;
-					Items.RemoveAt(i);
-					bFound = true;
-					break;
-				}
-			}
-			if (bFound) break;
-		}
-
-		if (bFound)
-		{
-			FoundItem.parent_inventory_guid = ToInventoryGuid;
-			FoundItem.Position = TargetPosition;
-			FoundItem.bIsRotated = bIsRotated;
-
-			CachedInventory.InventoryMap.FindOrAdd(ToInventoryGuid).Items.Add(FoundItem);
-			// 캐시 갱신 완료 후 브로드캐스트
-			OnInventoryReceived.Broadcast(CachedInventory);
-			// 로컬 변경 플래그 설정
-			bHasLocalChanges = true;
-
-			UE_LOG(LogTemp, Warning, TEXT("InventorySubSystem: Local move applied Item=%s From=%s To=%s (forceLocal=%d waiting=%d useWS=%d)"), *ItemGuid.ToString(), *SourceGuid.ToString(), *ToInventoryGuid.ToString(), bForceLocalMoves ? 1 : 0, bWaitingForInitialInventory ? 1 : 0, bUseWebSocket ? 1 : 0);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("InventorySubSystem: Local move requested but item not found in cache Item=%s"), *ItemGuid.ToString());
-		}
+		UE_LOG(LogTemp, Warning, TEXT("InventorySubSystem: Local move ignored for cache transport Item=%s From=%s To=%s (local state already updated by component)"), *ItemGuid.ToString(), *FromInventoryGuid.ToString(), *ToInventoryGuid.ToString());
+		bHasLocalChanges = true;
 		return;
 	}
 
@@ -333,42 +288,8 @@ void UInventorySubSystem::RequestEquipItem(const FGuid& ItemGuid, const FGuid& T
 	// 단일 정책 지점(IsLocalOnly)을 사용해 로컬/서버 분기를 결정한다. (RequestMoveItem과 동일 조건)
 	if (IsLocalOnly())
 	{
-		if (!bHasCachedInventory)
-		{
-			CachedInventory = FInventoryMapWrapper();
-			bHasCachedInventory = true;
-		}
-
-		bool bFound = false;
-		for (auto& Pair : CachedInventory.InventoryMap)
-		{
-			for (int32 i = 0; i < Pair.Value.Items.Num(); ++i)
-			{
-				if (Pair.Value.Items[i].GUID == ItemGuid)
-				{
-					FItemInstance Item = Pair.Value.Items[i];
-					// 원래 위치에서 제거
-					Pair.Value.Items.RemoveAt(i);
-					// 업데이트
-					Item.parent_inventory_guid = TargetParentGuid;
-					Item.bEquip = bIsEquipped;
-					// 타겟에 추가
-					CachedInventory.InventoryMap.FindOrAdd(TargetParentGuid).Items.Add(Item);
-					bFound = true;
-					break;
-				}
-			}
-			if (bFound) break;
-		}
-
-		if (bFound)
-		{
-			// Ensure equip handlers run before inventory handlers so containers (e.g., backpacks) are registered
-			OnEquipReceived.Broadcast(CachedInventory);
-			OnInventoryReceived.Broadcast(CachedInventory);
-			// 로컬 변경 플래그 설정
-			bHasLocalChanges = true;
-		}
+		UE_LOG(LogTemp, Warning, TEXT("InventorySubSystem: Local equip state handled by component Item=%s Target=%s (cache not mutated)"), *ItemGuid.ToString(), *TargetParentGuid.ToString());
+		bHasLocalChanges = true;
 		return;
 	}
 

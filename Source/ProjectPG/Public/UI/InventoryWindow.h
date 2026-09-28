@@ -33,8 +33,6 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UOverlay> EquipOverlay;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UOverlay> BackPackInvenOverlay;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> BackBtn;
@@ -59,6 +57,10 @@ protected:
 
 	// Optional: when set, Force the main overlay to display this specific container GUID
 	FGuid MainInventoryGUID;
+public:
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UOverlay> BackPackInvenOverlay;
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;

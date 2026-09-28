@@ -5,6 +5,7 @@
 #include "Core/UIManagerSubSystem.h"
 #include "UI/InventoryWindow.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/ActorChannel.h"
 AInteractActor::AInteractActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -115,3 +116,4 @@ void AInteractActor::Interact_Implementation(AActor* InteractingController)
 		}
 	}
 }
+
