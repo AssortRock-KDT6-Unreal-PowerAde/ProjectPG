@@ -210,6 +210,12 @@ UUserWidget* UUIManagerSubSystem::OpenUI(EUIType UIType)
 			break;
 		}
 
+		// CloseUI 가 Collapsed 로 숨긴 채 빼 두기 때문에, 다시 열 때 숨김을 풀어야 한다.
+		// (안 풀면 두 번째 I 부터 창이 화면에 붙기만 하고 안 보였다 — 2026-09-19 PIE)
+		if (TargetWidget->GetVisibility() == ESlateVisibility::Collapsed)
+		{
+			TargetWidget->SetVisibility(ESlateVisibility::Visible);
+		}
 		TargetWidget->AddToViewport(ZOrder);
 	}
 

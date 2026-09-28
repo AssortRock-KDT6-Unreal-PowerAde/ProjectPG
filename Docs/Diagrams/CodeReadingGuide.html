@@ -1,0 +1,642 @@
+<title>맵 생성 코드 사전</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+
+<style>
+:root{
+  --ground:#F2F5F2;
+  --surface:#FFFFFF;
+  --surface-2:#E9EEEB;
+  --ink:#141D1A;
+  --muted:#5C6B65;
+  --faint:#8A9993;
+  --line:#D3DCD7;
+  --line-strong:#B4C1BB;
+  --accent:#0E7C66;
+  --accent-soft:#D6EDE6;
+  --bad:#A24024;
+  --bad-soft:#F6E3DC;
+  --warn:#8A6212;
+  --warn-soft:#F6EDD8;
+  --grid-line:rgba(20,29,26,.045);
+  --shadow:0 1px 2px rgba(20,29,26,.05), 0 8px 24px -16px rgba(20,29,26,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#101614;
+    --surface:#18201D;
+    --surface-2:#212B27;
+    --ink:#E4EDE8;
+    --muted:#9AAAA3;
+    --faint:#71827B;
+    --line:#2A3733;
+    --line-strong:#3B4A44;
+    --accent:#54CFAE;
+    --accent-soft:#16332C;
+    --bad:#E08D72;
+    --bad-soft:#33211B;
+    --warn:#D9AE55;
+    --warn-soft:#302713;
+    --grid-line:rgba(228,237,232,.045);
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101614;
+  --surface:#18201D;
+  --surface-2:#212B27;
+  --ink:#E4EDE8;
+  --muted:#9AAAA3;
+  --faint:#71827B;
+  --line:#2A3733;
+  --line-strong:#3B4A44;
+  --accent:#54CFAE;
+  --accent-soft:#16332C;
+  --bad:#E08D72;
+  --bad-soft:#33211B;
+  --warn:#D9AE55;
+  --warn-soft:#302713;
+  --grid-line:rgba(228,237,232,.045);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  background:var(--ground);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size:28px 28px;
+  color:var(--ink);
+  font-family:"IBM Plex Sans KR","Malgun Gothic",system-ui,sans-serif;
+  font-weight:400;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+
+.wrap{max-width:860px;margin:0 auto;padding:56px 20px 96px}
+
+/* ── 헤더 ───────────────────────────── */
+header{margin-bottom:44px}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);margin:0 0 10px
+}
+h1{
+  font-family:"Gowun Batang","Batang",serif;
+  font-weight:700;font-size:clamp(30px,5.5vw,44px);
+  line-height:1.25;margin:0 0 12px;text-wrap:balance;
+  letter-spacing:-.01em;
+}
+.lede{margin:0;color:var(--muted);font-size:16px;max-width:60ch}
+
+/* ── 섹션 ───────────────────────────── */
+section{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:26px 24px;
+  margin-top:20px;
+  box-shadow:var(--shadow);
+}
+h2{
+  font-family:"Gowun Batang","Batang",serif;
+  font-weight:700;font-size:22px;margin:0 0 4px;
+  text-wrap:balance;letter-spacing:-.005em;
+}
+.sub{margin:0 0 20px;color:var(--faint);font-size:13.5px}
+h3{
+  font-size:14px;font-weight:600;margin:22px 0 8px;
+  color:var(--ink);
+}
+h3:first-of-type{margin-top:4px}
+p{margin:0 0 12px}
+p:last-child{margin-bottom:0}
+strong{font-weight:600}
+.hi{color:var(--accent);font-weight:600}
+.no{color:var(--bad);font-weight:600}
+
+code{
+  font-family:"IBM Plex Mono",Consolas,monospace;
+  font-size:.92em;
+  background:var(--surface-2);
+  padding:1px 5px;border-radius:4px;
+}
+pre{
+  font-family:"IBM Plex Mono",Consolas,monospace;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:14px 16px;margin:0 0 14px;
+  font-size:13px;line-height:1.6;
+  overflow-x:auto;
+}
+pre code{background:none;padding:0;font-size:inherit}
+
+/* ── 표 ─────────────────────────────── */
+.tw{overflow-x:auto;margin-bottom:14px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:480px}
+th,td{
+  text-align:left;padding:9px 12px;
+  border-bottom:1px solid var(--line);vertical-align:top;
+}
+th{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);font-weight:500;
+  border-bottom:1px solid var(--line-strong);
+}
+tbody tr:last-child td{border-bottom:none}
+td.m{font-family:"IBM Plex Mono",monospace;font-size:12.5px;white-space:nowrap}
+
+/* ── 규칙 상자 ──────────────────────── */
+.rule{
+  border-left:3px solid var(--accent);
+  background:var(--accent-soft);
+  padding:12px 16px;border-radius:0 8px 8px 0;
+  margin:0 0 14px;font-size:14px;
+}
+.rule.bad{border-left-color:var(--bad);background:var(--bad-soft)}
+.rule.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.rule p{margin:0}
+.rule p + p{margin-top:6px}
+
+/* ── 격자 다이어그램 ────────────────── */
+.gridfig{display:flex;gap:26px;flex-wrap:wrap;margin:0 0 14px}
+.gridfig figure{margin:0}
+.gridfig figcaption{
+  font-size:12px;color:var(--faint);margin-top:8px;text-align:center;
+  font-family:"IBM Plex Mono",monospace;
+}
+.cells{
+  display:grid;gap:3px;
+  grid-template-columns:repeat(var(--n,4),34px);
+}
+.cell{
+  aspect-ratio:1;border:1px solid var(--line-strong);
+  border-radius:3px;background:var(--surface);
+  display:grid;place-items:center;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;
+  color:var(--faint);
+}
+.cell.on{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.cell.q{background:var(--warn-soft);border-color:var(--warn);color:var(--warn);font-weight:600}
+.cell.tgt{background:var(--bad-soft);border-color:var(--bad);color:var(--bad);font-weight:600}
+
+/* ── 쪽지 자 ────────────────────────── */
+.ruler{display:flex;margin:0 0 6px;border-radius:6px;overflow:hidden;border:1px solid var(--line-strong)}
+.seg{
+  padding:8px 4px;text-align:center;font-size:12px;
+  font-family:"IBM Plex Mono",monospace;
+  border-right:1px solid var(--line-strong);
+  background:var(--surface-2);
+}
+.seg:last-child{border-right:none}
+.seg.a{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.seg.b{background:var(--warn-soft);color:var(--warn);font-weight:600}
+.seg.dead{background:var(--bad-soft);color:var(--bad);text-decoration:line-through}
+.rulercap{font-size:12px;color:var(--faint);font-family:"IBM Plex Mono",monospace;margin:0 0 14px}
+
+/* ── 파이프라인 ─────────────────────── */
+ol.pipe{list-style:none;counter-reset:s;margin:0 0 14px;padding:0;display:grid;gap:8px}
+ol.pipe li{
+  counter-increment:s;
+  position:relative;
+  padding-left:36px;
+  font-size:14px;line-height:1.75;
+}
+ol.pipe li::before{
+  content:counter(s);
+  position:absolute;left:0;top:3px;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+  color:var(--accent);border:1px solid var(--accent);
+  border-radius:50%;width:22px;height:22px;
+  display:grid;place-items:center;
+}
+ol.pipe li.here{font-weight:600}
+
+/* ── 체크리스트 ─────────────────────── */
+ul.check{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+ul.check li{
+  display:grid;grid-template-columns:auto 1fr;gap:12px;
+  font-size:14px;padding-bottom:10px;border-bottom:1px solid var(--line);
+}
+ul.check li:last-child{border-bottom:none;padding-bottom:0}
+ul.check .q{
+  font-weight:600;white-space:nowrap;
+}
+ul.check .a{color:var(--muted)}
+@media (max-width:600px){
+  ul.check li{grid-template-columns:1fr;gap:3px}
+  ul.check .q{white-space:normal}
+}
+
+footer{
+  margin-top:32px;padding-top:18px;border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--faint);
+}
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">ProjectPGTest2 · MapGeneratorComponent</p>
+  <h1>맵 생성 코드 사전</h1>
+  <p class="lede">
+    타일맵 생성 코드를 읽으면서 나온 개념들을 그림으로 정리했다.
+    막히면 여기부터 훑고, 그래도 안 잡히면 그때 물어라.
+  </p>
+</header>
+
+
+<section>
+  <h2>코드 한 줄 읽는 순서</h2>
+  <p class="sub">왼쪽부터 읽으면 안 된다. 순서가 있다.</p>
+
+  <div class="rule">
+    <p><strong>①</strong> <code>=</code> 를 찾는다 &nbsp;→&nbsp; <strong>②</strong> 괄호 안쪽이 먼저 &nbsp;→&nbsp; <strong>③</strong> <code>=</code> 오른쪽이 실행된다 &nbsp;→&nbsp; <strong>④</strong> 왼쪽 그릇에 담긴다</p>
+  </div>
+
+<pre><code>int posXRan = gameMode-&gt;GenerateRandomNumber(1, _startPositionRangeSize - 1);</code></pre>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>순서</th><th>일어나는 일</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td class="m">②</td><td><code>_startPositionRangeSize</code> 를 꺼낸다</td><td class="m">4</td></tr>
+      <tr><td class="m">②</td><td><code>4 - 1</code></td><td class="m">3</td></tr>
+      <tr><td class="m">③</td><td>게임모드한테 “1부터 3까지 중 하나 뽑아줘”</td><td class="m">1 또는 2 또는 3</td></tr>
+      <tr><td class="m">④</td><td><code>posXRan</code> 그릇에 담는다</td><td class="m">posXRan = 2</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="rule warn">
+    <p>괄호 안 두 숫자는 <strong>범위의 양 끝</strong>이다. 나오는 값은 <strong>하나</strong>다.</p>
+    <p>단, 함수마다 다르다 — <code>RemoveAt(0, 4)</code> 의 <code>4</code> 는 “어디까지”가 아니라 <strong>개수</strong>다. 함수 이름을 보고 판단해라.</p>
+  </div>
+</section>
+
+
+<section>
+  <h2>이름이 알려주는 것</h2>
+  <p class="sub">함수 이름 앞자리와 접두사만 봐도 뭘 하는지 짐작할 수 있다.</p>
+
+  <h3>앞자리 = 돌려줄 것의 타입</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>선언</th><th>돌려주나</th><th>어떻게 쓰나</th></tr></thead>
+    <tbody>
+      <tr><td class="m">AMapTile* FindTile(...)</td><td>준다</td><td class="m">AMapTile* tile = FindTile(...);</td></tr>
+      <tr><td class="m">ETileType GetType()</td><td>준다</td><td class="m">if (tile-&gt;GetType() != ...)</td></tr>
+      <tr><td class="m">bool IsTileARoad(...)</td><td>준다</td><td class="m">if (IsTileARoad(x, y))</td></tr>
+      <tr><td class="m">void SetType(...)</td><td><span class="no">안 준다</span></td><td class="m">tile-&gt;SetType(...);</td></tr>
+      <tr><td class="m">void Add(...)</td><td><span class="no">안 준다</span></td><td class="m">_tilesRoad.Add(tile);</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="rule bad">
+    <p><code>void</code> 짜리를 <code>=</code> 로 받으려 하면 안 된다. 줄 게 없다.</p>
+    <p><code>x = tile-&gt;SetType(...);</code> <span class="no">✗</span> &nbsp;·&nbsp; <code>tile-&gt;SetType(...);</code> <span class="hi">✓</span></p>
+    <p>단, <code>void</code> 함수 <strong>안에서</strong> <code>=</code> 를 쓰는 건 아무 문제 없다.</p>
+  </div>
+
+  <h3>접두사 = 하는 일</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>접두사</th><th>돌려주는 것</th><th>바꾸나</th><th>예</th></tr></thead>
+    <tbody>
+      <tr><td class="m">Is~ / Has~ / Can~</td><td>참 / 거짓</td><td>안 바꾼다</td><td class="m">IsTileInBoundary</td></tr>
+      <tr><td class="m">Get~</td><td>값</td><td>안 바꾼다</td><td class="m">GetType</td></tr>
+      <tr><td class="m">Set~</td><td>없음</td><td><span class="no">바꾼다</span></td><td class="m">SetType</td></tr>
+      <tr><td class="m">Generate~</td><td>보통 없음</td><td><span class="no">만든다</span></td><td class="m">GenerateRoadTile</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><code>Get~</code> 은 들고 있던 값을 그냥 건네는 <strong>심부름</strong>, <code>Is~</code> 는 여러 조건을 따져 내리는 <strong>판정</strong>이다.</p>
+</section>
+
+
+<section>
+  <h2>상속이냐 소유냐</h2>
+  <p class="sub">이 둘을 섞으면 코드 구조가 통째로 안 보인다.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th></th><th>뜻</th><th>이 프로젝트에서</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="m">상속<br>is-a</td>
+        <td>~는 ~의 일종이다.<br>자식이 부모 것을 <strong>전부 물려받는다</strong>.</td>
+        <td class="m">AGameModePG 는 AGameMode <strong>다</strong></td>
+      </tr>
+      <tr>
+        <td class="m">소유<br>has-a</td>
+        <td>~가 ~를 들고 있다.<br>물려받는 게 <strong>아니다</strong>.</td>
+        <td class="m">AGameModePG 가<br>UMapGeneratorComponent 를 <strong>가진다</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="rule">
+    <p><strong>판별법</strong> — 헤더에 <code>class X : public Y</code> 가 있으면 상속. <strong>전방선언 + 포인터</strong>면 무조건 소유다. 상속은 전방선언으로 못 하고 반드시 <code>#include</code> 가 필요하기 때문이다.</p>
+  </div>
+
+  <h3>그래서 캐스트가 필요하다</h3>
+  <p><code>UMapGeneratorComponent</code> 는 게임모드를 <strong>상속받지 않는다.</strong> 다른 집안이다. 그래서 게임모드의 기능을 쓰려면 <strong>찾아가야</strong> 한다.</p>
+
+<pre><code>UWorld* world = GetWorld();                                          <span style="color:var(--faint)">// 세상을 얻고</span>
+AGameModePG* gameMode = Cast&lt;AGameModePG&gt;(world-&gt;GetAuthGameMode()); <span style="color:var(--faint)">// 주인을 찾고</span>
+gameMode-&gt;GenerateRandomNumber(0, 7);                                <span style="color:var(--faint)">// 그제서야 부른다</span></code></pre>
+
+  <p><code>GetAuthGameMode()</code> 의 반환 타입은 <code>AGameModeBase*</code> 다. 그 타입에는 <code>GenerateRandomNumber</code>, <code>SetRandomSeed</code>, <code>CheckPossibility</code>, <code>GetMapGenerationSeed</code> 가 <strong>하나도 없다</strong>. 넷 다 <code>AGameModePG</code> 가 새로 만든 것이라 캐스트해서 꺼낸다.</p>
+
+  <div class="rule warn">
+    <p><strong>캐스트는 실행 중에 일어난다.</strong> 빌드할 때가 아니다.</p>
+    <p>증거: 실패하면 <code>nullptr</code> 을 준다. 빌드 때 답이 정해져 있으면 “실패”라는 개념 자체가 필요 없다. 게임모드는 <code>.umap</code> 안의 데이터가 정하는데, 컴파일러는 <code>.cpp</code> 와 <code>.h</code> 만 읽는다.</p>
+  </div>
+</section>
+
+
+<section>
+  <h2>비트 플래그 — 스위치 4개</h2>
+  <p class="sub">숫자 하나에 예/아니오 네 개를 담는 방법.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>스위치</th><th>값</th><th>선언</th></tr></thead>
+    <tbody>
+      <tr><td class="m">Up</td><td class="m">1</td><td class="m">1 &lt;&lt; 0</td></tr>
+      <tr><td class="m">Down</td><td class="m">2</td><td class="m">1 &lt;&lt; 1</td></tr>
+      <tr><td class="m">Left</td><td class="m">4</td><td class="m">1 &lt;&lt; 2</td></tr>
+      <tr><td class="m">Right</td><td class="m">8</td><td class="m">1 &lt;&lt; 3</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><strong>켜진 스위치의 값을 다 더한 것</strong>이 <code>directionKey</code> 다.</p>
+
+<pre><code>왼쪽 위  =  Left + Up  =  4 + 1  =  5
+왼쪽 아래 =  Left + Down =  4 + 2  =  6
+오른쪽 위 =  Right + Up  =  8 + 1  =  9</code></pre>
+
+  <div class="rule">
+    <p><strong>왜 1·2·4·8인가</strong> — 겹치는 조합이 없어서 합계만 보고 거꾸로 알아낼 수 있다. 5를 만드는 방법은 <code>4+1</code> 뿐이다. 만약 1·2·3·4였다면 <code>4</code> 가 “네 번째”인지 “첫째+셋째”인지 구분이 안 된다.</p>
+  </div>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>기호</th><th>하는 일</th><th>예</th></tr></thead>
+    <tbody>
+      <tr><td class="m">|</td><td>스위치를 <strong>켠다</strong></td><td class="m">areaKey |= Left;</td></tr>
+      <tr><td class="m">&amp;</td><td>스위치가 <strong>켜졌나 묻는다</strong></td><td class="m">if (directionKey &amp; Up)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="rule warn">
+    <p><code>&amp;&amp;</code> 와 <code>||</code> 를 섞지 마라. 이 파일에서 실제로 터진 버그다.</p>
+    <p><code>x==0 <strong>||</strong> y==0</code> → 테두리 <strong>전체</strong> &nbsp;·&nbsp; <code>x==0 <strong>&amp;&amp;</strong> y==0</code> → <strong>모서리 한 칸</strong></p>
+  </div>
+</section>
+
+
+<section>
+  <h2>가중치 랜덤 — 쪽지 뽑기</h2>
+  <p class="sub">코드 용어를 상자와 쪽지로 바꾸면 전부 설명된다.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>코드</th><th>쪽지로 바꾸면</th></tr></thead>
+    <tbody>
+      <tr><td class="m">weightDownward = 4</td><td>“아래” 쪽지 4장</td></tr>
+      <tr><td class="m">tileUp = nullptr</td><td>“위” 쪽지를 상자에서 뺀다 (탈락)</td></tr>
+      <tr><td class="m">totalWeight</td><td>상자에 남은 총 장수</td></tr>
+      <tr><td class="m">r</td><td>기계가 부른 번호</td></tr>
+      <tr><td class="m">기준선 (누적합)</td><td>번호표에 적힌 경계</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>가중치는 출발 방향이 정한다</h3>
+  <p>출발한 곳의 <strong>반대쪽</strong>에 4장을 준다. 중앙으로 밀어주는 것.</p>
+
+<pre><code>directionKey = 1 (위쪽 가장자리에서 출발)
+
+  위     0장    ← 돌아가면 안 되니까
+  아래   4장    ████     가야 할 방향
+  왼쪽   1장    █        가끔 옆으로 흔들리라고
+  오른쪽 1장    █
+        ─────
+  총     6장  →  아래가 나올 확률 4/6 = 66.7%</code></pre>
+
+  <h3>번호표와 자</h3>
+  <div class="ruler">
+    <div class="seg a" style="flex:4">0 1 2 3 &nbsp;·&nbsp; 아래</div>
+    <div class="seg b" style="flex:1">4 · 왼</div>
+    <div class="seg b" style="flex:1">5 · 오른</div>
+  </div>
+  <p class="rulercap">가중치가 클수록 자에서 넓은 칸을 차지한다 → 뽑힐 확률이 높다</p>
+
+  <h3 style="color:var(--bad)">여기에 결함이 있다</h3>
+  <p><strong>아래 4장이 탈락하면</strong> 남은 건 2장이라 기계는 <code>0~1</code> 번만 부른다. 그런데 <strong>번호표는 안 줄어든다.</strong></p>
+
+  <div class="ruler">
+    <div class="seg dead" style="flex:4">0 1 2 3 &nbsp;·&nbsp; 아래 (탈락)</div>
+    <div class="seg b" style="flex:1">4 · 왼</div>
+    <div class="seg b" style="flex:1">5 · 오른</div>
+  </div>
+  <p class="rulercap">기계가 부르는 번호: 0, 1 &nbsp;→&nbsp; 둘 다 주인이 없어 “살아있는 첫 주인”인 왼쪽으로 간다</p>
+
+  <div class="rule bad">
+    <p><strong>결과: 왼쪽 100%, 오른쪽 0%.</strong> 의도는 50 : 50 이었다.</p>
+    <p>원인 한 줄 — <code>totalWeight</code> 는 탈락한 가중치를 뺐는데, <strong>누적 기준선은 안 뺐다.</strong> 빠진 쪽지가 앞번호를 많이 차지할수록 뒷번호가 죽는다.</p>
+  </div>
+</section>
+
+
+<section>
+  <h2>격자 좌표 → 배열 번호</h2>
+  <p class="sub">2차원 격자를 1차원 배열 하나로 관리하는 법.</p>
+
+<pre><code>y=0 줄 :   0   1   2   3  ...  29        ← 30개
+y=1 줄 :  30  31  32  33  ...  59        ← 30개
+y=2 줄 :  60  61  62  63  ...  89        ← 30개
+                    ↑
+                x=3 이면 63</code></pre>
+
+  <div class="rule">
+    <p><code>번호 = y * _mapSize + x</code></p>
+    <p><code>y * _mapSize</code> 가 <strong>몇 줄을 건너뛰나</strong>, <code>+ x</code> 가 <strong>그 줄에서 몇 칸 가나</strong>.</p>
+  </div>
+
+  <p>이걸 <code>FindTile</code> 이 대신 해주기 때문에, 부르는 쪽은 <code>FindTile(indexX, indexY - 1)</code> 처럼 <strong>좌표만 던지면</strong> 타일을 받는다.</p>
+
+  <div class="rule warn">
+    <p>칸 번호는 <strong>0부터</strong> 센다. <code>_mapSize</code> 가 30이면 마지막 칸은 <code>29</code>, 즉 <code>_mapSize - 1</code> 이다. 코드에 <code>29</code> 를 직접 쓰지 마라 — 크기가 바뀌면 전부 틀린다.</p>
+  </div>
+</section>
+
+
+<section>
+  <h2>랜덤워크 한 걸음</h2>
+  <p class="sub"><code>GenerateRoadFrom</code> 의 while 루프가 매 걸음 하는 일.</p>
+
+  <ol class="pipe">
+    <li>상하좌우 네 칸을 일단 다 꺼낸다 <span style="color:var(--faint)">(274~277줄)</span></li>
+    <li class="here">각 후보를 심사해서 안 되는 건 <code>nullptr</code> 로 탈락시킨다 <span style="color:var(--faint)">(279~310줄)</span></li>
+    <li>살아남은 후보의 가중치만 더해 <code>totalWeight</code> 를 만든다 <span style="color:var(--faint)">(312~320줄)</span></li>
+    <li>0 ~ <code>totalWeight-1</code> 중 번호 하나를 뽑는다 <span style="color:var(--faint)">(322줄)</span></li>
+    <li>기준선과 비교해 방향을 정한다 <span style="color:var(--faint)">(327~379줄)</span></li>
+    <li>그 칸을 길로 칠하고 이동한다 <span style="color:var(--faint)">(386~419줄)</span></li>
+  </ol>
+
+  <div class="rule">
+    <p><strong>루프 밖에서 한 번만</strong> 정해지는 것 — 가중치 네 개. <code>directionKey</code> 가 길 하나를 만드는 내내 안 바뀌기 때문이다.</p>
+    <p><strong>매 걸음 바뀌는 것</strong> — <code>indexX</code>, <code>indexY</code>, <code>lastDirection</code>, <code>directionStack</code> 넷뿐이다.</p>
+  </div>
+
+  <h3>심사 조건 7개</h3>
+  <p>네 방향 블록이 각각 <strong>따로</strong> 있고 <code>else</code> 가 없다. 넷 다 실행된다. 조건은 <code>||</code> 로 이어져 <strong>하나만 걸려도 탈락</strong>이다.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>#</th><th>조건</th><th>막으려는 것</th></tr></thead>
+    <tbody>
+      <tr><td class="m">①</td><td class="m">nullptr == tileUp</td><td>맵 밖. <strong>뒤 줄들을 지키는 방패</strong>라 반드시 첫 줄</td></tr>
+      <tr><td class="m">②</td><td class="m">directionKey &amp; Up</td><td>출발한 쪽으로 되돌아가기</td></tr>
+      <tr><td class="m">③</td><td class="m">GetType() != None</td><td>이미 누가 쓴 칸 덮어쓰기</td></tr>
+      <tr><td class="m">④</td><td class="m">CheckSquareForm(...)</td><td>길이 2×2 덩어리로 뭉치기</td></tr>
+      <tr><td class="m">⑤</td><td class="m">IsTileOutOfExpectedArea(...)</td><td>담당 구역 벗어나기</td></tr>
+      <tr><td class="m">⑥</td><td class="m">IsTileARoad(x, y-2)</td><td>두 칸 앞이 길 — 길끼리 나란히 붙기</td></tr>
+      <tr><td class="m">⑦</td><td class="m">directionStack &gt;= 3</td><td>같은 방향 3연속 — 직선이 되기</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="rule warn">
+    <p><code>||</code> 는 <strong>앞이 참이면 뒤를 안 본다</strong>(단락 평가). 그래서 ①이 맨 앞이어야 한다. ③이 먼저 오면 <code>nullptr</code> 에 대고 <code>GetType()</code> 을 불러 <strong>크래시</strong>가 난다.</p>
+  </div>
+
+  <div class="rule">
+    <p><strong>네 방향이 전부 탈락할 수도 있다.</strong> 막다른 골목에서 그렇다. 그때는 <code>"No Weight"</code> 를 찍고 <code>break</code> — 그 길은 중앙에 못 닿은 채 끝난다.</p>
+  </div>
+</section>
+
+
+<section>
+  <h2>CheckSquareForm — 2×2 막기</h2>
+  <p class="sub">한 칸씩 상하좌우로만 가도 지그재그로 돌면 네 칸이 다 찬다.</p>
+
+  <div class="gridfig">
+    <figure>
+      <div class="cells" style="--n:2">
+        <div class="cell on">1</div><div class="cell"></div>
+        <div class="cell"></div><div class="cell"></div>
+      </div>
+      <figcaption>1걸음</figcaption>
+    </figure>
+    <figure>
+      <div class="cells" style="--n:2">
+        <div class="cell on">1</div><div class="cell on">2</div>
+        <div class="cell"></div><div class="cell"></div>
+      </div>
+      <figcaption>오른쪽</figcaption>
+    </figure>
+    <figure>
+      <div class="cells" style="--n:2">
+        <div class="cell on">1</div><div class="cell on">2</div>
+        <div class="cell"></div><div class="cell on">3</div>
+      </div>
+      <figcaption>아래</figcaption>
+    </figure>
+    <figure>
+      <div class="cells" style="--n:2">
+        <div class="cell on">1</div><div class="cell on">2</div>
+        <div class="cell on">4</div><div class="cell on">3</div>
+      </div>
+      <figcaption>왼쪽 → 2×2 완성</figcaption>
+    </figure>
+  </div>
+
+  <p>폭이 두 칸이 되면 길이 아니라 <strong>광장</strong>처럼 보인다. 그래서 막는다.</p>
+
+  <h3>검사 방법</h3>
+  <div class="gridfig">
+    <figure>
+      <div class="cells" style="--n:2">
+        <div class="cell on">old</div><div class="cell on">현재</div>
+        <div class="cell q">?</div><div class="cell tgt">new</div>
+      </div>
+      <figcaption>old 와 new 가 대각선일 때</figcaption>
+    </figure>
+  </div>
+
+  <ol class="pipe">
+    <li><code>old</code> 와 <code>new</code> 가 대각선인가? <span style="color:var(--faint)">가로도 1칸, 세로도 1칸 차이</span><br>아니면 → <code>return false</code> (일직선으로는 2×2가 될 수 없다)</li>
+    <li>맞으면 나머지 두 모서리를 본다. 하나는 <strong>지금 서 있는 칸</strong>이라 늘 차 있으니, 실제로는 <code>?</code> 한 칸에 달렸다.</li>
+    <li><code>?</code> 도 차 있으면 → <code>return true</code> → 부르는 쪽이 그 방향을 탈락시킨다</li>
+  </ol>
+
+  <div class="rule warn">
+    <p><code>return true</code> 는 “합격”이 아니다. 이 함수가 답하는 질문은 <strong>“지금 가면 2×2가 되나요?”</strong> 다. <code>true</code> = “네, 됩니다” = <strong>막아라</strong>.</p>
+    <p>탈락 조건 목록(<code>||</code> 체인) 안에서 불리기 때문이다.</p>
+  </div>
+
+  <p><code>FMath::Abs</code> 는 <strong>절댓값</strong>이다. 부호를 떼고 “몇 칸 떨어졌나”만 본다. <code>Abs(-1)</code> 도 <code>1</code>.</p>
+</section>
+
+
+<section>
+  <h2>이름과 뜻이 어긋난 곳</h2>
+  <p class="sub">면접에서 지적할 수 있는 지점들.</p>
+
+  <div class="rule">
+    <p><strong><code>IsTileARoad</code> 는 격자 밖일 때도 <code>true</code> 를 준다.</strong></p>
+    <p>“두 칸 앞”을 내다보는 용도라, 두 칸 앞이 맵 밖이면 그쪽은 막다른 길이다. 그래서 미리 막는다. 이름은 “길이냐”지만 실제 뜻은 <strong>“그쪽으로 가면 안 되냐”</strong> — <code>ShouldBlockDirection</code> 쪽이 의도를 더 잘 드러냈을 이름이다.</p>
+  </div>
+
+  <div class="rule">
+    <p><strong>9등분 주석에 두 가지가 섞여 있다.</strong></p>
+    <p><code>0b00'00 / UD'LR</code> 은 비트 자리 설명이고 <code>4 0 5 / 2 X 3 / 6 1 7</code> 은 구역 번호다. 서로 무관한데 붙어 있어 <code>areaKey</code> 값으로 오해하기 쉽다. 실제 값은 <code>5, 4, 6, 1, 2, 9, 8, 10</code> 이다. 게다가 주석의 비트 순서는 실제 enum과 반대다.</p>
+  </div>
+
+  <div class="rule">
+    <p><strong>조건 ②는 가중치 0과 중복이다.</strong></p>
+    <p><code>directionKey &amp; Up</code> 이 참이면 <code>weightUpward</code> 는 이미 0이라 어차피 안 뽑힌다. 버그는 아니고 이중 방어다.</p>
+  </div>
+</section>
+
+
+<section>
+  <h2>막혔을 때 자문할 것</h2>
+  <p class="sub">지금까지 실제로 틀린 것들이다. 물어보기 전에 이 순서로 훑어라.</p>
+
+  <ul class="check">
+    <li><span class="q">이 함수는 뭘 돌려주나?</span><span class="a">이름 앞자리 타입이 그거다. 없으면 <code>void</code>.</span></li>
+    <li><span class="q">클래스 이름 붙였나?</span><span class="a"><code>UMapGeneratorComponent::</code> 없으면 딴 함수가 된다.</span></li>
+    <li><span class="q">별표가 있나 없나?</span><span class="a">있으면 <code>-&gt;</code>, 없으면 <code>.</code> — <code>TArray&lt;AMapTile*&gt;</code> 는 <strong>통</strong>에 별표가 없다. 꺼내면 생긴다.</span></li>
+    <li><span class="q">새로 만드는 건가?</span><span class="a">타입을 앞에 붙이면 “새로 만들기”. 이미 있는 건 이름만 쓴다.</span></li>
+    <li><span class="q">멤버인가 지역인가?</span><span class="a"><code>_mapSize</code>, <code>_tiles</code> 는 클래스가 이미 들고 있다. 다시 선언하지 마라.</span></li>
+    <li><span class="q"><code>return</code> 뒤에 코드를 뒀나?</span><span class="a">실행되지 않는다. “안일 때” 코드는 <code>if</code> 중괄호 <strong>바깥</strong>이다.</span></li>
+    <li><span class="q"><code>=</code> 인가 <code>==</code> 인가?</span><span class="a">넣는 건 <code>=</code>, 비교는 <code>==</code>. <code>if</code> 안에서 <code>=</code> 를 쓰면 항상 참이 된다.</span></li>
+    <li><span class="q">모든 길에 <code>return</code> 이 있나?</span><span class="a"><code>bool</code> 인데 <code>false</code> 로 나가는 길이 빠지기 쉽다. <code>switch</code> 면 <code>default:</code> 를 확인해라.</span></li>
+    <li><span class="q">비교식을 완성했나?</span><span class="a"><code>||</code> 는 완성된 비교끼리 잇는다. <code>type == A || type == B</code> — <code>type ==</code> 를 매번 다시 쓴다.</span></li>
+    <li><span class="q">저장했나?</span><span class="a"><code>check.bat</code> 은 디스크의 파일을 읽는다. 에디터 화면이 아니다.</span></li>
+  </ul>
+</section>
+
+
+<footer>
+  ProjectPGTest2 · <code>Source/ProjectPGTest2/Private/Components/MapGeneratorComponent.cpp</code> 기준 ·
+  줄 번호는 원본 파일 기준이라 코드가 바뀌면 어긋날 수 있다.
+</footer>
+
+</div>
