@@ -73,3 +73,40 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# 마켓/Fab 에셋 팩 — 용량이 커서(약 40GB) 저장소에 넣지 않고 각자 PC에 따로 받는다 (2026-09-29)
+/Content/AE_BR_Props/
+/Content/AK-47/
+/Content/AR70/
+/Content/DZ_Assets/
+/Content/Downtown_West/
+/Content/Fab/
+/Content/Factory_Pack_V1/
+/Content/Fishermans_Cabin/
+/Content/FourEvilDragonsPBR/
+/Content/FreeWastelandProps_Meshingun/
+/Content/GV_FreeShrubsPack/
+/Content/M4_Sherman/
+/Content/Military_Free/
+/Content/Modular_Rural_Cabin/
+/Content/MonsterForSurvivalGame/
+/Content/ParagonRampage/
+/Content/Post-Apocalyptic_Props/
+/Content/ProceduralNtr_vol2/
+/Content/SciFi_ToiletMech/
+/Content/Survival_Character/
+/Content/TSL_CQBModularCore/
+/Content/VehicleVarietyPack/
+/Content/Weapon_Pack/
+/Content/Weapons_Free/
+/Content/kb3d_missiontominerva/
+/Content/ProjectPGMapPack.zip
+/Content/__ExternalActors__/Fishermans_Cabin/
+/Content/__ExternalActors__/Post-Apocalyptic_Props/
+/Content/__ExternalActors__/Survival_Character/
+/Content/__ExternalActors__/TSL_CQBModularCore/
+/Content/__ExternalActors__/Default/
+/Content/__ExternalActors__/QuantumCharacter/
+/Content/__ExternalActors__/Survival_01/
+/Content/__ExternalObjects__/
+/Content/Python/

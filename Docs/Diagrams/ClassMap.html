@@ -1,0 +1,139 @@
+<title>ProjectPGTest2 클래스 지도</title>
+<style>
+:root{
+  --bg:#ffffff; --fg:#1a1a1a; --muted:#6b6b6b; --line:#d4d4d4;
+  --ours-bg:#eef4ff; --ours-br:#2f6fd0; --eng-bg:#f4f4f4; --eng-br:#bcbcbc;
+  --own:#1f7a4d; --badge-bg:#2f6fd0; --badge-fg:#ffffff;
+  --dim-bg:#9a9a9a; --card:#fafafa;
+  --fam-actor:#c2410c; --fam-comp:#7c3aed;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14161a; --fg:#e6e6e6; --muted:#9aa0a6; --line:#333840;
+    --ours-bg:#16233a; --ours-br:#5b9cf5; --eng-bg:#1d2026; --eng-br:#3c424c;
+    --own:#5fd39b; --badge-bg:#5b9cf5; --badge-fg:#0b1220;
+    --dim-bg:#565c66; --card:#1a1d23;
+    --fam-actor:#fb923c; --fam-comp:#a78bfa;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14161a; --fg:#e6e6e6; --muted:#9aa0a6; --line:#333840;
+  --ours-bg:#16233a; --ours-br:#5b9cf5; --eng-bg:#1d2026; --eng-br:#3c424c;
+  --own:#5fd39b; --badge-bg:#5b9cf5; --badge-fg:#0b1220;
+  --dim-bg:#565c66; --card:#1a1d23;
+  --fam-actor:#fb923c; --fam-comp:#a78bfa;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);margin:0;padding:28px 22px 60px;
+ font-family:"Malgun Gothic","Segoe UI",system-ui,sans-serif;line-height:1.5}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:16px;margin:34px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.sub{color:var(--muted);font-size:13px;margin:0 0 8px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:14px 0 6px;font-size:12px;
+ color:var(--muted)}
+.legend b{color:var(--fg)}
+.chip{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px}
+.chip.actor{background:var(--fam-actor)}
+.chip.comp{background:var(--fam-comp)}
+.wrap{overflow-x:auto}
+ul{list-style:none;margin:0;padding-left:22px;position:relative}
+ul ul{border-left:2px solid var(--line);margin-left:8px}
+ul.actor,ul.actor ul{border-left-color:var(--fam-actor)}
+ul.comp,ul.comp ul{border-left-color:var(--fam-comp)}
+li{position:relative;padding:5px 0}
+li::before{content:"";position:absolute;left:-15px;top:30px;width:14px;height:2px;
+ background:var(--line)}
+li.actor::before{background:var(--fam-actor)}
+li.comp::before{background:var(--fam-comp)}
+body>.wrap>ul>li::before{display:none}
+.node{display:inline-block;border:1px solid;border-radius:7px;padding:7px 11px;
+ min-width:210px;vertical-align:top}
+.node.ours{background:var(--ours-bg);border-color:var(--ours-br)}
+.node.fam-actor{border-left:5px solid var(--fam-actor)}
+.node.fam-comp{border-left:5px solid var(--fam-comp)}
+.parent{font-size:10.5px;color:var(--muted);font-family:Consolas,monospace;
+ margin-bottom:2px;letter-spacing:.2px}
+.node.engine{background:var(--eng-bg);border-color:var(--eng-br)}
+.cname{font-family:Consolas,monospace;font-weight:700;font-size:14px}
+.badge{display:inline-block;margin-left:8px;font-size:10px;padding:1px 7px;
+ border-radius:9px;background:var(--badge-bg);color:var(--badge-fg);vertical-align:2px}
+.badge.dim{background:var(--dim-bg)}
+.loc,.iface{font-size:11px;color:var(--muted);margin-top:3px;
+ font-family:Consolas,monospace}
+.note{font-size:11px;color:var(--muted);margin-top:3px}
+.owns{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.own{font-size:12px;color:var(--own);font-family:Consolas,monospace}
+.arrow{opacity:.75}
+.mem{color:var(--muted)}
+table{border-collapse:collapse;font-size:13px;width:100%;max-width:860px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left}
+th{background:var(--card)}
+code{font-family:Consolas,monospace}
+footer{margin-top:40px;color:var(--muted);font-size:12px}
+</style>
+<h1>ProjectPGTest2 클래스 지도</h1>
+<p class="sub">생성 시각 2026-08-26 13:36 &middot; 우리 클래스 14개 &middot; 소유 관계 40건</p>
+
+<div class="legend">
+  <span><b>상속 (is-a)</b> — 상자 맨 위 <code>&#9650; 부모:</code> 줄이 진짜 부모다.
+        들여쓰기만 보고 판단하지 말 것.</span>
+  <span><b>소유 (has-a)</b> — 상자 안 초록 <code>&#9679; 들고 있다</code> 줄.
+        물려받는 게 아니라 그냥 들고 있는 것.</span>
+</div>
+<div class="legend">
+  <span><span class="chip actor"></span> <b>액터 집안</b> — 레벨에 놓이는 것들 (AActor 후손)</span>
+  <span><span class="chip comp"></span> <b>부품 집안</b> — 액터가 들고 다니는 것들 (UActorComponent 후손)</span>
+  <span>두 집안은 <code>UObject</code> 에서 갈라진 뒤 <b>다시 안 만난다.</b></span>
+</div>
+
+<h2>1. 상속 나무</h2>
+<div class="wrap"><ul><li class=""><div class="node engine"><div class="parent">&#9650; 부모 없음 (뿌리)</div><span class="cname">UObject</span><span class="badge dim">엔진</span><div class="note">언리얼 모든 것의 최상위 조상</div></div><ul class=""><li class="actor"><div class="node engine fam-actor"><div class="parent">&#9650; 부모: UObject</div><span class="cname">AActor</span><span class="badge dim">엔진</span><div class="note">레벨에 배치되거나 스폰될 수 있는 것</div></div><ul class="actor"><li class="actor"><div class="node engine fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">AInfo</span><span class="badge dim">엔진</span><div class="note">눈에 안 보이는, 정보만 들고 있는 액터</div></div><ul class="actor"><li class="actor"><div class="node engine fam-actor"><div class="parent">&#9650; 부모: AInfo</div><span class="cname">AGameModeBase</span><span class="badge dim">엔진</span><div class="note">규칙을 쥔 액터. 서버에만 존재한다</div></div><ul class="actor"><li class="actor"><div class="node engine fam-actor"><div class="parent">&#9650; 부모: AGameModeBase</div><span class="cname">AGameMode</span><span class="badge dim">엔진</span><div class="note">AGameModeBase 에 매치 상태(대기/진행/종료)를 더한 것</div></div><ul class="actor"><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AGameMode</div><span class="cname">AGameModePG</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/GameModes/GameModePG.h:13</div><div class="owns"><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UMapGeneratorComponent</b> <span class="mem">_mapGenerator</span></div></div></div></li></ul></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AGameModeBase</div><span class="cname">ATacticalTileTestGameMode</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/GameModes/TacticalTileTestGameMode.h:10</div></div></li></ul></li></ul></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">AItemContainerActor</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/ItemContainerActor.h:11</div><div class="iface">구현: IInteractable</div></div></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">AMapTile</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/MapTile.h:11</div><div class="owns"><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">_staticMesh</span></div></div></div></li><li class="actor"><div class="node engine fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">APawn</span><span class="badge dim">엔진</span><div class="note">조종당할 수 있는 액터</div></div><ul class="actor"><li class="actor"><div class="node engine fam-actor"><div class="parent">&#9650; 부모: APawn</div><span class="cname">ACharacter</span><span class="badge dim">엔진</span><div class="note">APawn 에 걷기와 점프 이동을 더한 것</div></div><ul class="actor"><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: ACharacter</div><span class="cname">ALevelDesignValidationCharacter</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/LevelDesignValidationCharacter.h:15</div><div class="owns"><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">BodyVisual</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>USpringArmComponent</b> <span class="mem">CameraArm</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UCameraComponent</b> <span class="mem">Camera</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UNavigationInvokerComponent</b> <span class="mem">NavigationInvoker</span></div></div></div></li></ul></li></ul></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">AProceduralFacilityActor</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/ProceduralFacilityActor.h:26</div><div class="owns"><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>USceneComponent</b> <span class="mem">SceneRoot</span></div></div></div></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">ATacticalPropActor</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/TacticalPropActor.h:12</div><div class="owns"><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">PropMesh</span></div></div></div></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">ATacticalTileActor</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/TacticalTileActor.h:41</div><div class="owns"><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>USceneComponent</b> <span class="mem">SceneRoot</span></div></div></div></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">ATacticalTileRoadStraight</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/TacticalTileRoadStraight.h:16</div><div class="owns"><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>USceneComponent</b> <span class="mem">SceneRoot</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">Ground</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">Road</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">LaneMarkLeft</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">LaneMarkRight</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UInstancedStaticMeshComponent</b> <span class="mem">BoundaryWalls</span></div></div></div></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">ATile</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/Tile.h:10</div></div></li><li class="actor"><div class="node ours fam-actor"><div class="parent">&#9650; 부모: AActor</div><span class="cname">AWarZoneFootprintPreview</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Actors/WarZoneFootprintPreview.h:209</div><div class="owns"><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>USceneComponent</b> <span class="mem">SceneRoot</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">FloorProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">BackWallProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">LeftWallProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">RightWallProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">FrontWallLeftProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">FrontWallRightProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">RoofProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">YardFloorProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">YardCoverNorthProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">YardCoverSouthProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">YardCoverWestProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">YardCoverEastProxy</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UHierarchicalInstancedStaticMeshComponent</b> <span class="mem">GroundHISM</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UHierarchicalInstancedStaticMeshComponent</b> <span class="mem">WarZoneGroundHISM</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UHierarchicalInstancedStaticMeshComponent</b> <span class="mem">TransitionGroundHISM</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UHierarchicalInstancedStaticMeshComponent</b> <span class="mem">RoadSurfaceHISM</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UHierarchicalInstancedStaticMeshComponent</b> <span class="mem">LakeBedHISM</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UHierarchicalInstancedStaticMeshComponent</b> <span class="mem">LakeWaterHISM</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UHierarchicalInstancedStaticMeshComponent</b> <span class="mem">MountainHISM</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UStaticMeshComponent</b> <span class="mem">NavigationFloor</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UNavigationInvokerComponent</b> <span class="mem">NavigationInvoker</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UTacticalTileNavModifierComponent</b> <span class="mem">CenterNavigationBlockers</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UTacticalTileNavModifierComponent</b> <span class="mem">PlayerNavigationBlockers</span></div><div class="own"><span class="arrow">&#9679; 들고 있다 (소유) &rarr;</span> <b>UPCGComponent</b> <span class="mem">DressingPCGComponent</span></div></div></div></li></ul></li><li class="comp"><div class="node engine fam-comp"><div class="parent">&#9650; 부모: UObject</div><span class="cname">UActorComponent</span><span class="badge dim">엔진</span><div class="note">액터가 들고 다니는 부품. 혼자서는 레벨에 못 놓는다</div></div><ul class="comp"><li class="comp"><div class="node ours fam-comp"><div class="parent">&#9650; 부모: UActorComponent</div><span class="cname">UMapGeneratorComponent</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Components/MapGeneratorComponent.h:12</div></div></li><li class="comp"><div class="node engine fam-comp"><div class="parent">&#9650; 부모: UActorComponent</div><span class="cname">UNavRelevantComponent</span><span class="badge dim">엔진</span><div class="note">내비메시 계산에 끼어드는 컴포넌트</div></div><ul class="comp"><li class="comp"><div class="node ours fam-comp"><div class="parent">&#9650; 부모: UNavRelevantComponent</div><span class="cname">UTacticalTileNavModifierComponent</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Components/TacticalTileNavModifierComponent.h:10</div></div></li></ul></li></ul></li><li class=""><div class="node engine"><div class="parent">&#9650; 부모: UObject</div><span class="cname">UInterface</span><span class="badge dim">엔진</span><div class="note">인터페이스 선언용 껍데기</div></div><ul class=""><li class=""><div class="node ours"><div class="parent">&#9650; 부모: UInterface</div><span class="cname">UInteractable</span><span class="badge">우리 코드</span><div class="loc">Source/ProjectPGTest2/Public/Interaction/Interactable.h:11</div></div></li></ul></li></ul></li></ul></div>
+
+<h2>2. 소유 관계 한눈에</h2>
+<p class="sub">아래는 <code>CreateDefaultSubobject</code> 로 만들어 들고 있는 부품들이다.
+상속이 아니므로, 부품 쪽에서 주인의 기능을 쓰려면 주인을 찾아가야 한다.</p>
+<table>
+<tr><th>주인 (액터)</th><th>부품 타입</th><th>멤버 변수</th><th>이름표</th></tr>
+<tr><td><code>AGameModePG</code></td><td><code>UMapGeneratorComponent</code></td><td><code>_mapGenerator</code></td><td><code>MapGenerator</code></td></tr>
+<tr><td><code>ALevelDesignValidationCharacter</code></td><td><code>UStaticMeshComponent</code></td><td><code>BodyVisual</code></td><td><code>BodyVisual</code></td></tr>
+<tr><td><code>ALevelDesignValidationCharacter</code></td><td><code>USpringArmComponent</code></td><td><code>CameraArm</code></td><td><code>CameraArm</code></td></tr>
+<tr><td><code>ALevelDesignValidationCharacter</code></td><td><code>UCameraComponent</code></td><td><code>Camera</code></td><td><code>Camera</code></td></tr>
+<tr><td><code>ALevelDesignValidationCharacter</code></td><td><code>UNavigationInvokerComponent</code></td><td><code>NavigationInvoker</code></td><td><code>NavigationInvoker</code></td></tr>
+<tr><td><code>AMapTile</code></td><td><code>UStaticMeshComponent</code></td><td><code>_staticMesh</code></td><td><code>StaticMesh</code></td></tr>
+<tr><td><code>AProceduralFacilityActor</code></td><td><code>USceneComponent</code></td><td><code>SceneRoot</code></td><td><code>SceneRoot</code></td></tr>
+<tr><td><code>ATacticalPropActor</code></td><td><code>UStaticMeshComponent</code></td><td><code>PropMesh</code></td><td><code>PropMesh</code></td></tr>
+<tr><td><code>ATacticalTileActor</code></td><td><code>USceneComponent</code></td><td><code>SceneRoot</code></td><td><code>SceneRoot</code></td></tr>
+<tr><td><code>ATacticalTileRoadStraight</code></td><td><code>USceneComponent</code></td><td><code>SceneRoot</code></td><td><code>SceneRoot</code></td></tr>
+<tr><td><code>ATacticalTileRoadStraight</code></td><td><code>UStaticMeshComponent</code></td><td><code>Ground</code></td><td><code>Ground_20m</code></td></tr>
+<tr><td><code>ATacticalTileRoadStraight</code></td><td><code>UStaticMeshComponent</code></td><td><code>Road</code></td><td><code>Road_6_5m</code></td></tr>
+<tr><td><code>ATacticalTileRoadStraight</code></td><td><code>UStaticMeshComponent</code></td><td><code>LaneMarkLeft</code></td><td><code>LaneEdge_North</code></td></tr>
+<tr><td><code>ATacticalTileRoadStraight</code></td><td><code>UStaticMeshComponent</code></td><td><code>LaneMarkRight</code></td><td><code>LaneEdge_South</code></td></tr>
+<tr><td><code>ATacticalTileRoadStraight</code></td><td><code>UInstancedStaticMeshComponent</code></td><td><code>BoundaryWalls</code></td><td><code>BoundaryWalls</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>USceneComponent</code></td><td><code>SceneRoot</code></td><td><code>SceneRoot</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>FloorProxy</code></td><td><code>FloorProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>BackWallProxy</code></td><td><code>BackWallProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>LeftWallProxy</code></td><td><code>LeftWallProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>RightWallProxy</code></td><td><code>RightWallProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>FrontWallLeftProxy</code></td><td><code>FrontWallLeftProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>FrontWallRightProxy</code></td><td><code>FrontWallRightProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>RoofProxy</code></td><td><code>RoofProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>YardFloorProxy</code></td><td><code>YardFloorProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>YardCoverNorthProxy</code></td><td><code>YardCoverNorthProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>YardCoverSouthProxy</code></td><td><code>YardCoverSouthProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>YardCoverWestProxy</code></td><td><code>YardCoverWestProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>YardCoverEastProxy</code></td><td><code>YardCoverEastProxy</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UHierarchicalInstancedStaticMeshComponent</code></td><td><code>GroundHISM</code></td><td><code>GroundHISM</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UHierarchicalInstancedStaticMeshComponent</code></td><td><code>WarZoneGroundHISM</code></td><td><code>WarZoneGroundHISM</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UHierarchicalInstancedStaticMeshComponent</code></td><td><code>TransitionGroundHISM</code></td><td><code>TransitionGroundHISM</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UHierarchicalInstancedStaticMeshComponent</code></td><td><code>RoadSurfaceHISM</code></td><td><code>RoadSurfaceHISM</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UHierarchicalInstancedStaticMeshComponent</code></td><td><code>LakeBedHISM</code></td><td><code>LakeBedHISM</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UHierarchicalInstancedStaticMeshComponent</code></td><td><code>LakeWaterHISM</code></td><td><code>LakeWaterHISM</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UHierarchicalInstancedStaticMeshComponent</code></td><td><code>MountainHISM</code></td><td><code>MountainHISM</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UStaticMeshComponent</code></td><td><code>NavigationFloor</code></td><td><code>NavigationFloor</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UNavigationInvokerComponent</code></td><td><code>NavigationInvoker</code></td><td><code>NavigationInvoker</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UTacticalTileNavModifierComponent</code></td><td><code>CenterNavigationBlockers</code></td><td><code>CenterNavigationBlockers</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UTacticalTileNavModifierComponent</code></td><td><code>PlayerNavigationBlockers</code></td><td><code>PlayerNavigationBlockers</code></td></tr>
+<tr><td><code>AWarZoneFootprintPreview</code></td><td><code>UPCGComponent</code></td><td><code>DressingPCGComponent</code></td><td><code>DressingPCGComponent</code></td></tr>
+</table>
+
+<footer>다시 만들기: <code>python Tools/ClassMap/class_map.py</code></footer>

@@ -32,6 +32,31 @@ enum class EAbilType : uint8
 
 	None,
 };
+
+UENUM(BlueprintType)
+enum class ETileType : uint8
+{
+	Spawn,
+	Exit,
+	Road,
+	Obstacle,
+	WarZone UMETA(DisplayName = "War Zone"),
+	None
+};
+
+namespace EMapDirection
+{
+	UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+	enum Type : uint8
+	{
+		Up = 1 << 0,
+		Down = 1 << 1,
+		Left = 1 << 2,
+		Right = 1 << 3,
+	};
+}
+
+// ---- 팀 main(9/11) GameDefine.h 에서 가져온 enum (2026-09-19 팀 코드 합치기). 팀 코드(인벤토리·UI·장착)가 쓴다. ----
 UENUM(BlueprintType)
 enum class EMessageType :uint8
 {

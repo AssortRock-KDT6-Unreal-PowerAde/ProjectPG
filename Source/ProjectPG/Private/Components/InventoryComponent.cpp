@@ -294,6 +294,54 @@ bool UInventoryComponent::AddItemByID(FName ItemID, const FGuid& TargetInvenGuid
 	return AddItem(NewItem);
 }
 
+bool UInventoryComponent::RemoveItemByID(FName ItemID, int32 Quantity)
+{
+	if (Quantity <= 0)
+		return false;
+
+	// 1) 먼저 개수만 센다. 모자라면 아무것도 건드리지 않는다(반쯤 빼고 실패하는 일이 없게 — 원자적 처리).
+	//    스택이 아닌 아이템은 StackCount 가 0 으로 올 수 있어 "0 이면 1개"로 센다(캐릭터 HasItem 과 같은 규칙).
+	int32 Available = 0;
+	for (const TPair<FGuid, FItemArrayWrapper>& Bag : ItemsMap)
+		for (const FItemInstance& Item : Bag.Value.Items)
+			if (Item.ItemID == ItemID)
+				Available += FMath::Max(1, Item.StackCount);
+	if (Available < Quantity)
+		return false;
+
+	// 2) 앞에서부터 뺀다. 스택이 남으면 개수만 줄이고, 다 쓰면 칸에서 없앤다. 바뀐 가방만 격자를 다시 만든다.
+	int32 Remaining = Quantity;
+	TArray<FGuid> ChangedBags;
+	for (TPair<FGuid, FItemArrayWrapper>& Bag : ItemsMap)
+	{
+		TArray<FItemInstance>& Items = Bag.Value.Items;
+		for (int32 Index = Items.Num() - 1; Index >= 0 && Remaining > 0; --Index)
+		{
+			FItemInstance& Item = Items[Index];
+			if (Item.ItemID != ItemID)
+				continue;
+			const int32 Stack = FMath::Max(1, Item.StackCount);
+			if (Stack > Remaining)
+			{
+				Item.StackCount = Stack - Remaining;
+				Remaining = 0;
+			}
+			else
+			{
+				Remaining -= Stack;
+				Items.RemoveAt(Index);
+			}
+			ChangedBags.AddUnique(Bag.Key);
+		}
+		if (Remaining <= 0)
+			break;
+	}
+	for (const FGuid& Bag : ChangedBags)
+		RebuildGridMapByGuid(Bag);
+	OnInventoryUpdated.Broadcast();
+	return true;
+}
+
 bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID, FIntPoint NewPos, bool bNewRotated)
 {
 	FGuid SourceGuid;

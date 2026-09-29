@@ -100,6 +100,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool AddItemByID(FName ItemID, const FGuid& TargetInvenGuid, int32 Quantity = 1);
 
+	// ItemID 를 모든 가방에서 Quantity 개만큼 뺀다(열쇠 소모·연료 주입·퀘스트 납품). 모자라면 아무것도 안 빼고 false.
+	// 개인 프로젝트에서 추가(2026-09-19, 오브젝트 담당) — 팀 원본에는 빼기 함수가 없었다. 팀 PR 때 제안.
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool RemoveItemByID(FName ItemID, int32 Quantity = 1);
+
 	// GUID 기반 아이템 위치 변경
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID, FIntPoint NewPos, bool bNewRotated);

@@ -96,11 +96,13 @@ struct FEquipTableRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
+	// 초기값(= 0, MainWeapon)은 개인 프로젝트에서 넣었다(9/19). 없으면 에디터 시작 때마다
+	// "FEquipTableRow::ItemID is not initialized properly" 오류 로그가 떴다. 팀 PR 때 같이 제안.
 	UPROPERTY(EditAnywhere)
-	int32 ItemID;
+	int32 ItemID = 0;
 
 	UPROPERTY(EditAnywhere)
-	EEquipSlot EquipType;
+	EEquipSlot EquipType = EEquipSlot::MainWeapon;
 
 	UPROPERTY(EditAnywhere)
 	FName SocketName;
