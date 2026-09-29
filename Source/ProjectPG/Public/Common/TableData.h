@@ -8,6 +8,8 @@
 #include "Common/GameData.h"
 #include "TableData.generated.h"
 
+class USkeletalMesh;
+
 USTRUCT(BlueprintType)
 struct FTablePathRow : public FTableRowBase
 {
@@ -36,6 +38,18 @@ struct FDefineTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString StringValue = TEXT("");
+};
+
+USTRUCT(BlueprintType)
+struct FCharacterTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TMap<EWeaponType, FWeaponAnimationSet> WeaponAnimations;
 };
 
 USTRUCT(BlueprintType)

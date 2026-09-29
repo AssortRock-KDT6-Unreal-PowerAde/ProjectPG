@@ -7,6 +7,7 @@
 #include "Animations/CustomAnimInstance.h"
 #include "Characters/CustomCharacterMovementComponent.h"
 #include "CustomGameplayTags.h"
+#include "Core/TableSubSystem.h"
 #include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -38,14 +39,7 @@ ACustomCharacter::ACustomCharacter(const FObjectInitializer& ObjectInitializer)
 	if (!skeletalMesh.Succeeded())
 		return;
 
-	ConstructorHelpers::FClassFinder<UCustomAnimInstance> AnimInstance(
-		TEXT(
-			"/Script/Engine.AnimBlueprint'/Game/PG/Blueprint/Animations/ABP_CharacterManny.ABP_CharacterManny_C'"));
-	if (!AnimInstance.Succeeded())
-		return;
-
 	meshComp->SetSkeletalMesh(skeletalMesh.Object);
-	meshComp->SetAnimInstanceClass(AnimInstance.Class);
 	// ~TODO: Table로 옮기기
 
 	// AbilitySystemComp = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));
@@ -156,6 +150,26 @@ void ACustomCharacter::Fire()
 	// TODO : Muzzle을 찾고 이펙트, 레이캐스트
 }
 
+bool ACustomCharacter::ApplyWeaponAnimation(EWeaponType NewWeaponType)
+{
+	USkeletalMeshComponent* MeshComponent = GetMesh();
+	if (!IsValid(MeshComponent))
+		return false;
+
+	const FWeaponAnimationSet* AnimationSet = FindWeaponAnimationSet(NewWeaponType);
+	if (!AnimationSet || !AnimationSet->AnimInstanceClass)
+		return false;
+
+	MeshComponent->SetAnimInstanceClass(AnimationSet->AnimInstanceClass);
+	CurrentWeaponType = NewWeaponType;
+	return true;
+}
+
+const FWeaponAnimationSet* ACustomCharacter::GetCurrentWeaponAnimationSet() const
+{
+	return FindWeaponAnimationSet(CurrentWeaponType);
+}
+
 void ACustomCharacter::SetAiming(bool bNewAiming)
 {
 	bIsAiming = bNewAiming;
@@ -198,4 +212,37 @@ UCharacterAttributeSet* ACustomCharacter::GetCharacterAttributeSet() const
 void ACustomCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	USkeletalMeshComponent* meshComponent = GetMesh();
+	if (!IsValid(meshComponent))
+		return;
+
+	UTableSubSystem* tableSubsystem = UTableSubSystem::Get(this);
+	if (!IsValid(tableSubsystem))
+		return;
+
+	const FCharacterTableRow* characterRow = tableSubsystem->FindTableRow<FCharacterTableRow>(TEXT("CharacterTable"),
+		CharacterID);
+	if (!characterRow)
+		return;
+
+	if (!IsValid(characterRow->SkeletalMesh))
+		return;
+	meshComponent->SetSkeletalMesh(characterRow->SkeletalMesh.Get());
+
+	ApplyWeaponAnimation(CurrentWeaponType);
+}
+
+const FWeaponAnimationSet* ACustomCharacter::FindWeaponAnimationSet(EWeaponType WeaponType) const
+{
+	UTableSubSystem* TableSubsystem = UTableSubSystem::Get(this);
+	if (!IsValid(TableSubsystem))
+		return nullptr;
+
+	const FCharacterTableRow* CharacterRow = TableSubsystem->FindTableRow<FCharacterTableRow>(
+		TEXT("CharacterTable"), CharacterID);
+	if (!CharacterRow)
+		return nullptr;
+
+	return CharacterRow->WeaponAnimations.Find(WeaponType);
 }

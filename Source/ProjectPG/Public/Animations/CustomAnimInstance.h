@@ -35,7 +35,10 @@ protected:
 	uint8 bIsCrouched : 1;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	uint8 bIsJumping : 1;
+	uint8 bWasJumping : 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	uint8 bIsFalling : 1;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	uint8 bIsSprinting : 1;

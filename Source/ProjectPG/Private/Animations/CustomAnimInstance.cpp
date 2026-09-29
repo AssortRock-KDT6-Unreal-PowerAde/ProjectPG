@@ -40,7 +40,8 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	if (!IsValid(movementComp))
 		return;
 
-	bIsJumping = movementComp->IsFalling() && !character->bWasJumping;
+	bWasJumping = character->bWasJumping;
+	bIsFalling = movementComp->IsFalling() && !character->bWasJumping;
 
 	if (movementComp->IsWalking())
 	{
@@ -53,8 +54,8 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		// Keep the BlendSpace scale continuous when crouch/aim/sprint changes.
 		const float MaxSpeed = movementComp->MaxWalkSpeed;
 		NormalizedGroundSpeed = MaxSpeed > UE_KINDA_SMALL_NUMBER
-			? velocity.Size() / MaxSpeed
-			: 0.f;
+			                        ? velocity.Size() / MaxSpeed
+			                        : 0.f;
 	}
 }
 

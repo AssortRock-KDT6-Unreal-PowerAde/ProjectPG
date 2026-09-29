@@ -5,18 +5,7 @@
 
 #include "Animation/AnimMontage.h"
 #include "Characters/CustomPlayerCharacter.h"
-#include "UObject/ConstructorHelpers.h"
-
-UNA_DebugAnimDead::UNA_DebugAnimDead()
-{
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> HipAsset(
-		TEXT("/Game/PG/Animations/Montages/AM_Death_Hip.AM_Death_Hip"));
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> IronsightsAsset(
-		TEXT("/Game/PG/Animations/Montages/AM_Death_Ironsights.AM_Death_Ironsights"));
-
-	HipMontage = HipAsset.Object;
-	IronsightsMontage = IronsightsAsset.Object;
-}
+#include "Common/GameData.h"
 
 bool UNA_DebugAnimDead::ShouldRegisterTriggerEvent(ETriggerEvent TriggerEvent) const
 {
@@ -28,7 +17,13 @@ void UNA_DebugAnimDead::Started(const FInputActionValue& InputActionValue, ACust
 	if (!IsValid(PlayerCharacter) || !PlayerCharacter->IsLocallyControlled())
 		return;
 
-	UAnimMontage* Montage = PlayerCharacter->IsAiming() ? IronsightsMontage.Get() : HipMontage.Get();
+	const FWeaponAnimationSet* AnimationSet = PlayerCharacter->GetCurrentWeaponAnimationSet();
+	if (!AnimationSet)
+		return;
+
+	UAnimMontage* Montage = PlayerCharacter->IsAiming()
+		? AnimationSet->DeathIronsights.Get()
+		: AnimationSet->DeathHip.Get();
 	if (IsValid(Montage))
 		PlayerCharacter->PlayMontage(Montage);
 }
