@@ -115,6 +115,7 @@ void APGFloorItemActor::ApplyGradeOverlay()
 	const EPGItemGrade Grade = UPGItemValueLibrary::GetItemGrade(ItemId);
 	UMaterialInterface* Overlay = UPGItemValueLibrary::GetGradeOverlayMaterial(Grade);
 	MeshComponent->SetOverlayMaterial(Overlay);
+	MeshComponent->SetForceDisableNanite(Overlay != nullptr);
 	if (Overlay)
 		if (const UPGItemGradeSettings* Settings = GetDefault<UPGItemGradeSettings>())
 			MeshComponent->SetOverlayMaterialMaxDrawDistance(Settings->OverlayMaxDrawDistance);
