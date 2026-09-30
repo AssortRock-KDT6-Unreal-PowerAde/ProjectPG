@@ -42,7 +42,7 @@
 #include "TimerManager.h"
 #include "HAL/PlatformMemory.h"
 #include "Materials/MaterialInterface.h"
-
+#include "Actors/WarZoneFootprint/MapVerifier.h"
 // Sculpted ground features. Each mesh was generated with Geometry Script over an
 // exact multiple of the 20 m cell and is flat around its entire perimeter, curving
 // only inside, so it needs no edge matching with its neighbours - a dropped-in
@@ -585,7 +585,16 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 void AWarZoneFootprintPreview::BeginPlay()
 {
 	Super::BeginPlay();
-
+	//부모거 다 진행하고 다음 검사기 진행
+	if (!Verifier)
+	//1. 아직 없으면	
+	{
+		//2.만들어서 칸에 담고
+		//Newobject<>타입을 적으면 그 타입이 T*포인터 타입으로 돌아온다.
+		Verifier = NewObject<UMapVerifier>(this,TEXT("Verifier"));
+		//3.내 주소를 건덴다.
+		Verifier->Init(this);
+	}
 	if (!HasAuthority())
 		return;
 
@@ -674,7 +683,7 @@ void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 	VerifyCriticalRoutes();
 	VerifyTraversableElevation();
 	VerifyCoplanarSurfaces();
-	VerifyPCGDressing();
+	Verifier->VerifyPCGDressing();
 	VerifyLocalPerformance(DeltaSeconds);
 
 	// 지금 조작 중인 플레이어 폰(팀 캐릭터) 주변 60 m 길찾기 차단을 갱신한다.
@@ -1925,26 +1934,7 @@ void AWarZoneFootprintPreview::BuildPCGDressingGraph()
 		UE_ARRAY_COUNT(GrassMeshes) + UE_ARRAY_COUNT(ShrubMeshes));
 }
 
-void AWarZoneFootprintPreview::VerifyPCGDressing()
-{
-	if (bLoggedPCGDressing || !IsValid(DressingPCGComponent) || DressingPCGComponent->IsGenerating())
-		return;
 
-	if (!DressingPCGComponent->bGenerated)
-		return;
-
-	bLoggedPCGDressing = true;
-	int32 ManagedResourceCount = 0;
-	DressingPCGComponent->ForEachConstManagedResource(
-		[&ManagedResourceCount](const UPCGManagedResource*)
-		{
-			++ManagedResourceCount;
-		});
-	UE_LOG(LogTemp, Display,
-		TEXT("PCG dressing generated: generated=true procedural_instances=%s managed_resources=%d"),
-		DressingPCGComponent->AreProceduralInstancesInUse() ? TEXT("true") : TEXT("false"),
-		ManagedResourceCount);
-}
 
 void AWarZoneFootprintPreview::BuildShoreTransitionMap(
 	const TSet<FIntPoint>& LakeCells,

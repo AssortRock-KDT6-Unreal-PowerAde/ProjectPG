@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+// 처음엔 시설 자리 미리보기로 만들어짐
 #include "WarZoneFootprintPreview.generated.h"
 
 class AMapTile;
@@ -247,7 +248,6 @@ private:
 	void ResolveGameplayPointSafety();
 	void RebuildGameplayPointHash();
 	void BuildPCGDressingGraph();
-	void VerifyPCGDressing();
 	void VerifyLocalPerformance(float DeltaSeconds);
 	void VerifyWorldCollision();
 	void VerifyNavigation();
@@ -283,6 +283,15 @@ private:
 	FVector GetDesignFootprintCenter(const FFacilityPlacement& Placement) const;
 	void DrawDesignScalePreview() const;
 
+	// 협력객체 : 맵 자체 검사
+	// friend class : 검사기가 private볼 수 있게.
+	friend class UMapVerifier;
+	// Transient : 레벨에 저장하지 않음(판마다 새로 만들어서) 
+	UPROPERTY(Transient)
+	// 검사기 주소를 담는 칸. 검사기쪽 Map과 서로 반대 방향
+	// (맵->검사기,검사기-> 맵)
+	TObjectPtr<class UMapVerifier> Verifier;
+	
 	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
 	TObjectPtr<USceneComponent> SceneRoot;
 
@@ -524,7 +533,6 @@ private:
 	bool bLoggedMissingWarZoneFootprint = false;
 	bool bLoggedTraversableElevation = false;
 	bool bLoggedCoplanarSurfaces = false;
-	bool bLoggedPCGDressing = false;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
 	int32 PerformanceSampleCount = 0;
 	double PerformanceDeltaSecondsTotal = 0.0;
