@@ -31,7 +31,7 @@ protected:
 	TObjectPtr<UCharacterAttributeSet> CharacterAttributeSet;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
-	FName CharacterID = TEXT("Character_Manny");
+	FName CharacterID = TEXT("Character_Meta_Test");
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Abilities|Stamina",
 		meta=(ClampMin="0.0", UIMin="0.0"))

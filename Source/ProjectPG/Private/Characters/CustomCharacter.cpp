@@ -25,30 +25,6 @@ ACustomCharacter::ACustomCharacter(const FObjectInitializer& ObjectInitializer)
 	if (!IsValid(meshComp))
 		return;
 
-	// TODO: Table로 옮기기
-	FVector meshLocation = FVector::ZeroVector;
-	meshLocation.Z = -90.;
-	meshComp->SetRelativeLocation(meshLocation);
-
-	FRotator meshRotator = FRotator::ZeroRotator;
-	meshRotator.Yaw = -90.;
-	meshComp->SetRelativeRotation(meshRotator);
-
-	ConstructorHelpers::FObjectFinder<USkeletalMesh> skeletalMesh(
-		TEXT("/Script/Engine.SkeletalMesh'/Game/ControlRig/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny'"));
-	if (!skeletalMesh.Succeeded())
-		return;
-
-	meshComp->SetSkeletalMesh(skeletalMesh.Object);
-	// ~TODO: Table로 옮기기
-
-	// AbilitySystemComp = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystem"));
-	// if (!IsValid(AbilitySystemComp))
-	// 	return;
-	//
-	// AbilitySystemComp->SetIsReplicated(true);
-	// AbilitySystemComp->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
-
 	UCharacterMovementComponent* movementComp = GetCharacterMovement();
 	if (!IsValid(movementComp))
 		return;
@@ -230,6 +206,42 @@ void ACustomCharacter::BeginPlay()
 		return;
 	meshComponent->SetSkeletalMesh(characterRow->SkeletalMesh.Get());
 
+	TArray<USceneComponent*> childrenMeshComps;
+	meshComponent->GetChildrenComponents(false, childrenMeshComps);
+
+	TSet<FName> appliedChildrenMeshFNames;
+
+	for (auto childComp : childrenMeshComps)
+	{
+		if (!IsValid(childComp))
+			continue;
+
+		FName compName = childComp->GetFName();
+
+		if (characterRow->ChildSkeletalMeshes.Contains(compName))
+		{
+			USkeletalMeshComponent* childMeshComp = Cast<USkeletalMeshComponent>(childComp);
+			childMeshComp->SetSkeletalMesh(characterRow->ChildSkeletalMeshes[compName]);
+			childMeshComp->SetLeaderPoseComponent(meshComponent);
+			
+			appliedChildrenMeshFNames.Add(compName);
+		}
+	}
+
+	for (auto [Key, NewMesh] : characterRow->ChildSkeletalMeshes)
+	{
+		if (appliedChildrenMeshFNames.Contains(Key))
+			continue;
+
+		USkeletalMeshComponent* newMeshComp = NewObject<USkeletalMeshComponent>(this, Key);
+		newMeshComp->SetSkeletalMesh(NewMesh);
+		
+		newMeshComp->SetupAttachment(meshComponent);
+		newMeshComp->RegisterComponent();
+
+		newMeshComp->SetLeaderPoseComponent(meshComponent);
+	}
+	
 	ApplyWeaponAnimation(CurrentWeaponType);
 }
 

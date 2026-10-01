@@ -74,6 +74,7 @@ enum class EDropType : uint8
 {
 	Monster,Chest,Quest
 };
+
 UENUM(BlueprintType)
 enum class EAbility : uint8
 {

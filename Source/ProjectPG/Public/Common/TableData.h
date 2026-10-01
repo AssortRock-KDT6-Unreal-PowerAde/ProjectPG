@@ -49,6 +49,9 @@ struct FCharacterTableRow : public FTableRowBase
 	TObjectPtr<USkeletalMesh> SkeletalMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TMap<FName, TObjectPtr<USkeletalMesh>> ChildSkeletalMeshes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<EWeaponType, FWeaponAnimationSet> WeaponAnimations;
 };
 
