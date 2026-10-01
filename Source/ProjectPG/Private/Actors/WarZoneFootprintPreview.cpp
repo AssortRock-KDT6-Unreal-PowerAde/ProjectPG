@@ -202,6 +202,7 @@ namespace
 	const FSoftObjectPath ObstacleLevelPath(TEXT("/Game/PG/LevelDesign/Tiles/LD_Tile_Obstacle_Checkpoint.LD_Tile_Obstacle_Checkpoint"));
 	const FSoftObjectPath OpenGroundLevelPath(TEXT("/Game/PG/LevelDesign/Tiles/LD_Tile_None_OpenGround.LD_Tile_None_OpenGround"));
 	const FSoftObjectPath RuinsLevelPath(TEXT("/Game/PG/LevelDesign/Tiles/LD_Tile_None_Ruins.LD_Tile_None_Ruins"));
+	// 칸 크기(2000cm). 맵 
 	constexpr float DesignCellSize = 2000.0f;
 	// The one walking datum every flat cell, tile prop and road slab is authored
 	// against. Only facility footprints are allowed to leave it.
@@ -674,7 +675,7 @@ void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 	}
 
 	VerifyDesignLevelSeparation();
-	VerifyWorldCollision();
+	Verifier->VerifyWorldCollision();
 	ResolveGameplayPointSafety();
 	VerifyTacticalLayoutQuality();
 	VerifyTravelCoverDensity();
@@ -2470,51 +2471,6 @@ void AWarZoneFootprintPreview::BuildLightweightWorldVisuals()
 		TEXT("HISM design world: ground_instances=%d warzone_ground_instances=%d transition_ground_instances=%d road_tiles=%d road_surface_instances=%d collision=true facility_support_cells=%d"),
 		GroundHISM->GetInstanceCount(), WarZoneGroundHISM->GetInstanceCount(), TransitionGroundHISM->GetInstanceCount(), RoadTileCount, RoadSurfaceHISM->GetInstanceCount(),
 		2025 - TileDesignPlacements.Num());
-}
-
-void AWarZoneFootprintPreview::VerifyWorldCollision()
-{
-	if (bLoggedWorldCollision
-		|| !AreAllFacilityLevelsLoaded())
-	{
-		return;
-	}
-
-	bLoggedWorldCollision = true;
-	int32 HitCount = 0;
-	TArray<FIntPoint> MissingCells;
-	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(DesignWorldGroundValidation), true);
-	for (int32 Y = -22; Y <= 22; ++Y)
-	{
-		for (int32 X = -22; X <= 22; ++X)
-		{
-			const FVector CellCenter(X * DesignCellSize, Y * DesignCellSize, 0.0f);
-			FHitResult HitResult;
-			const bool bHit = GetWorld()->LineTraceSingleByChannel(
-				HitResult,
-				CellCenter + FVector(0.0f, 0.0f, 1000.0f),
-				CellCenter - FVector(0.0f, 0.0f, 1000.0f),
-				ECC_Visibility,
-				QueryParams);
-			if (bHit)
-				++HitCount;
-			else
-				MissingCells.Add(FIntPoint(X, Y));
-		}
-	}
-
-	FString MissingSummary;
-	for (int32 Index = 0; Index < FMath::Min(MissingCells.Num(), 12); ++Index)
-	{
-		MissingSummary += FString::Printf(
-			TEXT("(%d,%d)%s"),
-			MissingCells[Index].X,
-			MissingCells[Index].Y,
-			Index + 1 < FMath::Min(MissingCells.Num(), 12) ? TEXT(",") : TEXT(""));
-	}
-	UE_LOG(LogTemp, Display,
-		TEXT("Design world collision: cells=2025 hits=%d missing=%d sample=[%s]"),
-		HitCount, MissingCells.Num(), *MissingSummary);
 }
 
 void AWarZoneFootprintPreview::VerifyTacticalLayoutQuality()

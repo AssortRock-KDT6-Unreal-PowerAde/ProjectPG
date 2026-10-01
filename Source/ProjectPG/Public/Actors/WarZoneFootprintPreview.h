@@ -249,7 +249,6 @@ private:
 	void RebuildGameplayPointHash();
 	void BuildPCGDressingGraph();
 	void VerifyLocalPerformance(float DeltaSeconds);
-	void VerifyWorldCollision();
 	void VerifyNavigation();
 	void VerifyTacticalLayoutQuality();
 	void VerifyTravelCoverDensity();

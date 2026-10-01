@@ -38,11 +38,18 @@ public:
 	// 맵 액터(AWarZoneFootprintPreview)의 Tick 이 매 프레임 부른다.
 	// bLoggedPCGDressing 가 true 면 바로 끝낸다. 아니면 true 로 바꾸고 로그를 찍는다.
 	void VerifyPCGDressing();
+	
+	
+	void VerifyWorldCollision();
+	
+	
+	
 private:
 	// 언리얼 한테 포인터 관리해달라.
 	UPROPERTY()
 	TObjectPtr<AWarZoneFootprintPreview> Map;	
 	
+	// 플래그라는 말로도 씀.
 	// 덤불 검사를 이미 했는지 표시. 로그를 한 번만 찍으려고.
 	bool bLoggedPCGDressing = false;
 };
