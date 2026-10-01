@@ -229,8 +229,6 @@ protected:
 
 private:
 	void TryReserveFootprint();
-	void SpawnRuntimeBlueprintTiles();
-	void BuildElevatedFacilityTerrain();
 	// Entrance cell / outward cardinal direction for every ramp-and-stair approach a
 	// facility owns. Shared by the terrain builder and VerifyTraversableElevation.
 	void GetFacilityAccessEdges(
@@ -242,15 +240,9 @@ private:
 	void BuildShoreTransitionMap(
 		const TSet<FIntPoint>& LakeCells,
 		TMap<FIntPoint, TPair<int32, int32>>& OutShoreTileByCell) const;
-	void BuildLightweightWorldVisuals();
 	void BuildGameplayPointMarkers();
 	void ResolveGameplayPointSafety();
 	void RebuildGameplayPointHash();
-	void BuildPCGDressingGraph();
-	void RefreshNavigationBlockerRegion(
-		UTacticalTileNavModifierComponent* Modifier,
-		const FVector& WorldCenter,
-		float RadiusCm);
 	void DrawReservation() const;
 	void ConfigureProxyMesh(
 		UStaticMeshComponent* Component,
@@ -258,8 +250,6 @@ private:
 		const FVector& Size);
 	void ShowWarehouseProxy(const FVector& FootprintCenter);
 	void ShowYardProxy(const FVector& FootprintCenter);
-	void LoadFacilityDesignLevel(const FFacilityPlacement& Placement, int32 PlacementIndex);
-	void BuildBorderMountains();
 	bool AreAllFacilityLevelsLoaded() const;
 	FVector GetFootprintCenter(const FFacilityPlacement& Placement) const;
 	FVector GetDesignFootprintCenter(const FFacilityPlacement& Placement) const;
@@ -288,6 +278,16 @@ private:
 	friend class UMapRoadPlanner;
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapRoadPlanner> RoadPlanner;
+
+	// 협력객체 : 공사 담당.
+	friend class UMapTileSpawner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapTileSpawner> TileSpawner;
+
+	// 협력객체 : 바닥 담당.
+	friend class UMapGroundBuilder;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapGroundBuilder> GroundBuilder;
 	
 	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
 	TObjectPtr<USceneComponent> SceneRoot;
