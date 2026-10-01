@@ -679,7 +679,7 @@ void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 	ResolveGameplayPointSafety();
 	//Tactical(전투용)+Layout(배치)+Quality(품질) = 전투하기 좋게 타일이 제대로 놓였니? 
 	Verifier->VerifyTacticalLayoutQuality();
-	VerifyTravelCoverDensity();
+	Verifier->VerifyTravelCoverDensity();
 	VerifyGameplayPointDistribution();
 	VerifyNavigation();
 	VerifyCriticalRoutes();
@@ -2474,75 +2474,6 @@ void AWarZoneFootprintPreview::BuildLightweightWorldVisuals()
 		2025 - TileDesignPlacements.Num());
 }
 
-
-void AWarZoneFootprintPreview::VerifyTravelCoverDensity()
-{
-	int32 ExpectedRuntimeFacilityCount = 0;
-	for (const FFacilityPlacement& Placement : FacilityPlacements)
-		if (Placement.VisualSet != EFacilityVisualSet::Checkpoint)
-			++ExpectedRuntimeFacilityCount;
-	if (bLoggedTravelCoverDensity
-		|| TileDesignPlacements.IsEmpty()
-		|| SpawnedRuntimeTiles.Num() != TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount)
-		return;
-
-	bLoggedTravelCoverDensity = true;
-	int32 SampleCount = 0;
-	int32 FullyExposedSamples = 0;
-	float LongestExposedRunCm = 0.0f;
-	for (int32 Y = -22; Y <= 22; Y += 2)
-	{
-		float CurrentRunCm = 0.0f;
-		for (int32 X = -22; X <= 22; ++X)
-		{
-			++SampleCount;
-			// Cover is useful when it protects a crouched player; the previous 1.4m
-			// standing-eye trace incorrectly rejected deliberate chest-high cover.
-			const FVector EyeLocation(X * DesignCellSize, Y * DesignCellSize, 90.0f);
-			bool bHasNearbyCover = false;
-			FCollisionQueryParams Query(SCENE_QUERY_STAT(TravelCoverDensity), true);
-			for (int32 DirectionIndex = 0; DirectionIndex < 8; ++DirectionIndex)
-			{
-				const float Angle = FMath::DegreesToRadians(DirectionIndex * 45.0f);
-				const FVector Direction(FMath::Cos(Angle) * 900.0f, FMath::Sin(Angle) * 900.0f, 0.0f);
-				FHitResult Hit;
-				if (GetWorld()->LineTraceSingleByChannel(Hit, EyeLocation, EyeLocation + Direction, ECC_Visibility, Query))
-				{
-					const UPrimitiveComponent* Component = Hit.GetComponent();
-					const FVector Normal = Hit.ImpactNormal;
-					// Ground is a horizontal hit; meaningful cover has a lateral face.
-					if (IsValid(Component) && FMath::Abs(Normal.Z) < 0.55f)
-					{
-						bHasNearbyCover = true;
-						break;
-					}
-				}
-			}
-
-			if (bHasNearbyCover)
-			{
-				CurrentRunCm = 0.0f;
-			}
-			else
-			{
-				++FullyExposedSamples;
-				CurrentRunCm += DesignCellSize;
-				LongestExposedRunCm = FMath::Max(LongestExposedRunCm, CurrentRunCm);
-			}
-		}
-	}
-
-	const float ExposedRatio = SampleCount > 0
-		? static_cast<float>(FullyExposedSamples) / SampleCount
-		: 1.0f;
-	UE_LOG(LogTemp, Display,
-		TEXT("Travel cover audit (crouch_height=90cm): samples=%d fully_exposed=%d exposed_ratio=%.3f longest_exposed_run_m=%.1f target_ratio<=0.55 target_run<=120m pass=%s"),
-		SampleCount,
-		FullyExposedSamples,
-		ExposedRatio,
-		LongestExposedRunCm / 100.0f,
-		ExposedRatio <= 0.55f && LongestExposedRunCm <= 12000.0f ? TEXT("true") : TEXT("false"));
-}
 
 void AWarZoneFootprintPreview::VerifyGameplayPointDistribution()
 {

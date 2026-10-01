@@ -48,7 +48,9 @@ public:
 	// Tactical(전투용) Layout(배치) Quality(품질)
 	// 타일이 깔린 뒤, 플레이어가 막히거나 끼이거나 빠지는 곳이 없나 확인.
 	void VerifyTacticalLayoutQuality();
-	
+	// Travel(이동) + Cove(엄폐물, 몸을 숨길 것) + Density(촘촘함) 
+	// = 돌아다니는 길에 숨을 곳이 충분히 있나?
+	void VerifyTravelCoverDensity();
 	
 	
 	
@@ -64,5 +66,8 @@ private:
 	bool bLoggedDesignLevelSeparation = false;
 	// 타일 배치  품질 검사 보고서를 이미 썼는지 표시.
 	bool bLoggedTacticalLayoutQuality = false;
+	// 숨을 곳이 충분한가? 
+	bool bLoggedTravelCoverDensity = false;
+	
 };
 

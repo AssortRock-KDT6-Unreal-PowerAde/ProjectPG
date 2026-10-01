@@ -384,3 +384,75 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 		*FString::Join(OverflowSamples, TEXT(",")),
 		*UnsafeSummary);
 }
+// Travel(이동) + Cove(엄폐물, 몸을 숨길 것) + Density(촘촘함) 
+// = 돌아다니는 길에 숨을 곳이 충분히 있나?
+void UMapVerifier::VerifyTravelCoverDensity()
+{//타일,건물이 다 생길때까지 기다린다. 
+	int32 ExpectedRuntimeFacilityCount = 0;
+	for (const FFacilityPlacement& Placement : Map->FacilityPlacements)
+		if (Placement.VisualSet != EFacilityVisualSet::Checkpoint)
+			++ExpectedRuntimeFacilityCount;
+	if (bLoggedTravelCoverDensity
+		|| Map->TileDesignPlacements.IsEmpty()
+		|| Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount)
+		return;
+
+	bLoggedTravelCoverDensity = true;
+	int32 SampleCount = 0;
+	int32 FullyExposedSamples = 0;
+	float LongestExposedRunCm = 0.0f;//맵을 두 줄 걸러 한줄씩, 왼쪽에서 오른쪽으로 칸마다 걸어가 본다.
+	for (int32 Y = -22; Y <= 22; Y += 2)
+	{
+		float CurrentRunCm = 0.0f;
+		for (int32 X = -22; X <= 22; ++X)
+		{
+			++SampleCount;
+			// Cover is useful when it protects a crouched player; the previous 1.4m
+			// standing-eye trace incorrectly rejected deliberate chest-high cover.
+			const FVector EyeLocation(X * DesignCellSize, Y * DesignCellSize, 90.0f);//각 칸 가운데 쪼그려 앉은 사람 눈높이를 정한다.(90cm)
+			bool bHasNearbyCover = false;
+			FCollisionQueryParams Query(SCENE_QUERY_STAT(TravelCoverDensity), true);//거기서 8방향(45도씩)9m 짜리 막대기를 뻗어 본다. 
+			for (int32 DirectionIndex = 0; DirectionIndex < 8; ++DirectionIndex)
+			{
+				const float Angle = FMath::DegreesToRadians(DirectionIndex * 45.0f);
+				const FVector Direction(FMath::Cos(Angle) * 900.0f, FMath::Sin(Angle) * 900.0f, 0.0f);
+				FHitResult Hit;
+				if (GetWorld()->LineTraceSingleByChannel(Hit, EyeLocation, EyeLocation + Direction, ECC_Visibility, Query))
+				{
+					const UPrimitiveComponent* Component = Hit.GetComponent();
+					const FVector Normal = Hit.ImpactNormal;
+					// Ground is a horizontal hit; meaningful cover has a lateral face.
+					// 막대기 옆면에 있는 것(담,상자,바위)이 걸리면->"여기 숨을 데 있음". 바닥에 걸린건 엄폐물이 아니라서 안침
+					if (IsValid(Component) && FMath::Abs(Normal.Z) < 0.55f)
+					{
+						bHasNearbyCover = true;
+						break;
+					}
+				}
+			}
+			//	숨을 데 없는 칸이 연달아 나오면 그 길이를 더해 간다. 숨을 데가 나오면 0으로
+			if (bHasNearbyCover)
+			{
+				CurrentRunCm = 0.0f;
+			}
+			else
+			{
+				++FullyExposedSamples;
+				CurrentRunCm += DesignCellSize;
+				LongestExposedRunCm = FMath::Max(LongestExposedRunCm, CurrentRunCm);
+			}
+		}
+	}
+
+	const float ExposedRatio = SampleCount > 0
+		? static_cast<float>(FullyExposedSamples) / SampleCount
+		: 1.0f;
+	//로그: 숨을 데 없는 칸 비율이 55% 이하이고, 가장 긴 무방비 구간이 120m 이하면 pass=true
+	UE_LOG(LogTemp, Display,
+		TEXT("Travel cover audit (crouch_height=90cm): samples=%d fully_exposed=%d exposed_ratio=%.3f longest_exposed_run_m=%.1f target_ratio<=0.55 target_run<=120m pass=%s"),
+		SampleCount,
+		FullyExposedSamples,
+		ExposedRatio,
+		LongestExposedRunCm / 100.0f,
+		ExposedRatio <= 0.55f && LongestExposedRunCm <= 12000.0f ? TEXT("true") : TEXT("false"));
+}
