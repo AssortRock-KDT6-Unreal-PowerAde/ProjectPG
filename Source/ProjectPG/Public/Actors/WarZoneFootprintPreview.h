@@ -229,7 +229,6 @@ protected:
 
 private:
 	void TryReserveFootprint();
-	void BuildTileDesignPlacements(const TMap<FIntPoint, AMapTile*>& TileByCell);
 	void SpawnRuntimeBlueprintTiles();
 	void BuildElevatedFacilityTerrain();
 	// Entrance cell / outward cardinal direction for every ramp-and-stair approach a
@@ -279,6 +278,16 @@ private:
 	friend class UMapFacilityPlanner;
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapFacilityPlanner> FacilityPlanner;
+
+	// 협력객체 : 칸 모양 담당(칸마다 어떤 타일, 몇 도). 결과는 TileDesignPlacements·LayoutHash.
+	friend class UMapTilePlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapTilePlanner> TilePlanner;
+
+	// 협력객체 : 흙길 담당(시설·시작점·출구를 도로·워존에 잇는 흙길). 칸 모양 담당이 부른다.
+	friend class UMapRoadPlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapRoadPlanner> RoadPlanner;
 	
 	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
 	TObjectPtr<USceneComponent> SceneRoot;
