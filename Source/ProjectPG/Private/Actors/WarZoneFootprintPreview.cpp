@@ -1,4 +1,4 @@
-// Visual layer for the procedural map: turns the logical AMapTile grid into tiles, facilities and the border lake.
+﻿// Visual layer for the procedural map: turns the logical AMapTile grid into tiles, facilities and the border lake.
 
 #include "Actors/WarZoneFootprintPreview.h"
 #include "Actors/TacticalTileActor.h"
@@ -45,6 +45,7 @@
 #include "Actors/WarZoneFootprint/MapVerifier.h"
 // 같이 쓰는 숫자·경로·작은 계산은 MapBuildShared.h 한 곳에 있다(일꾼들도 같은 것을 본다).
 #include "Actors/WarZoneFootprint/MapBuildShared.h"
+#include "Actors/WarZoneFootprint/MapAssetSet.h"
 #include "Actors/WarZoneFootprint/MapFacilityPlanner.h"
 #include "Actors/WarZoneFootprint/MapTilePlanner.h"
 #include "Actors/WarZoneFootprint/MapRoadPlanner.h"
@@ -100,11 +101,8 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 
 	// The basin's mountain ring. Collision-free on purpose: the map edge must
 	// still end in a fall, and Recast must never path onto scenery kilometres out.
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> MountainMesh(
-		TEXT("/Game/Downtown_West/Assets/background_mountain/SM_background_mountains"));
+	// 산 메시는 판 시작 때 ApplyMapAssets 가 DA_MapAssets 에서 끼운다.
 	MountainHISM->SetupAttachment(SceneRoot);
-	if (MountainMesh.Succeeded())
-		MountainHISM->SetStaticMesh(MountainMesh.Object);
 	MountainHISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	MountainHISM->SetCanEverAffectNavigation(false);
 	MountainHISM->SetGenerateOverlapEvents(false);
@@ -124,16 +122,11 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 	// into the WarZone reads as the same dirt as the flat cells around it instead of a
 	// green patch in an industrial yard. Index is Band * ShapeCount + Shape.
 	{
-		const TCHAR* BandMaterialPaths[] = {
-			TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_NatureUnified"),
-			TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_Transition"),
-			TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_WarZone")
-		};
+		// 띠별 머티리얼(들판/경계/워존)은 ApplyMapAssets 가 DA_MapAssets 에서 끼운다.
 		const TCHAR* BandNames[] = { TEXT("Nature"), TEXT("Transition"), TEXT("WarZone") };
 		const TArray<FTerrainFeatureMesh>& FeatureMeshes = GetTerrainFeatureMeshes();
 		for (int32 BandIndex = 0; BandIndex < UE_ARRAY_COUNT(BandNames); ++BandIndex)
 		{
-			ConstructorHelpers::FObjectFinder<UMaterialInterface> BandMaterial(BandMaterialPaths[BandIndex]);
 			for (int32 ShapeIndex = 0; ShapeIndex < FeatureMeshes.Num(); ++ShapeIndex)
 			{
 				const FTerrainFeatureMesh& Feature = FeatureMeshes[ShapeIndex];
@@ -145,8 +138,6 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 				ConstructorHelpers::FObjectFinder<UStaticMesh> FeatureMesh(Feature.AssetPath);
 				if (FeatureMesh.Succeeded())
 					Component->SetStaticMesh(FeatureMesh.Object);
-				if (BandMaterial.Succeeded())
-					Component->SetMaterial(0, BandMaterial.Object);
 				Component->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 				Component->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
 				Component->SetGenerateOverlapEvents(false);
@@ -158,21 +149,21 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 	}
 
 	// Rocks and trees block; bushes stay walk-through so a slope never becomes a wall.
+	// 메시(돌·소나무·덤불·호숫가 돌·갈대)는 ApplyMapAssets 가 DA_MapAssets 에서 끼운다.
 	struct FTerrainDressingSpec
 	{
 		const TCHAR* ComponentName;
-		const TCHAR* AssetPath;
 		bool bCollides;
 	};
 	const FTerrainDressingSpec DressingSpecs[] = {
-		{ TEXT("TerrainRockHISM"), TEXT("/Game/Downtown_West/Assets/props/prop_rocks/SM_rock_medium_a_low.SM_rock_medium_a_low"), true },
-		{ TEXT("TerrainTreeHISM"), TEXT("/PCGBiomeSample/Meshes/PCG_Pine_01.PCG_Pine_01"), true },
-		{ TEXT("TerrainBushHISM"), TEXT("/Game/GV_FreeShrubsPack/Meshes/Shrubs/Wind/Shrub_A/GV_Vol7_Shrub_A_type1_L2.GV_Vol7_Shrub_A_type1_L2"), false },
+		{ TEXT("TerrainRockHISM"), true },
+		{ TEXT("TerrainTreeHISM"), true },
+		{ TEXT("TerrainBushHISM"), false },
 		// Shore dressing. The waterline is decided per 20 m cell, so on its own it
 		// steps along the grid. Rocks and reeds standing in the shallows break that
 		// line up - the same trick the diorama uses along its own bank.
-		{ TEXT("ShoreRockHISM"), TEXT("/Game/Modular_Rural_Cabin/Meshes/Props/River_Stone_2.River_Stone_2"), true },
-		{ TEXT("ShoreReedHISM"), TEXT("/Game/Modular_Rural_Cabin/Meshes/Foliage/Cat_Tail.Cat_Tail"), false }
+		{ TEXT("ShoreRockHISM"), true },
+		{ TEXT("ShoreReedHISM"), false }
 	};
 	TArray<UHierarchicalInstancedStaticMeshComponent*> DressingComponents;
 	for (const FTerrainDressingSpec& Spec : DressingSpecs)
@@ -180,9 +171,6 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 		UHierarchicalInstancedStaticMeshComponent* Component =
 			CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(Spec.ComponentName);
 		Component->SetupAttachment(SceneRoot);
-		ConstructorHelpers::FObjectFinder<UStaticMesh> DressingMesh(Spec.AssetPath);
-		if (DressingMesh.Succeeded())
-			Component->SetStaticMesh(DressingMesh.Object);
 		Component->SetCollisionEnabled(Spec.bCollides ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 		Component->SetCollisionProfileName(Spec.bCollides
 			? UCollisionProfile::BlockAll_ProfileName : UCollisionProfile::NoCollision_ProfileName);
@@ -244,37 +232,72 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 	NavigationFloor->SetCanEverAffectNavigation(true);
 	NavigationFloor->SetMobility(EComponentMobility::Static);
 
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> GroundMaterial(
-		TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_NatureUnified"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> RoadMaterial(
-		TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeRoad_AsphaltClean"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> WarZoneGroundMaterial(
-		TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_WarZone"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TransitionGroundMaterial(
-		TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_Transition"));
-	if (GroundMaterial.Succeeded())
-		GroundHISM->SetMaterial(0, GroundMaterial.Object);
-	if (WarZoneGroundMaterial.Succeeded())
-		WarZoneGroundHISM->SetMaterial(0, WarZoneGroundMaterial.Object);
-	if (TransitionGroundMaterial.Succeeded())
-		TransitionGroundHISM->SetMaterial(0, TransitionGroundMaterial.Object);
-	if (RoadMaterial.Succeeded())
-		RoadSurfaceHISM->SetMaterial(0, RoadMaterial.Object);
-	// Reuse the rural diorama's own lake material so the border water and the
-	// water already inside that facility read as one body.
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> LakeWaterMaterial(
-		TEXT("/Game/Modular_Rural_Cabin/Materials/Instances/Water_Lake"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> LakeBedMaterial(
-		TEXT("/Game/Modular_Rural_Cabin/Materials/Instances/Diorama_Ground"));
-	if (LakeWaterMaterial.Succeeded())
-		LakeWaterHISM->SetMaterial(0, LakeWaterMaterial.Object);
-	if (LakeBedMaterial.Succeeded())
-		LakeBedHISM->SetMaterial(0, LakeBedMaterial.Object);
+	// 땅·도로·호수 머티리얼도 ApplyMapAssets 가 DA_MapAssets 에서 끼운다.
+	// 기본 위치: /Game/PG/LevelDesign/DA_MapAssets. 없으면 MapAssetSet.h 의 기본값을 쓴다.
+	MapAssets = TSoftObjectPtr<UMapAssetSet>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/DA_MapAssets.DA_MapAssets")));
+}
+
+// 보이는 것 목록 읽기. 처음 부를 때 DA_MapAssets 를 불러 두고, 없으면 C++ 기본값(예전 경로)을 쓴다.
+// 게임에서: 팀원이 DA_MapAssets 에서 숲 타일을 바꾸면 다음 판부터 그 숲이 깔린다(코드·빌드 필요 없음).
+const UMapAssetSet& AWarZoneFootprintPreview::GetMapAssets()
+{
+	if (!LoadedMapAssets)
+	{
+		LoadedMapAssets = MapAssets.LoadSynchronous();
+		if (!LoadedMapAssets)
+			LoadedMapAssets = GetMutableDefault<UMapAssetSet>();
+		UE_LOG(LogTemp, Display, TEXT("Map assets: source=%s"),
+			LoadedMapAssets->HasAnyFlags(RF_ClassDefaultObject) ? TEXT("C++ defaults") : *LoadedMapAssets->GetPathName());
+	}
+	return *LoadedMapAssets;
+}
+
+// 그릇에 메시·머티리얼 끼우기. 예전엔 생성자에서 경로 글자로 끼웠다.
+// 그릇들은 Movable 이라 판 중에도 바꿀 수 있다. 칸이 비어 있으면(못 불러오면) 그 그릇은 건드리지 않는다.
+void AWarZoneFootprintPreview::ApplyMapAssets()
+{
+	const UMapAssetSet& Assets = GetMapAssets();
+	auto SetMesh = [](UStaticMeshComponent* Component, const TSoftObjectPtr<UStaticMesh>& Mesh)
+	{
+		if (UStaticMesh* Loaded = Mesh.LoadSynchronous(); IsValid(Component) && Loaded)
+			Component->SetStaticMesh(Loaded);
+	};
+	auto SetMaterial = [](UStaticMeshComponent* Component, const TSoftObjectPtr<UMaterialInterface>& Material)
+	{
+		if (UMaterialInterface* Loaded = Material.LoadSynchronous(); IsValid(Component) && Loaded)
+			Component->SetMaterial(0, Loaded);
+	};
+	// 바깥 산, 언덕 위 돌·소나무·덤불, 호숫가 돌·갈대
+	SetMesh(MountainHISM, Assets.MountainMesh);
+	SetMesh(TerrainRockHISM, Assets.TerrainRockMesh);
+	SetMesh(TerrainTreeHISM, Assets.TerrainTreeMesh);
+	SetMesh(TerrainBushHISM, Assets.TerrainBushMesh);
+	SetMesh(ShoreRockHISM, Assets.ShoreRockMesh);
+	SetMesh(ShoreReedHISM, Assets.ShoreReedMesh);
+	// 땅판(들판/워존/경계), 도로, 호수 물·바닥
+	SetMaterial(GroundHISM, Assets.NatureGroundMaterial);
+	SetMaterial(WarZoneGroundHISM, Assets.WarZoneGroundMaterial);
+	SetMaterial(TransitionGroundHISM, Assets.TransitionGroundMaterial);
+	SetMaterial(RoadSurfaceHISM, Assets.RoadMaterial);
+	SetMaterial(LakeWaterHISM, Assets.LakeWaterMaterial);
+	SetMaterial(LakeBedHISM, Assets.LakeBedMaterial);
+	// 언덕: 그릇 순서가 [띠 0 들판 × 모양 4개][띠 1 경계 × 4][띠 2 워존 × 4] 라서 번호 ÷ 모양 수 = 띠.
+	const TSoftObjectPtr<UMaterialInterface>* BandMaterials[] = {
+		&Assets.NatureGroundMaterial, &Assets.TransitionGroundMaterial, &Assets.WarZoneGroundMaterial };
+	const int32 ShapeCount = FMath::Max(1, GetTerrainFeatureMeshes().Num());
+	for (int32 Index = 0; Index < TerrainFeatureHISMs.Num(); ++Index)
+	{
+		const int32 Band = Index / ShapeCount;
+		if (Band < UE_ARRAY_COUNT(BandMaterials))
+			SetMaterial(TerrainFeatureHISMs[Index], *BandMaterials[Band]);
+	}
 }
 
 void AWarZoneFootprintPreview::BeginPlay()
 {
 	Super::BeginPlay();
+	// 땅판·산·돌·풀 그릇에 DA_MapAssets 의 메시·머티리얼을 먼저 끼운다(타일을 세우기 전에).
+	ApplyMapAssets();
 	//부모거 다 진행하고 다음 검사기 진행
 	if (!Verifier)
 	//1. 아직 없으면	

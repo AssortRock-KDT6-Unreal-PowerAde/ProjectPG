@@ -1,6 +1,7 @@
 ﻿#include "Actors/WarZoneFootprint/MapTileSpawner.h"
 
 #include "Actors/WarZoneFootprint/MapBuildShared.h"
+#include "Actors/WarZoneFootprint/MapAssetSet.h"
 #include "Actors/TacticalTileActor.h"
 #include "Actors/TacticalTileRoadStraight.h"
 #include "Actors/ProceduralFacilityActor.h"
@@ -79,30 +80,32 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 	// The reviewed LD_Tile maps are packed into reusable Blueprint classes by
 	// PG.BuildPackedTileBlueprints. Spawning those classes keeps the authored
 	// meshes/materials/collision while avoiding thousands of streamed UWorlds.
-	static const TCHAR* CornerPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_Road_Corner.BPP_Tile_Road_Corner_C");
-	static const TCHAR* StraightPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_Road_Straight.BPP_Tile_Road_Straight_C");
-	static const TCHAR* TPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_Road_TJunction.BPP_Tile_Road_TJunction_C");
-	static const TCHAR* CrossPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_Road_Cross.BPP_Tile_Road_Cross_C");
-	static const TCHAR* DeadEndPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_Road_DeadEnd.BPP_Tile_Road_DeadEnd_C");
-	static const TCHAR* SpawnPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_Spawn_Staging.BPP_Tile_Spawn_Staging_C");
-	static const TCHAR* ExitPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_Exit_Checkpoint.BPP_Tile_Exit_Checkpoint_C");
-	static const TCHAR* ObstaclePath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_Obstacle_Checkpoint.BPP_Tile_Obstacle_Checkpoint_C");
-	static const TCHAR* OpenPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_None_OpenGround.BPP_Tile_None_OpenGround_C");
-	static const TCHAR* RuinsPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_None_Ruins.BPP_Tile_None_Ruins_C");
-	static const TCHAR* YardPath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_WarZone_Yard.BPP_Tile_WarZone_Yard_C");
-	static const TCHAR* WarehousePath = TEXT("/Game/PG/LevelDesign/Tiles/Packed/BPP_Tile_WarZone_Warehouse.BPP_Tile_WarZone_Warehouse_C");
-	static const TCHAR* NatureMeadowPath = TEXT("/Game/PG/LevelDesign/Tiles/Nature/BP_Tile_Nature_Meadow_V2.BP_Tile_Nature_Meadow_V2_C");
-	static const TCHAR* NatureForestSparsePath = TEXT("/Game/PG/LevelDesign/Tiles/Nature/BP_Tile_Nature_ForestSparse.BP_Tile_Nature_ForestSparse_C");
-	static const TCHAR* NatureForestDensePath = TEXT("/Game/PG/LevelDesign/Tiles/Nature/BP_Tile_Nature_ForestDense.BP_Tile_Nature_ForestDense_C");
-	static const TCHAR* NatureRockyPath = TEXT("/Game/PG/LevelDesign/Tiles/Nature/BP_Tile_Nature_Rocky.BP_Tile_Nature_Rocky_C");
-	static const TCHAR* NatureScrubPath = TEXT("/Game/PG/LevelDesign/Tiles/Nature/BP_Tile_Nature_Scrub.BP_Tile_Nature_Scrub_C");
-	static const TCHAR* NatureAmbushPath = TEXT("/Game/PG/LevelDesign/Tiles/Nature/BP_Tile_Nature_Ambush.BP_Tile_Nature_Ambush_C");
-	static const TCHAR* NatureServiceCampPath = TEXT("/Game/PG/LevelDesign/Tiles/Nature/BP_Tile_Nature_ServiceCamp.BP_Tile_Nature_ServiceCamp_C");
-	static const TCHAR* NatureDitchPath = TEXT("/Game/PG/LevelDesign/Tiles/Nature/BP_Tile_Nature_Ditch.BP_Tile_Nature_Ditch_C");
-	static const TCHAR* WarZoneIndustrialOpenPath = TEXT("/Game/PG/LevelDesign/Tiles/WarZone/BP_Tile_WarZoneV2_IndustrialOpen.BP_Tile_WarZoneV2_IndustrialOpen_C");
-	static const TCHAR* WarZoneContainerLanePath = TEXT("/Game/PG/LevelDesign/Tiles/WarZone/BP_Tile_WarZoneV2_ContainerLane.BP_Tile_WarZoneV2_ContainerLane_C");
-	static const TCHAR* WarZoneFactoryYardPath = TEXT("/Game/PG/LevelDesign/Tiles/WarZone/BP_Tile_WarZoneV2_FactoryYard.BP_Tile_WarZoneV2_FactoryYard_C");
-	static const TCHAR* WarZoneUtilityYardPath = TEXT("/Game/PG/LevelDesign/Tiles/WarZone/BP_Tile_WarZoneV2_UtilityYard.BP_Tile_WarZoneV2_UtilityYard_C");
+	// 타일 BP 는 DA_MapAssets(보이는 것 목록)에서 고른다. 예전엔 여기 경로 24줄이 글자로 박혀 있었다.
+	const UMapAssetSet& Assets = Map->GetMapAssets();
+	const TSoftClassPtr<AActor>& CornerPath = Assets.RoadCornerTile;
+	const TSoftClassPtr<AActor>& StraightPath = Assets.RoadStraightTile;
+	const TSoftClassPtr<AActor>& TPath = Assets.RoadTJunctionTile;
+	const TSoftClassPtr<AActor>& CrossPath = Assets.RoadCrossTile;
+	const TSoftClassPtr<AActor>& DeadEndPath = Assets.RoadDeadEndTile;
+	const TSoftClassPtr<AActor>& SpawnPath = Assets.SpawnTile;
+	const TSoftClassPtr<AActor>& ExitPath = Assets.ExitTile;
+	const TSoftClassPtr<AActor>& ObstaclePath = Assets.ObstacleTile;
+	const TSoftClassPtr<AActor>& OpenPath = Assets.OpenGroundTile;
+	const TSoftClassPtr<AActor>& RuinsPath = Assets.RuinsTile;
+	const TSoftClassPtr<AActor>& YardPath = Assets.WarZoneYardTile;
+	const TSoftClassPtr<AActor>& WarehousePath = Assets.WarZoneWarehouseTile;
+	const TSoftClassPtr<AActor>& NatureMeadowPath = Assets.NatureMeadowTile;
+	const TSoftClassPtr<AActor>& NatureForestSparsePath = Assets.NatureForestSparseTile;
+	const TSoftClassPtr<AActor>& NatureForestDensePath = Assets.NatureForestDenseTile;
+	const TSoftClassPtr<AActor>& NatureRockyPath = Assets.NatureRockyTile;
+	const TSoftClassPtr<AActor>& NatureScrubPath = Assets.NatureScrubTile;
+	const TSoftClassPtr<AActor>& NatureAmbushPath = Assets.NatureAmbushTile;
+	const TSoftClassPtr<AActor>& NatureServiceCampPath = Assets.NatureServiceCampTile;
+	const TSoftClassPtr<AActor>& NatureDitchPath = Assets.NatureDitchTile;
+	const TSoftClassPtr<AActor>& WarZoneIndustrialOpenPath = Assets.WarZoneIndustrialOpenTile;
+	const TSoftClassPtr<AActor>& WarZoneContainerLanePath = Assets.WarZoneContainerLaneTile;
+	const TSoftClassPtr<AActor>& WarZoneFactoryYardPath = Assets.WarZoneFactoryYardTile;
+	const TSoftClassPtr<AActor>& WarZoneUtilityYardPath = Assets.WarZoneUtilityYardTile;
 
 	FIntPoint WarZoneCoreCell = FIntPoint::ZeroValue;
 	for (const FFacilityPlacement& FacilityPlacement : Map->FacilityPlacements)
@@ -116,12 +119,12 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 	}
 
 	TMap<FString, UClass*> ClassCache;
-	auto ResolveClass = [&ClassCache](const TCHAR* Path)
+	auto ResolveClass = [&ClassCache](const TSoftClassPtr<AActor>& Path)
 	{
-		const FString Key(Path);
+		const FString Key = Path.ToString();
 		if (UClass** Existing = ClassCache.Find(Key))
 			return *Existing;
-		UClass* LoadedClass = LoadClass<AActor>(nullptr, Path);
+		UClass* LoadedClass = Path.LoadSynchronous();
 		ClassCache.Add(Key, LoadedClass);
 		return LoadedClass;
 	};
@@ -139,12 +142,11 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	};
-	auto NormalizePackedBaseGround = [](AActor* Actor)
+	UMaterialInterface* UnifiedGround = Assets.NatureGroundMaterial.LoadSynchronous();
+	auto NormalizePackedBaseGround = [UnifiedGround](AActor* Actor)
 	{
 		if (!IsValid(Actor))
 			return;
-		static UMaterialInterface* UnifiedGround = LoadObject<UMaterialInterface>(nullptr,
-			TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_NatureUnified.MI_RuntimeGround_NatureUnified"));
 		if (!IsValid(UnifiedGround))
 			return;
 
@@ -238,9 +240,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				|| MeshPath.Contains(TEXT("/Meshes/Foliage/Bush_"))
 				|| MeshPath.Contains(TEXT("/Meshes/Foliage/Shrubs_"))
 				|| bIsFreeShrub;
-			static UMaterialInterface* RuntimeHeroShrubMaterial = LoadObject<UMaterialInterface>(nullptr,
-				TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeHeroShrub_Dark.MI_RuntimeHeroShrub_Dark"));
-			auto ResolvePackedMaterial = [bIsFreeShrub](UMaterialInterface* SourceMaterial)
+			UMaterialInterface* RuntimeHeroShrubMaterial = Map->GetMapAssets().HeroShrubLeafMaterial.LoadSynchronous();
+			auto ResolvePackedMaterial = [bIsFreeShrub, RuntimeHeroShrubMaterial](UMaterialInterface* SourceMaterial)
 			{
 				if (!bIsFreeShrub || !IsValid(SourceMaterial) || !IsValid(RuntimeHeroShrubMaterial))
 					return SourceMaterial;
@@ -479,7 +480,7 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		}
 
 		ETacticalTileKind Kind = ETacticalTileKind::OpenGround;
-		const TCHAR* ClassPath = OpenPath;
+		TSoftClassPtr<AActor> ClassPath = OpenPath;
 		FName WarZoneBandTag = NAME_None;
 		FName WarZoneVisualTag = NAME_None;
 		int32 WarZoneRotationQuarterTurns = INDEX_NONE;
@@ -749,8 +750,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		UClass* AuthoredFacilityClass = nullptr;
 		if (Map->bUseAuthoredFacilityBlueprints)
 		{
-			if (const TCHAR* AuthoredPath = GetAuthoredFacilityBlueprintPath(Placement.VisualSet))
-				AuthoredFacilityClass = ResolveClass(AuthoredPath);
+			// 공장 단지 BP(DA_MapAssets 의 WarZoneCoreBlueprint). 나머지 종류는 아직 BP 가 없어서 레벨이나 코드로 짓는다.
+			if (Placement.VisualSet == EFacilityVisualSet::Warehouse && !Assets.WarZoneCoreBlueprint.IsNull())
+				AuthoredFacilityClass = ResolveClass(Assets.WarZoneCoreBlueprint);
 		}
 
 		AActor* Facility = nullptr;
@@ -852,8 +854,8 @@ void UMapTileSpawner::BuildElevatedFacilityTerrain()
 
 	UStaticMesh* Cube = LoadObject<UStaticMesh>(
 		nullptr, TEXT("/Script/Engine.StaticMesh'/Engine/BasicShapes/Cube.Cube'"));
-	UMaterialInterface* RampMaterial = LoadObject<UMaterialInterface>(
-		nullptr, TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeRoad_AsphaltClean.MI_RuntimeRoad_AsphaltClean"));
+	// 경사로는 도로와 같은 아스팔트(DA_MapAssets 의 RoadMaterial).
+	UMaterialInterface* RampMaterial = Map->GetMapAssets().RoadMaterial.LoadSynchronous();
 	if (!IsValid(Cube))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Elevated terrain: engine cube missing"));

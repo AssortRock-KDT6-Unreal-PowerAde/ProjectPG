@@ -1,4 +1,4 @@
-// Visual layer for the procedural map: turns the logical AMapTile grid into tiles, facilities and the border lake.
+﻿// Visual layer for the procedural map: turns the logical AMapTile grid into tiles, facilities and the border lake.
 
 #pragma once
 
@@ -254,6 +254,18 @@ private:
 	// 검사기 주소를 담는 칸. 검사기쪽 Map과 서로 반대 방향
 	// (맵->검사기,검사기-> 맵)
 	TObjectPtr<class UMapVerifier> Verifier;
+
+	// 보이는 것 목록(데이터 에셋 DA_MapAssets). 타일 BP·머티리얼·산·풀·시설 레벨을 여기서 고른다.
+	// 비어 있거나 못 찾으면 MapAssetSet.h 의 C++ 기본값(예전 경로)을 쓴다.
+	UPROPERTY(EditAnywhere, Category = "Map Assets")
+	TSoftObjectPtr<class UMapAssetSet> MapAssets;
+	// 한 번 불러온 목록을 들고 있는 칸(판마다 새로).
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapAssetSet> LoadedMapAssets;
+	// 목록 읽기. 일꾼들도 Map->GetMapAssets() 로 읽는다.
+	const UMapAssetSet& GetMapAssets();
+	// 판 시작 때 맵에 붙은 그릇(땅판·산·돌·풀 HISM)에 메시·머티리얼을 끼운다.
+	void ApplyMapAssets();
 
 	// 협력객체 : 건물 자리 담당. 고른 결과는 맵의 FacilityPlacements 에 넣는다.
 	friend class UMapFacilityPlanner;

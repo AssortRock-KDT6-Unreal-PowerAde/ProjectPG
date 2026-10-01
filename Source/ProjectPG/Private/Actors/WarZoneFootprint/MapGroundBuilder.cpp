@@ -1,6 +1,7 @@
 ﻿#include "Actors/WarZoneFootprint/MapGroundBuilder.h"
 
 #include "Actors/WarZoneFootprint/MapBuildShared.h"
+#include "Actors/WarZoneFootprint/MapAssetSet.h"
 #include "Actors/TacticalTileActor.h"
 #include "Actors/TacticalTileRoadStraight.h"
 #include "Actors/ProceduralFacilityActor.h"
@@ -432,9 +433,8 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 					nullptr, ShoreMeshAssetPaths[VariantIndex]))
 				{
 					Component->SetStaticMesh(ShoreMesh);
-					static UMaterialInterface* SharedGroundMaterial = LoadObject<UMaterialInterface>(
-						nullptr,
-						TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_NatureUnified.MI_RuntimeGround_NatureUnified"));
+					// 호숫가 비탈도 들판 땅과 같은 머티리얼(DA_MapAssets 의 NatureGroundMaterial).
+					UMaterialInterface* SharedGroundMaterial = Map->GetMapAssets().NatureGroundMaterial.LoadSynchronous();
 					if (IsValid(SharedGroundMaterial))
 						Component->SetMaterial(0, SharedGroundMaterial);
 				}
@@ -581,19 +581,11 @@ void UMapGroundBuilder::BuildPCGDressingGraph()
 	if (!IsValid(Map->DressingPCGComponent))
 		return;
 
-	static const TSoftObjectPtr<UStaticMesh> GrassMeshes[] = {
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Fab/Megascans/Plants/Wild_Grass_vlkhcbxia/Medium/vlkhcbxia_tier_2/StaticMeshes/SM_vlkhcbxia_VarA.SM_vlkhcbxia_VarA"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Fab/Megascans/Plants/Wild_Grass_vlkhcbxia/Medium/vlkhcbxia_tier_2/StaticMeshes/SM_vlkhcbxia_VarC.SM_vlkhcbxia_VarC"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Fab/Megascans/Plants/Wild_Grass_vlkhcbxia/Medium/vlkhcbxia_tier_2/StaticMeshes/SM_vlkhcbxia_VarF.SM_vlkhcbxia_VarF")))
-	};
-	// Execution-plan requirement: mix in at least two shrub species so grass-area
-	// tiles (Meadow/Scrub) don't read as a single mesh stamped on a grid.
-	static const TSoftObjectPtr<UStaticMesh> ShrubMeshes[] = {
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Modular_Rural_Cabin/Meshes/Foliage/Shrubs_1.Shrubs_1"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/GV_FreeShrubsPack/Meshes/Shrubs/Wind/Shrub_A/GV_Vol7_Shrub_A_type1_L2.GV_Vol7_Shrub_A_type1_L2")))
-	};
+	// 풀·덤불 메시는 DA_MapAssets 에서 고른다(풀 2종 이상, 덤불 2종 이상 섞어야 도장 찍은 것처럼 안 보인다).
+	const TArray<TSoftObjectPtr<UStaticMesh>>& GrassMeshes = Map->GetMapAssets().GrassMeshes;
+	const TArray<TSoftObjectPtr<UStaticMesh>>& ShrubMeshes = Map->GetMapAssets().ShrubMeshes;
 
-	Map->RuntimeDressingGraph = NewObject<UPCGGraph>(Map->DressingPCGComponent, TEXT("Map->RuntimeDressingGraph"), RF_Transient);
+	Map->RuntimeDressingGraph = NewObject<UPCGGraph>(Map->DressingPCGComponent, TEXT("RuntimeDressingGraph"), RF_Transient);
 	UPCGCreatePointsSettings* CreatePointsSettings = nullptr;
 	UPCGStaticMeshSpawnerSettings* SpawnerSettings = nullptr;
 	UPCGNode* CreatePointsNode = Map->RuntimeDressingGraph->AddNodeOfType<UPCGCreatePointsSettings>(CreatePointsSettings);
@@ -728,6 +720,6 @@ void UMapGroundBuilder::BuildPCGDressingGraph()
 		ScrubCellCount,
 		FacilityAdjacentSkipCount,
 		CreatePointsSettings->PointsToCreate.Num(),
-		UE_ARRAY_COUNT(GrassMeshes) + UE_ARRAY_COUNT(ShrubMeshes));
+		GrassMeshes.Num() + ShrubMeshes.Num());
 }
 

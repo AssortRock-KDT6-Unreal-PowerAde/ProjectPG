@@ -1,6 +1,7 @@
 ﻿#include "Actors/WarZoneFootprint/MapFacilityPlanner.h"
 
 #include "Actors/WarZoneFootprint/MapBuildShared.h"
+#include "Actors/WarZoneFootprint/MapAssetSet.h"
 #include "Actors/MapTile.h"
 #include "GameModes/GameModePG.h"
 #include "Engine/World.h"
@@ -637,14 +638,16 @@ void UMapFacilityPlanner::ReserveFacility(
 		else if (Placement.EntranceDirection == FIntPoint(-1, 0)) Placement.RotationQuarterTurns = 3;
 	}
 
+	// 시설 레벨은 DA_MapAssets(보이는 것 목록)에서 고른다.
+	const UMapAssetSet& Assets = Map->GetMapAssets();
 	FName FacilityTag = WarehouseTag;
-	Placement.FacilityLevel = TSoftObjectPtr<UWorld>(
+	Placement.FacilityLevel =
 		VisualSet == EFacilityVisualSet::Warehouse && Footprint == WarZoneCoreFootprint
-			? WarZoneCoreLevelPath : WarehouseLevelPath);
+			? Assets.WarZoneCoreLevel : Assets.WarehouseLevel;
 	if (VisualSet == EFacilityVisualSet::Yard)
 	{
 		FacilityTag = YardTag;
-		Placement.FacilityLevel = TSoftObjectPtr<UWorld>(YardLevelPath);
+		Placement.FacilityLevel = Assets.YardLevel;
 	}
 	else if (VisualSet == EFacilityVisualSet::LongBarracks)
 	{
@@ -657,22 +660,22 @@ void UMapFacilityPlanner::ReserveFacility(
 	else if (VisualSet == EFacilityVisualSet::Checkpoint)
 	{
 		FacilityTag = CheckpointTag;
-		Placement.FacilityLevel = TSoftObjectPtr<UWorld>(CheckpointLevelPath);
+		Placement.FacilityLevel = Assets.CheckpointLevel;
 	}
 	else if (VisualSet == EFacilityVisualSet::DowntownBlock)
 	{
 		FacilityTag = DowntownTag;
-		Placement.FacilityLevel = TSoftObjectPtr<UWorld>(DowntownBlockLevelPath);
+		Placement.FacilityLevel = Assets.DowntownLevel;
 	}
 	else if (VisualSet == EFacilityVisualSet::FactoryConstruction)
 	{
 		FacilityTag = FactoryConstructionTag;
-		Placement.FacilityLevel = TSoftObjectPtr<UWorld>(FactoryHallLevelPath);
+		Placement.FacilityLevel = Assets.FactoryLevel;
 	}
 	else if (VisualSet == EFacilityVisualSet::RuralHideout)
 	{
 		FacilityTag = RuralHideoutTag;
-		Placement.FacilityLevel = TSoftObjectPtr<UWorld>(RuralDioramaLevelPath);
+		Placement.FacilityLevel = Assets.RuralHideoutLevel;
 	}
 	if (Map->bUseRuntimeBlueprintTiles && !FacilityUsesAuthoredLevel(VisualSet, Footprint))
 		Placement.FacilityLevel.Reset();

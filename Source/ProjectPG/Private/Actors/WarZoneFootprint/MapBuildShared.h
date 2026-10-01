@@ -66,50 +66,13 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 	const FName DowntownTag(TEXT("Facility_Downtown_3x3"));
 	const FName FactoryConstructionTag(TEXT("Facility_FactoryConstruction_2x2"));
 	const FName RuralHideoutTag(TEXT("Facility_RuralHideout_2x2"));
-	const FSoftObjectPath WarehouseLevelPath(
-		TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_Warehouse_2x2.LD_Facility_Warehouse_2x2"));
-	const FSoftObjectPath YardLevelPath(
-		TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_Yard_2x2.LD_Facility_Yard_2x2"));
-	const FSoftObjectPath CheckpointLevelPath(
-		TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_Checkpoint_1x2.LD_Facility_Checkpoint_1x2"));
-	// A hand-built lakeside settlement trimmed from the Modular Rural Cabin demo:
-	// cabins, a caravan, a pier, water and two rowing boats on sculpted ground.
-	// Unlike every other facility level this one carries its own terrain, so the
-	// shared flat pad has to be suppressed underneath it.
-	const FSoftObjectPath RuralDioramaLevelPath(
-		TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_RuralDiorama_2x2.LD_Facility_RuralDiorama_2x2"));
-	// Four connected factory halls harvested from the Factory Pack demo map, complete
-	// with their interiors - racks, roof trusses, skylights. Unlike the rural diorama
-	// this level carries no ground of its own: its floor slabs were deleted so the
-	// shared tile terrain runs straight through, which is what stops a facility
-	// reading as a diorama parked on the map.
-	const FSoftObjectPath FactoryHallLevelPath(
-		TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_FactoryHall_2x2.LD_Facility_FactoryHall_2x2"));
-	// A cafe and storefront block harvested from the Downtown West demo environment.
-	// Its paved walkways and kerbs are kept rather than deleted: unlike a sculpted
-	// terrain they are a thin surface laid a few centimetres over the shared ground,
-	// and a city block standing on bare dirt reads worse than the seam they cost. The
-	// level was lifted so that paving clears the shared datum by about 10 cm, the same
-	// margin the runtime road slab uses to stay out of depth-buffer range.
-	// 6x6: a complete two-sided street segment cut alley-to-alley from the pack's
-	// demo city. Every earlier attempt cut a 3x3 window through physically attached
-	// building rows, which always left some building's back or side face open -
-	// the pack authors its blocks as continuous strips, so the only clean cuts are
-	// the real alleys at demo x=-10100 and x=-1000.
-	const FSoftObjectPath DowntownBlockLevelPath(
-		TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_DowntownBlock_6x6.LD_Facility_DowntownBlock_6x6"));
-	// The WarZone core: two warehouse halls and the barrel yard between them, cut
-	// from the Factory pack demo's west compound (window centre (400,-2000), half
-	// 3000 — every edge passes through open yard, the demo interior there is flat
-	// at z=100 and was dropped to local 0). Replaces the code-built IndustrialRaid3x3.
-	const FSoftObjectPath WarZoneCoreLevelPath(
-		TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_WarZoneCore_3x3.LD_Facility_WarZoneCore_3x3"));
 
 	// The WarZone core's cell footprint. 3x5 because the harvested factory compound
 	// is four attached hall rows spanning 100 m north-south: a 3x3 window held only
 	// the middle two and cut the outer rows in half, the same mistake the downtown
 	// district went through before it grew to 6x6. Every identity check, the
 	// reservation search and the centre math read this one constant.
+	// 시설 레벨·공장 단지 BP 경로는 MapAssetSet.h(데이터 에셋 DA_MapAssets)로 옮겼다 — 에디터에서 고른다.
 	const FIntPoint WarZoneCoreFootprint(3, 5);
 	const FIntPoint WarZoneCoreCentreOffset(
 		(WarZoneCoreFootprint.X - 1) / 2, (WarZoneCoreFootprint.Y - 1) / 2);
@@ -139,25 +102,6 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 	inline bool FacilityBringsOwnTerrain(EFacilityVisualSet VisualSet)
 	{
 		return false;
-	}
-	// Hand-authored facility Blueprints. Every wall and prop in these is an
-	// individual StaticMeshComponent, so a designer can select one in the editor
-	// viewport and drag or rescale it - which is impossible for the HISM instances
-	// AProceduralFacilityActor emits. A visual set with no entry here has not been
-	// authored yet and falls back to the procedural builder, so the library can be
-	// filled in one facility at a time.
-	inline const TCHAR* GetAuthoredFacilityBlueprintPath(EFacilityVisualSet VisualSet)
-	{
-		switch (VisualSet)
-		{
-		case EFacilityVisualSet::Warehouse:
-			return TEXT("/Game/PG/LevelDesign/Facilities/Blueprints/BP_Facility_IndustrialRaid_3x3.BP_Facility_IndustrialRaid_3x3_C");
-		default:
-			// BP_Facility_DowntownBlock_2x2 and BP_Facility_RuralCamp_2x2 exist as
-			// assets but hold only an empty FacilityVisual placeholder, so wiring
-			// them would replace a crude building with nothing at all.
-			return nullptr;
-		}
 	}
 
 	const FSoftObjectPath RoadStraightLevelPath(TEXT("/Game/PG/LevelDesign/Tiles/LD_Tile_Road_Straight.LD_Tile_Road_Straight"));
