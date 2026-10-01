@@ -262,13 +262,6 @@ private:
 	void LoadFacilityDesignLevel(const FFacilityPlacement& Placement, int32 PlacementIndex);
 	void BuildBorderMountains();
 	bool AreAllFacilityLevelsLoaded() const;
-	void ReserveFacility(
-		EFacilityVisualSet VisualSet,
-		const FIntPoint& Anchor,
-		const FIntPoint& Footprint,
-		int32 RotationQuarterTurns,
-		const TArray<FIntPoint>& OccupiedCells,
-		const TMap<FIntPoint, AMapTile*>& TileByCell);
 	FVector GetFootprintCenter(const FFacilityPlacement& Placement) const;
 	FVector GetDesignFootprintCenter(const FFacilityPlacement& Placement) const;
 	void DrawDesignScalePreview() const;
@@ -281,6 +274,11 @@ private:
 	// 검사기 주소를 담는 칸. 검사기쪽 Map과 서로 반대 방향
 	// (맵->검사기,검사기-> 맵)
 	TObjectPtr<class UMapVerifier> Verifier;
+
+	// 협력객체 : 건물 자리 담당. 고른 결과는 맵의 FacilityPlacements 에 넣는다.
+	friend class UMapFacilityPlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapFacilityPlanner> FacilityPlanner;
 	
 	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
 	TObjectPtr<USceneComponent> SceneRoot;
@@ -514,7 +512,6 @@ private:
 	// 길찾기 검사 끝남
 	bool bLoggedAllFacilityDesignLevelsLoaded = false;
 	bool bResolvedGameplayPointSafety = false;
-	bool bLoggedMissingWarZoneFootprint = false;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
 	double NavigationValidationStartTimeSeconds = 0.0;
 	FIntPoint LastPlayerNavigationBlockerCell = FIntPoint(MAX_int32, MAX_int32);
