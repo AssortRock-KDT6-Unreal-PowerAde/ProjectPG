@@ -17,6 +17,7 @@
 #include "LandscapeProxy.h"
 #include "NavigationSystem.h"   // 길찾기 지도 담당
 #include "Algo/AnyOf.h"         // "하나라도 맞으면" 판정(동서남북 중 한 곳)
+#include "Containers/Queue.h"   // 줄 세우기(먼저 넣은 칸부터 꺼냄) — 출구까지 길 찾을 때 씀
 // 칸 크기 (2000cm). 맵 cpp206줄과 같은 값이어야 한다.
 // constexpr : 절대 안바뀌는 숫자. 
 // const랑 차이는 빌드할때 이미아는 숫자냐. 게임 도는 도중에 정해지냐 차이. 
@@ -710,3 +711,95 @@ void UMapVerifier::VerifyNavigation()
 }
 
 
+
+// Critical(꼭 필요한) Routes(길) = "시작 자리에서 출구랑 큰 건물까지 걸어서 갈 수 있나?"
+// 게임에서: 물(호수)이나 막힌 칸 때문에 출구까지 길이 끊긴 맵이면 플레이어가 탈출을 못 한다.
+// 방법: 맵을 20m 칸 바둑판으로 보고, 시작 자리 칸에서 출발해 동서남북으로 이어진 칸을 전부 퍼져 나가며 칠한다.
+//       칠해진 칸에 출구·큰 건물이 들어 있으면 "갈 수 있음".
+void UMapVerifier::VerifyCriticalRoutes()
+{
+	// 이미 보고서 썼거나, 길찾기 지도 검사가 아직 안 끝났거나(맵 쪽 스티커), 칸 목록이 비었으면 이번엔 그냥 끝.
+	// bLoggedNavigation 은 성능 검사(VerifyLocalPerformance)도 아직 맵에서 보고 있어서 맵 집에 두고 빌려 본다.
+	if (bLoggedCriticalRoutes || !Map->bLoggedNavigation || Map->TileDesignPlacements.IsEmpty())
+		return;
+
+	// 시작 자리(플레이어가 태어나는 곳) 하나를 찾는다. 없으면 출발할 데가 없으니 끝.
+	// Pred : 판정함수
+	const FLevelDesignPoint* Spawn = Map->LevelDesignPoints.FindByPredicate(
+		[](const FLevelDesignPoint& Point) { return Point.Type == ELevelDesignPointType::Spawn; });
+	if (Spawn == nullptr)
+		return;
+
+	// 걸을 수 있는 칸 목록 만들기: 물 칸만 빼고 전부 + 큰 건물이 차지한 칸들.
+	// (길찾기 지도는 플레이어·몬스터 주변에만 깔려서 600m 맵 전체를 한 번에 못 물어본다.
+	//  그래서 칸 바둑판으로 "이어져 있나" 만 따진다 — 원래 영어 주석의 뜻.)
+	// Whole-raid reachability is a logical graph question. Runtime Recast is
+	// generated only around invokers, so attempting one 900m nav query reports
+	// false failures. BFS proves the generated walkable cell field is connected;
+	// local Recast and AI movement are verified separately below.
+	TSet<FIntPoint> WalkableCells;
+	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
+	{
+		if (Placement.Visual == ETileDesignVisual::Water)
+			continue;
+		WalkableCells.Add(Placement.GridCell);
+	}
+	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
+		for (const FIntPoint& Cell : Facility.OccupiedCells)
+			WalkableCells.Add(Cell);
+
+	// 시작 칸부터 퍼져 나가기(물감 번지듯이):
+	// Queue = 다음에 가 볼 칸 줄, Visited = 이미 칠한 칸.
+	// 줄에서 칸 하나를 꺼내 → 동서남북 옆 칸이 걸을 수 있고 아직 안 칠했으면 칠하고 줄 끝에 세운다 → 줄이 빌 때까지 반복.
+	TSet<FIntPoint> Visited;
+	TQueue<FIntPoint> Queue;
+	Queue.Enqueue(Spawn->GridCell);
+	Visited.Add(Spawn->GridCell);
+	const FIntPoint Directions[] = {
+		FIntPoint(1, 0), FIntPoint(-1, 0), FIntPoint(0, 1), FIntPoint(0, -1)
+	};
+	FIntPoint Cell;
+	while (Queue.Dequeue(Cell))
+	{
+		for (const FIntPoint& Direction : Directions)
+		{
+			const FIntPoint Neighbor = Cell + Direction;
+			if (WalkableCells.Contains(Neighbor) && !Visited.Contains(Neighbor))
+			{
+				Visited.Add(Neighbor);
+				Queue.Enqueue(Neighbor);
+			}
+		}
+	}
+
+	// 다 칠한 뒤 확인 ①: 출구 자리들이 칠해진 칸 안에 있나 — 안 칠해졌으면 그 출구는 못 감.
+	int32 TargetCount = 0;
+	int32 ReachableTargets = 0;
+	TArray<FString> FailedRoutes;
+	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
+	{
+		if (Point.Type != ELevelDesignPointType::Exit)
+			continue;
+		++TargetCount;
+		if (Visited.Contains(Point.GridCell)) ++ReachableTargets;
+		else FailedRoutes.Add(Point.PointId.ToString());
+	}
+	// 확인 ②: 큰 건물(검문소·은신처 등)마다, 차지한 칸 중 하나라도 칠해졌나 — 아니면 그 건물에 못 들어감.
+	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
+	{
+		++TargetCount;
+		const bool bReached = Facility.OccupiedCells.ContainsByPredicate(
+			[&Visited](const FIntPoint& FacilityCell) { return Visited.Contains(FacilityCell); });
+		if (bReached) ++ReachableTargets;
+		else FailedRoutes.Add(FString::Printf(TEXT("Facility_%d_%d"), Facility.AnchorCell.X, Facility.AnchorCell.Y));
+	}
+
+	// 보고서 썼음 스티커 붙이고 로그 한 줄. 출구·건물 전부 갈 수 있으면 pass=true, 못 가는 곳은 sample 에 이름.
+	bLoggedCriticalRoutes = true;
+	UE_LOG(LogTemp, Display,
+		TEXT("Critical logical route audit: from=%s visited_cells=%d/%d targets=%d reachable=%d failed=%d pass=%s sample=[%s]"),
+		*Spawn->PointId.ToString(), Visited.Num(), WalkableCells.Num(), TargetCount, ReachableTargets,
+		TargetCount - ReachableTargets,
+		TargetCount == ReachableTargets ? TEXT("true") : TEXT("false"),
+		*FString::Join(FailedRoutes, TEXT(",")));
+}

@@ -249,7 +249,6 @@ private:
 	void RebuildGameplayPointHash();
 	void BuildPCGDressingGraph();
 	void VerifyLocalPerformance(float DeltaSeconds);
-	void VerifyCriticalRoutes();
 	void VerifyTraversableElevation();
 	void VerifyCoplanarSurfaces();
 	void RefreshNavigationBlockerRegion(
@@ -519,7 +518,6 @@ private:
 	bool bLoggedNavigation = false;
 	bool bLoggedAllFacilityDesignLevelsLoaded = false;
 	bool bResolvedGameplayPointSafety = false;
-	bool bLoggedCriticalRoutes = false;
 	bool bLoggedMissingWarZoneFootprint = false;
 	bool bLoggedTraversableElevation = false;
 	bool bLoggedCoplanarSurfaces = false;

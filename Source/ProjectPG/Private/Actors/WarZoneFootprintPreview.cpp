@@ -682,7 +682,7 @@ void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 	Verifier->VerifyTravelCoverDensity();
 	Verifier->VerifyGameplayPointDistribution();
 	Verifier->VerifyNavigation();
-	VerifyCriticalRoutes();
+	Verifier->VerifyCriticalRoutes();
 	VerifyTraversableElevation();
 	VerifyCoplanarSurfaces();
 	Verifier->VerifyPCGDressing();
@@ -2475,80 +2475,6 @@ void AWarZoneFootprintPreview::BuildLightweightWorldVisuals()
 }
 
 
-void AWarZoneFootprintPreview::VerifyCriticalRoutes()
-{
-	if (bLoggedCriticalRoutes || !bLoggedNavigation || TileDesignPlacements.IsEmpty())
-		return;
-
-	const FLevelDesignPoint* Spawn = LevelDesignPoints.FindByPredicate(
-		[](const FLevelDesignPoint& Point) { return Point.Type == ELevelDesignPointType::Spawn; });
-	if (Spawn == nullptr)
-		return;
-
-	// Whole-raid reachability is a logical graph question. Runtime Recast is
-	// generated only around invokers, so attempting one 900m nav query reports
-	// false failures. BFS proves the generated walkable cell field is connected;
-	// local Recast and AI movement are verified separately below.
-	TSet<FIntPoint> WalkableCells;
-	for (const FTileDesignPlacement& Placement : TileDesignPlacements)
-	{
-		if (Placement.Visual == ETileDesignVisual::Water)
-			continue;
-		WalkableCells.Add(Placement.GridCell);
-	}
-	for (const FFacilityPlacement& Facility : FacilityPlacements)
-		for (const FIntPoint& Cell : Facility.OccupiedCells)
-			WalkableCells.Add(Cell);
-
-	TSet<FIntPoint> Visited;
-	TQueue<FIntPoint> Queue;
-	Queue.Enqueue(Spawn->GridCell);
-	Visited.Add(Spawn->GridCell);
-	const FIntPoint Directions[] = {
-		FIntPoint(1, 0), FIntPoint(-1, 0), FIntPoint(0, 1), FIntPoint(0, -1)
-	};
-	FIntPoint Cell;
-	while (Queue.Dequeue(Cell))
-	{
-		for (const FIntPoint& Direction : Directions)
-		{
-			const FIntPoint Neighbor = Cell + Direction;
-			if (WalkableCells.Contains(Neighbor) && !Visited.Contains(Neighbor))
-			{
-				Visited.Add(Neighbor);
-				Queue.Enqueue(Neighbor);
-			}
-		}
-	}
-
-	int32 TargetCount = 0;
-	int32 ReachableTargets = 0;
-	TArray<FString> FailedRoutes;
-	for (const FLevelDesignPoint& Point : LevelDesignPoints)
-	{
-		if (Point.Type != ELevelDesignPointType::Exit)
-			continue;
-		++TargetCount;
-		if (Visited.Contains(Point.GridCell)) ++ReachableTargets;
-		else FailedRoutes.Add(Point.PointId.ToString());
-	}
-	for (const FFacilityPlacement& Facility : FacilityPlacements)
-	{
-		++TargetCount;
-		const bool bReached = Facility.OccupiedCells.ContainsByPredicate(
-			[&Visited](const FIntPoint& FacilityCell) { return Visited.Contains(FacilityCell); });
-		if (bReached) ++ReachableTargets;
-		else FailedRoutes.Add(FString::Printf(TEXT("Facility_%d_%d"), Facility.AnchorCell.X, Facility.AnchorCell.Y));
-	}
-
-	bLoggedCriticalRoutes = true;
-	UE_LOG(LogTemp, Display,
-		TEXT("Critical logical route audit: from=%s visited_cells=%d/%d targets=%d reachable=%d failed=%d pass=%s sample=[%s]"),
-		*Spawn->PointId.ToString(), Visited.Num(), WalkableCells.Num(), TargetCount, ReachableTargets,
-		TargetCount - ReachableTargets,
-		TargetCount == ReachableTargets ? TEXT("true") : TEXT("false"),
-		*FString::Join(FailedRoutes, TEXT(",")));
-}
 
 void AWarZoneFootprintPreview::VerifyTraversableElevation()
 {
