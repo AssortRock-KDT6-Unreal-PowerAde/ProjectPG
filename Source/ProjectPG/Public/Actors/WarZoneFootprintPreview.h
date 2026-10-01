@@ -250,7 +250,6 @@ private:
 	void BuildPCGDressingGraph();
 	void VerifyLocalPerformance(float DeltaSeconds);
 	void VerifyNavigation();
-	void VerifyGameplayPointDistribution();
 	void VerifyCriticalRoutes();
 	void VerifyTraversableElevation();
 	void VerifyCoplanarSurfaces();
@@ -520,7 +519,6 @@ private:
 	bool bLoggedAllFacilityDesignLevelsLoaded = false;
 	bool bLoggedWorldCollision = false;
 	bool bLoggedNavigation = false;
-	bool bLoggedGameplayPointDistribution = false;
 	bool bResolvedGameplayPointSafety = false;
 	bool bLoggedCriticalRoutes = false;
 	bool bLoggedMissingWarZoneFootprint = false;

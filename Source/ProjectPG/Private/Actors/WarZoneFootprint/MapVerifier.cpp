@@ -456,3 +456,171 @@ void UMapVerifier::VerifyTravelCoverDensity()
 		LongestExposedRunCm / 100.0f,
 		ExposedRatio <= 0.55f && LongestExposedRunCm <= 12000.0f ? TEXT("true") : TEXT("false"));
 }
+// GamePlayPoint(게임지점:시작,상자,몬스터,출구,퀘스트자리)
+// Distribution(퍼진모양)= "게임 지점들이 골고루 알맞게 퍼져있나?"
+void UMapVerifier::VerifyGameplayPointDistribution()
+{
+	// 아래 셋 중 하나라도 맞으면 이번 프레임은 그냥 끝낸다.
+	//  - 스티커가 붙어 있다 (이미 검사함)
+	//  - 게임 지점 목록이 비었다 (아직 안 만들어짐)
+	//  - 지점 끼임 정리(벽·물건 속에 박힌 자리를 빈 곳으로 옮기기)가 아직 안 끝났다
+	//    (bResolvedGameplayPointSafety = "끼임 정리 끝났음?" 스티커. 몬스터랑은 상관없음)
+
+	if (bLoggedGameplayPointDistribution || Map->LevelDesignPoints.IsEmpty() || !Map->bResolvedGameplayPointSafety)
+		return;
+
+	bLoggedGameplayPointDistribution = true;
+	// 종류별 개수 (시작 몇 개, 상자 몇 개 …)
+	TMap<ELevelDesignPointType, int32> Counts;
+	// 지금까지 본 이름들 (중복 찾기용)
+	TSet<FName> UniqueIds;
+	// 이름표가 잘못된 지점 수
+	int32 InvalidMetadata = 0;
+	// 시작 자리들 주소 목록
+	TArray<const FLevelDesignPoint*> SpawnPoints;
+	// 상자 자리들 주소 목록
+	TArray<const FLevelDesignPoint*> LootPoints;
+	// 몬스터 자리들 주소 목록
+	TArray<const FLevelDesignPoint*> AIPoints;
+	// [몬스터 금지 구역인가?] 칸 번호(Cell) 하나를 받아서 true/false 를 돌려주는 작은 함수(람다).
+	//  - auto      : 이 작은 함수 자체의 타입. 이름이 길어서 컴파일러가 알아서 적게 맡김. (bool 아님)
+	//  - [this]    : 검사기 주소 쪽지를 안으로 들고 들어감 → 안에서 Map-> 를 쓸 수 있음.
+	//  - 돌려주는 값 : 아래 return true / return false 가 bool.
+	// 몬스터 금지 구역 = 시작하자마자 싸우지 않게 일부러 몬스터를 안 두는 곳.
+	auto IsProtectedFromAI = [this](const FIntPoint& Cell)
+	{
+		for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
+		{
+			// 맨해튼 거리 = |가로 칸 차이| + |세로 칸 차이|. 바둑판 길을 가로·세로로만 걸은 칸 수.
+			const int32 ManhattanDistance = FMath::Abs(Cell.X - Placement.GridCell.X)
+				+ FMath::Abs(Cell.Y - Placement.GridCell.Y);
+			//  - 시작 타일에서 4칸 미만이면 몬스터 금지
+			if ((Placement.Visual == ETileDesignVisual::Spawn && ManhattanDistance < 4)
+				//  - 출구 타일에서 2칸 미만이면 몬스터 금지
+				|| (Placement.Visual == ETileDesignVisual::Exit && ManhattanDistance < 2))
+				return true;
+		}
+		// 호수가 있는 판이면(호수는 맵 가장자리 한 모서리), 호숫가 시골 은신처(배 타고 내리는 마을)에서
+		// 3칸 미만도 몬스터 금지. 이 마을엔 시작 타일 표시가 없지만 시작 구역으로 친다.
+		// 지점 만드는 쪽에도 똑같은 규칙이 있어서, 둘이 다르면 멀쩡한 맵을 불합격 처리하게 된다.
+		if (Map->bHasBorderLake)
+		{
+			for (const FFacilityPlacement& Facility :Map->FacilityPlacements)
+			{
+				if (Facility.VisualSet != EFacilityVisualSet::RuralHideout)
+					continue;
+				for (const FIntPoint& Occupied : Facility.OccupiedCells)
+					if (FMath::Abs(Cell.X - Occupied.X) + FMath::Abs(Cell.Y - Occupied.Y) < 3)
+						return true;
+			}
+		}
+		return false;
+	};
+	// 게임 지점을 하나씩 꺼내서:
+	// ① 종류별 개수 세기(시작·상자·몬스터·출구·퀘스트) — 모자라면 4명이 못 들어오거나 심심한 맵.
+	// ② 이름표 검사: 이름 비었나·중복인가, 등급 1~3, 크기 50cm 이상, 수용 1 이상 — 틀리면 퀘스트·저장이 엉킴.
+	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
+	{
+		Counts.FindOrAdd(Point.Type)++;
+		if (Point.PointId.IsNone() || UniqueIds.Contains(Point.PointId)
+			|| Point.ArchetypeId.IsNone() || Point.Tier < 1 || Point.Tier > 3
+			|| Point.RadiusCm < 50.0f || Point.Capacity < 1)
+		{
+			++InvalidMetadata;
+		}
+		UniqueIds.Add(Point.PointId);
+		if (Point.Type == ELevelDesignPointType::Spawn) SpawnPoints.Add(&Point);
+		else if (Point.Type == ELevelDesignPointType::Loot) LootPoints.Add(&Point);
+		else if (Point.Type == ELevelDesignPointType::AISpawn) AIPoints.Add(&Point);
+	}
+
+	// ④ 시작 자리와 몬스터 자리 사이 가장 가까운 거리 — 너무 가까우면 태어나자마자 맞음(기준 50m 이상).
+	float MinimumSpawnAIDistanceCm = BIG_NUMBER;
+	for (const FLevelDesignPoint* Spawn : SpawnPoints)
+		for (const FLevelDesignPoint* AI : AIPoints)
+			MinimumSpawnAIDistanceCm = FMath::Min(
+				MinimumSpawnAIDistanceCm,
+				FVector::Dist2D(Spawn->WorldLocation, AI->WorldLocation));
+	// ③ 시작 자리끼리 가장 가까운 거리 — 너무 붙으면 플레이어 둘이 겹쳐 태어남(기준 2.5m 이상).
+	float MinimumSpawnSeparationCm = BIG_NUMBER;
+	for (int32 A = 0; A < SpawnPoints.Num(); ++A)
+		for (int32 B = A + 1; B < SpawnPoints.Num(); ++B)
+			MinimumSpawnSeparationCm = FMath::Min(
+				MinimumSpawnSeparationCm,
+				FVector::Dist2D(SpawnPoints[A]->WorldLocation, SpawnPoints[B]->WorldLocation));
+
+	// ⑤⑥ 맵을 100m마다(칸 번호가 5의 배수인 곳) 찍어서, 거기서 가장 가까운 상자·몬스터까지 거리를 잰다.
+	// 그중 제일 먼 값이 기준을 넘으면 "한참 걸어도 줍을 게 없다(250m)" / "싸울 게 없다(300m)".
+	// Sample the playable cell field every 100m. A loot-shooter can contain open
+	// traversal space, but no sampled region should be excessively far from both
+	// a loot opportunity and a possible encounter.
+	float MaximumLootGapCm = 0.0f;
+	float MaximumAIGapCm = 0.0f;
+	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
+	{
+		if (FMath::Abs(Placement.GridCell.X) % 5 != 0
+			|| FMath::Abs(Placement.GridCell.Y) % 5 != 0)
+			continue;
+		float NearestLoot = BIG_NUMBER;
+		for (const FLevelDesignPoint* Loot : LootPoints)
+			NearestLoot = FMath::Min(NearestLoot, FVector::Dist2D(Placement.WorldLocation, Loot->WorldLocation));
+		float NearestAI = BIG_NUMBER;
+		for (const FLevelDesignPoint* AI : AIPoints)
+			NearestAI = FMath::Min(NearestAI, FVector::Dist2D(Placement.WorldLocation, AI->WorldLocation));
+		MaximumLootGapCm = FMath::Max(MaximumLootGapCm, NearestLoot);
+		MaximumAIGapCm = FMath::Max(MaximumAIGapCm, NearestAI);
+	}
+
+	// ⑦ 큰 건물마다 상자·몬스터 자리가 하나라도 있나 — 없으면 들어갔는데 텅 빈 건물.
+	// 단, 몬스터 금지 구역(IsProtectedFromAI) 안 건물은 몬스터가 없어도 봐준다.
+	int32 FacilitiesMissingLoot = 0;
+	int32 FacilitiesMissingAI = 0;
+	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
+	{
+		const bool bHasLoot = LootPoints.ContainsByPredicate(
+			[&Facility](const FLevelDesignPoint* Point)
+			{
+				return Facility.OccupiedCells.Contains(Point->GridCell);
+			});
+		const bool bHasAI = AIPoints.ContainsByPredicate(
+			[&Facility](const FLevelDesignPoint* Point)
+			{
+				return Facility.OccupiedCells.Contains(Point->GridCell);
+			});
+		if (!bHasLoot) ++FacilitiesMissingLoot;
+		// A facility inside the spawn safe band intentionally has no resident AI.
+		if (!bHasAI && !Facility.OccupiedCells.ContainsByPredicate(IsProtectedFromAI))
+			++FacilitiesMissingAI;
+	}
+
+	// 합격 조건 모음: ① 개수(시작 4·상자 40·몬스터 24·출구 2·퀘스트 1 이상) ② 잘못된 이름표 0
+	// ③ 2.5m ④ 50m ⑤ 250m ⑥ 300m ⑦ 빈 건물 0. 전부 맞으면 로그에 pass=true.
+	const bool bPass = Counts.FindRef(ELevelDesignPointType::Spawn) >= 4
+		&& Counts.FindRef(ELevelDesignPointType::Loot) >= 40
+		&& Counts.FindRef(ELevelDesignPointType::AISpawn) >= 24
+		&& Counts.FindRef(ELevelDesignPointType::Exit) >= 2
+		&& Counts.FindRef(ELevelDesignPointType::Quest) >= 1
+		&& InvalidMetadata == 0
+		&& MinimumSpawnSeparationCm >= 250.0f
+		&& MinimumSpawnAIDistanceCm >= 5000.0f
+		&& MaximumLootGapCm <= 25000.0f
+		&& MaximumAIGapCm <= 30000.0f
+		&& FacilitiesMissingLoot == 0
+		&& FacilitiesMissingAI == 0;
+	UE_LOG(LogTemp, Display,
+		TEXT("Gameplay point distribution: spawn=%d loot=%d ai=%d exit=%d quest=%d invalid=%d min_spawn_spacing_m=%.1f min_spawn_ai_m=%.1f max_loot_gap_m=%.1f max_ai_gap_m=%.1f facilities_missing_loot=%d facilities_missing_ai=%d point_hash=%08X pass=%s"),
+		Counts.FindRef(ELevelDesignPointType::Spawn),
+		Counts.FindRef(ELevelDesignPointType::Loot),
+		Counts.FindRef(ELevelDesignPointType::AISpawn),
+		Counts.FindRef(ELevelDesignPointType::Exit),
+		Counts.FindRef(ELevelDesignPointType::Quest),
+		InvalidMetadata,
+		MinimumSpawnSeparationCm / 100.0f,
+		MinimumSpawnAIDistanceCm / 100.0f,
+		MaximumLootGapCm / 100.0f,
+		MaximumAIGapCm / 100.0f,
+		FacilitiesMissingLoot,
+		FacilitiesMissingAI,
+		Map->GameplayPointHash,
+		bPass ? TEXT("true") : TEXT("false"));
+}

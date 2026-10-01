@@ -51,8 +51,9 @@ public:
 	// Travel(이동) + Cove(엄폐물, 몸을 숨길 것) + Density(촘촘함) 
 	// = 돌아다니는 길에 숨을 곳이 충분히 있나?
 	void VerifyTravelCoverDensity();
-	
-	
+	// GamePlayPoint(게임지점:시작,상자,몬스터,출구,퀘스트자리)
+	// Distribution(퍼진모양)= "게임 지점들이 골고루 알맞게 퍼져있나?"
+	void VerifyGameplayPointDistribution();
 	
 private:
 	// 언리얼 한테 포인터 관리해달라.
@@ -68,6 +69,11 @@ private:
 	bool bLoggedTacticalLayoutQuality = false;
 	// 숨을 곳이 충분한가? 
 	bool bLoggedTravelCoverDensity = false;
+	// 스티커가 이미 true거나
+	// 목록이 아직 비었다. 
+	// 지점 안전 관리가 아직 안끝났다. 
+	// 셋다 통화하면 스티커를 ture로 붙이고 검사해서 로그찍음
+	bool bLoggedGameplayPointDistribution = false;
 	
 };
 
