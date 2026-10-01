@@ -24,6 +24,12 @@
 #include "Components/InstancedStaticMeshComponent.h"   // 같은 메시를 여러 장 찍은 묶음(땅판 수백 장 등)
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"   // 땅판·길판 묶음(맵 액터의 GroundHISM·RoadSurfaceHISM)
 #include "Engine/StaticMesh.h"   // 메시 모양 파일(크기 상자 읽기)
+// 맵 cpp 와 같은 이름의 숫자들을 MapVerifierConst 라는 이름 상자에 넣어 둔다.
+// 왜: 언리얼은 빌드를 빠르게 하려고 cpp 여러 개를 한 파일로 합쳐 컴파일할 때가 있다(유니티 빌드).
+//     그때 맵 cpp 의 DesignCellSize 와 여기 DesignCellSize 가 한 파일에 같이 보여서 "어느 쪽이냐" 오류가 난다.
+//     이름 상자에 넣고 이 파일에서는 MapVerifierConst::DesignCellSize 처럼 상자 이름까지 붙여 쓰면 안 헷갈린다.
+namespace MapVerifierConst
+{
 // 칸 크기 (2000cm). 맵 cpp206줄과 같은 값이어야 한다.
 // constexpr : 절대 안바뀌는 숫자. 
 // const랑 차이는 빌드할때 이미아는 숫자냐. 게임 도는 도중에 정해지냐 차이. 
@@ -35,6 +41,8 @@ const FIntPoint WarZoneCoreFootprint(3, 5);
 // 그 공장 구역의 가운데 칸이 왼쪽 위 칸에서 얼마나 떨어져 있나(가로 1칸, 세로 2칸).
 const FIntPoint WarZoneCoreCentreOffset(
 	(WarZoneCoreFootprint.X - 1) / 2, (WarZoneCoreFootprint.Y - 1) / 2);
+}
+
 
 void UMapVerifier::Init(AWarZoneFootprintPreview* InMap)
 {
@@ -83,7 +91,7 @@ void UMapVerifier::VerifyWorldCollision()
 	{
 		for (int32 X = -22; X <= 22; ++X)
 		{
-			const FVector CellCenter(X * DesignCellSize, Y * DesignCellSize, 0.0f);
+			const FVector CellCenter(X * MapVerifierConst::DesignCellSize, Y * MapVerifierConst::DesignCellSize, 0.0f);
 			FHitResult HitResult;
 			const bool bHit = GetWorld()->LineTraceSingleByChannel(
 				HitResult,
@@ -250,10 +258,10 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 
 		const FVector Location = Actor->GetActorLocation();
 		const FIntPoint Cell(
-			FMath::RoundToInt(Location.X / DesignCellSize),
-			FMath::RoundToInt(Location.Y / DesignCellSize));
-		if (!FMath::IsNearlyEqual(Location.X, Cell.X * DesignCellSize, 1.0f)
-			|| !FMath::IsNearlyEqual(Location.Y, Cell.Y * DesignCellSize, 1.0f)
+			FMath::RoundToInt(Location.X / MapVerifierConst::DesignCellSize),
+			FMath::RoundToInt(Location.Y / MapVerifierConst::DesignCellSize));
+		if (!FMath::IsNearlyEqual(Location.X, Cell.X * MapVerifierConst::DesignCellSize, 1.0f)
+			|| !FMath::IsNearlyEqual(Location.Y, Cell.Y * MapVerifierConst::DesignCellSize, 1.0f)
 			|| OccupiedCells.Contains(Cell))
 		{
 			++GridMisalignments;
@@ -424,7 +432,7 @@ void UMapVerifier::VerifyTravelCoverDensity()
 			++SampleCount;
 			// Cover is useful when it protects a crouched player; the previous 1.4m
 			// standing-eye trace incorrectly rejected deliberate chest-high cover.
-			const FVector EyeLocation(X * DesignCellSize, Y * DesignCellSize, 90.0f);//각 칸 가운데 쪼그려 앉은 사람 눈높이를 정한다.(90cm)
+			const FVector EyeLocation(X * MapVerifierConst::DesignCellSize, Y * MapVerifierConst::DesignCellSize, 90.0f);//각 칸 가운데 쪼그려 앉은 사람 눈높이를 정한다.(90cm)
 			bool bHasNearbyCover = false;
 			FCollisionQueryParams Query(SCENE_QUERY_STAT(TravelCoverDensity), true);//거기서 8방향(45도씩)9m 짜리 막대기를 뻗어 본다. 
 			for (int32 DirectionIndex = 0; DirectionIndex < 8; ++DirectionIndex)
@@ -453,7 +461,7 @@ void UMapVerifier::VerifyTravelCoverDensity()
 			else
 			{
 				++FullyExposedSamples;
-				CurrentRunCm += DesignCellSize;
+				CurrentRunCm += MapVerifierConst::DesignCellSize;
 				LongestExposedRunCm = FMath::Max(LongestExposedRunCm, CurrentRunCm);
 			}
 		}
@@ -903,7 +911,7 @@ void UMapVerifier::VerifyTraversableElevation()
 		const float* ToZ = SurfaceByCell.Find(To);
 		if (FromZ == nullptr || ToZ == nullptr)
 			return false;
-		if (FMath::Abs(*ToZ - *FromZ) <= MaxTraversableStepCm)
+		if (FMath::Abs(*ToZ - *FromZ) <= MapVerifierConst::MaxTraversableStepCm)
 			return true;
 		return RampBridgedEdges.Contains(TPair<FIntPoint, FIntPoint>(From, To));
 	};
@@ -924,7 +932,7 @@ void UMapVerifier::VerifyTraversableElevation()
 			if (NeighborZ == nullptr)
 				continue;
 			const float StepCm = FMath::Abs(*NeighborZ - Entry.Value);
-			if (StepCm <= MaxTraversableStepCm)
+			if (StepCm <= MapVerifierConst::MaxTraversableStepCm)
 				continue;
 			if (FacilityCells.Contains(Entry.Key) || FacilityCells.Contains(Entry.Key + Direction))
 			{
@@ -967,9 +975,9 @@ void UMapVerifier::VerifyTraversableElevation()
 	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
 	{
 		if (Facility.VisualSet == EFacilityVisualSet::Warehouse
-			&& Facility.Footprint == WarZoneCoreFootprint)
+			&& Facility.Footprint == MapVerifierConst::WarZoneCoreFootprint)
 		{
-			WarZoneCoreCell = Facility.AnchorCell + WarZoneCoreCentreOffset;
+			WarZoneCoreCell = Facility.AnchorCell + MapVerifierConst::WarZoneCoreCentreOffset;
 			bHasWarZoneCore = true;
 			break;
 		}
@@ -1007,7 +1015,7 @@ void UMapVerifier::VerifyTraversableElevation()
 		TEXT("Ground step continuity: max_step_cm=%.0f water_cells_excluded=%d cells=%d open_ground_hard_edges=%d ")
 		TEXT("worst_open_step_cm=%.0f worst_open_cell=(%d,%d) facility_wall_edges=%d ")
 		TEXT("step_aware_reachable=%d/%d warzone_core=%s targets=%d failures=%d pass=%s sample=[%s]"),
-		MaxTraversableStepCm,
+		MapVerifierConst::MaxTraversableStepCm,
 		WaterCellCount,
 		SurfaceByCell.Num(),
 		OpenGroundHardEdges,
@@ -1112,8 +1120,8 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 		Surface.Label = Label;
 		const FVector Center = WorldBounds.GetCenter();
 		const FIntPoint Cell(
-			FMath::RoundToInt(Center.X / DesignCellSize),
-			FMath::RoundToInt(Center.Y / DesignCellSize));
+			FMath::RoundToInt(Center.X / MapVerifierConst::DesignCellSize),
+			FMath::RoundToInt(Center.Y / MapVerifierConst::DesignCellSize));
 		SurfacesByCell.FindOrAdd(Cell).Add(MoveTemp(Surface));
 	};
 
@@ -1232,8 +1240,8 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 						Samples.Add(FString::Printf(
 							TEXT("world=(%.0f,%.0f) cell=(%d,%d) z=%.1f gap=%.2f area_m2=%.1f %s|%s"),
 							SharedCenterX, SharedCenterY,
-							FMath::RoundToInt(SharedCenterX / DesignCellSize),
-							FMath::RoundToInt(SharedCenterY / DesignCellSize),
+							FMath::RoundToInt(SharedCenterX / MapVerifierConst::DesignCellSize),
+							FMath::RoundToInt(SharedCenterY / MapVerifierConst::DesignCellSize),
 							Left.TopZ, GapCm, SharedX * SharedY / 10000.0f,
 							*Left.Label, *Right.Label));
 					}
