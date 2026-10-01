@@ -249,7 +249,6 @@ private:
 	void RebuildGameplayPointHash();
 	void BuildPCGDressingGraph();
 	void VerifyLocalPerformance(float DeltaSeconds);
-	void VerifyCoplanarSurfaces();
 	void RefreshNavigationBlockerRegion(
 		UTacticalTileNavModifierComponent* Modifier,
 		const FVector& WorldCenter,
@@ -518,7 +517,6 @@ private:
 	bool bLoggedAllFacilityDesignLevelsLoaded = false;
 	bool bResolvedGameplayPointSafety = false;
 	bool bLoggedMissingWarZoneFootprint = false;
-	bool bLoggedCoplanarSurfaces = false;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
 	int32 PerformanceSampleCount = 0;
 	double PerformanceDeltaSecondsTotal = 0.0;
