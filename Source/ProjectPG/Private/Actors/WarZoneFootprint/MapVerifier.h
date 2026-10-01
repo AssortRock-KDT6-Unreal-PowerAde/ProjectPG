@@ -62,6 +62,9 @@ public:
 	// Traversable(걸어서 넘을 수 있는) Elevation(높이) = "출구까지 가는 길에 못 올라가는 턱이 없나?"
 	// 출구 검사(VerifyCriticalRoutes)는 칸이 이어졌나만 보고 높이는 안 본다. 이 검사는 높이까지 본다.
 	void VerifyTraversableElevation();
+	// Coplanar(같은 높이의 평면) Surfaces(바닥면) = "바닥 두 장이 같은 높이에 겹쳐서 깜빡이는 곳이 없나?"
+	// 멀리서 보면 바닥이 줄무늬처럼 지글거리는 그래픽 버그(Z-파이팅)를 찾는다.
+	void VerifyCoplanarSurfaces();
 
 	
 private:
@@ -89,6 +92,8 @@ private:
 	bool bLoggedCriticalRoutes = false;
 	// "못 올라가는 턱" 검사 보고서를 이미 썼는지 표시. 로그를 한 번만 찍으려고.
 	bool bLoggedTraversableElevation = false;
+	// "바닥 겹침 깜빡임" 검사 보고서를 이미 썼는지 표시. 로그를 한 번만 찍으려고.
+	bool bLoggedCoplanarSurfaces = false;
 
 };
 

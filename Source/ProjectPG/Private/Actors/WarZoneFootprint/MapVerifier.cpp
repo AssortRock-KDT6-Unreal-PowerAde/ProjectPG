@@ -18,6 +18,9 @@
 #include "NavigationSystem.h"   // 길찾기 지도 담당
 #include "Algo/AnyOf.h"         // "하나라도 맞으면" 판정(동서남북 중 한 곳)
 #include "Containers/Queue.h"   // 줄 세우기(먼저 넣은 칸부터 꺼냄) — 출구까지 길 찾을 때 씀
+#include "EngineUtils.h"   // 월드의 모든 액터를 하나씩 돌기(TActorIterator)
+#include "Components/InstancedStaticMeshComponent.h"   // 같은 메시를 여러 장 찍은 묶음(땅판 수백 장 등)
+#include "Engine/StaticMesh.h"   // 메시 모양 파일(크기 상자 읽기)
 // 칸 크기 (2000cm). 맵 cpp206줄과 같은 값이어야 한다.
 // constexpr : 절대 안바뀌는 숫자. 
 // const랑 차이는 빌드할때 이미아는 숫자냐. 게임 도는 도중에 정해지냐 차이. 
@@ -1013,4 +1016,255 @@ void UMapVerifier::VerifyTraversableElevation()
 		TargetCount, TargetCount - ReachableTargets,
 		bPass ? TEXT("true") : TEXT("false"),
 		*FString::Join(FailedTargets, TEXT(",")));
+}
+
+// Coplanar(같은 높이의 평면) Surfaces(바닥면) = "바닥 두 장이 같은 높이에 겹쳐서 깜빡이는 곳이 없나?"
+// 게임에서: 땅판 두 장이 거의 같은 높이(5cm 안)에 겹쳐 있으면, 그래픽 카드가 어느 쪽을 위에 그릴지 못 정해서
+//           멀리서 볼 때 바닥이 줄무늬처럼 지글지글 깜빡인다(Z-파이팅). 플레이어 눈에 바로 띄는 그래픽 버그.
+// 방법: 월드에 있는 납작한 판(땅판·길판·받침대)을 전부 모아, 둘씩 비교해서 높이 차 5cm 이하 + 겹치는 넓이 0.25㎡ 이상이면 센다.
+void UMapVerifier::VerifyCoplanarSurfaces()
+{
+	// 이미 보고서 썼거나, 이 검사를 끄는 설정(bRunCoplanarSurfaceAudit, 맵 액터 디테일 창의 체크박스)이 꺼져 있거나,
+	// 칸 목록이 비었으면 끝.
+	if (bLoggedCoplanarSurfaces || !Map->bRunCoplanarSurfaceAudit || Map->TileDesignPlacements.IsEmpty())
+		return;
+
+	bLoggedCoplanarSurfaces = true;
+
+	// 깜빡임은 두 면이 같은 깊이에 있을 때 생긴다. 땅판·길판·건물 받침대·타일·지형을 서로 다른 코드가 만들어서
+	// 누구도 서로를 모르니, 다 지어진 월드를 직접 들여다보는 수밖에 없다.
+	// 예전엔 선을 12만 3천 개 아래로 쏴서 "0개" 라고 했는데 엉터리였다: 선은 부딪히는 판정이 있는 것에만 멈추는데,
+	// 그림만 있고 판정이 없는 판도 화면에선 깜빡인다. 그래서 선 대신 판의 크기 상자를 비교한다(더 싸고 정확).
+	// Z-fighting is two faces landing on the same depth, and the runtime world is
+	// assembled from several independent sources - shared ground slabs, the road
+	// HISM, facility pads, packed tile geometry and terrain features. No single
+	// builder can see the others, so the only way to catch a coplanar pair is to
+	// inspect the finished world.
+	//
+	// An earlier version traced 123,000 rays downward and reported a confident zero.
+	// That was worthless: a ray only stops on collision, and packed tile visuals
+	// inherit whatever collision their source mesh had. A render-only marking or
+	// slab lets every ray straight through while still fighting on screen. Compare
+	// instance bounds instead, which is both collision-agnostic and far cheaper.
+
+	// 높이 차가 이것(5cm) 이하면 "같은 높이" 로 본다.
+	constexpr float CoplanarToleranceCm = 5.0f;
+	// 겹치는 넓이가 이것(0.25㎡) 이상이어야 센다. 옆 땅판끼리는 모서리만 닿고 넓이는 안 겹치니 빼려고.
+	// 0.25 m^2. Neighbouring ground slabs are authored edge to edge, so they share a
+	// boundary line but no area; only a real shared area puts two surfaces in the
+	// same screen pixels.
+	constexpr float MinimumSharedAreaCm2 = 2500.0f;
+	// 판을 이것(6만 장)보다 많이 모으면 멈추고 "너무 많음(truncated)" 표시.
+	constexpr int32 MaxTrackedSurfaces = 60000;
+	// 150m 안에서 사라지는 것(풀 등)은 뺀다. 깜빡임은 멀리서 보일 때 생기는데, 그 전에 안 그려지는 건 원인이 될 수 없다.
+	// 풀 무더기는 수만 개씩 겹쳐 있어서 넣으면 진짜 문제가 묻힌다.
+	// Depth precision is the whole reason this artifact exists: a 2 cm separation
+	// reads as solid up close and collapses into a shimmer far away. Anything the
+	// renderer culls before that distance therefore cannot be the cause of a flicker
+	// seen across the map. Grass patches cull out at 80 m and overlap each other by
+	// the tens of thousands, which was enough to blow through MaxTrackedSurfaces and
+	// hide every long-range pair behind noise. Audit only what stays drawn.
+	constexpr float MinAuditDrawDistanceCm = 15000.0f;
+
+	// 납작한 판 하나의 기록: 위에서 본 네모 범위(Min~Max), 윗면 높이, 이름.
+	struct FFlatSurface
+	{
+		FVector2D Min = FVector2D::ZeroVector;
+		FVector2D Max = FVector2D::ZeroVector;
+		float TopZ = 0.0f;
+		FString Label;
+	};
+
+	// 판들을 20m 칸별로 나눠 담는다(가까운 것끼리만 비교하려고).
+	TMap<FIntPoint, TArray<FFlatSurface>> SurfacesByCell;
+	int32 InspectedInstanceCount = 0;
+	int32 FlatSurfaceCount = 0;
+	int32 SkippedNearFieldComponents = 0;
+	bool bTruncated = false;
+
+	// "이 물건이 납작한 판이면 칸 목록에 넣는다" 판정기.
+	auto ConsiderBounds = [&SurfacesByCell, &FlatSurfaceCount, &bTruncated](
+		const FBox& WorldBounds, const FString& Label)
+	{
+		if (!WorldBounds.IsValid || bTruncated)
+			return;
+		const FVector Size = WorldBounds.GetSize();
+		const float MinHorizontal = FMath::Min(Size.X, Size.Y);
+		// 판처럼 납작한 것만(가로세로 1m 이상, 높이는 짧은 변의 절반 이하). 벽·컨테이너는 뺀다.
+		// Plate-like geometry only. A wall or a shipping container has a top face
+		// too, but it is not a surface another surface can fight with in a way the
+		// player sees; including them would bury the real hits in noise.
+		if (MinHorizontal < 100.0f || Size.Z > MinHorizontal * 0.5f)
+			return;
+		if (++FlatSurfaceCount > MaxTrackedSurfaces)
+		{
+			bTruncated = true;
+			return;
+		}
+
+		FFlatSurface Surface;
+		Surface.Min = FVector2D(WorldBounds.Min.X, WorldBounds.Min.Y);
+		Surface.Max = FVector2D(WorldBounds.Max.X, WorldBounds.Max.Y);
+		Surface.TopZ = WorldBounds.Max.Z;
+		Surface.Label = Label;
+		const FVector Center = WorldBounds.GetCenter();
+		const FIntPoint Cell(
+			FMath::RoundToInt(Center.X / DesignCellSize),
+			FMath::RoundToInt(Center.Y / DesignCellSize));
+		SurfacesByCell.FindOrAdd(Cell).Add(MoveTemp(Surface));
+	};
+
+	// 월드의 모든 액터를 돌면서, 보이는 메시마다 크기 상자를 위 판정기에 넣는다.
+	for (TActorIterator<AActor> ActorIt(GetWorld()); ActorIt; ++ActorIt)
+	{
+		AActor* Actor = *ActorIt;
+		if (!IsValid(Actor) || Actor->IsHidden())
+			continue;
+
+		TInlineComponentArray<UStaticMeshComponent*> MeshComponents;
+		Actor->GetComponents(MeshComponents);
+		for (UStaticMeshComponent* MeshComponent : MeshComponents)
+		{
+			if (!IsValid(MeshComponent) || !MeshComponent->IsVisible())
+				continue;
+			const UStaticMesh* Mesh = MeshComponent->GetStaticMesh();
+			if (!IsValid(Mesh))
+				continue;
+
+			// 얼마나 멀리까지 그려지나 — 150m 전에 사라지는 건 건너뛴다.
+			float EndDrawDistanceCm = MeshComponent->CachedMaxDrawDistance;
+			if (const UInstancedStaticMeshComponent* CullSource =
+				Cast<UInstancedStaticMeshComponent>(MeshComponent))
+			{
+				int32 StartCullDistance = 0;
+				int32 EndCullDistance = 0;
+				CullSource->GetCullDistances(StartCullDistance, EndCullDistance);
+				if (EndCullDistance > 0)
+					EndDrawDistanceCm = static_cast<float>(EndCullDistance);
+			}
+			if (EndDrawDistanceCm > 0.0f && EndDrawDistanceCm < MinAuditDrawDistanceCm)
+			{
+				++SkippedNearFieldComponents;
+				continue;
+			}
+
+			// 같은 메시를 여러 개 찍은 묶음(땅판 수백 장 등)이면 한 장씩, 아니면 하나만.
+			const FBox LocalBounds = Mesh->GetBoundingBox();
+			const FString Label = FString::Printf(TEXT("%s/%s"),
+				*MeshComponent->GetName(), *Mesh->GetName());
+			if (UInstancedStaticMeshComponent* Instances =
+				Cast<UInstancedStaticMeshComponent>(MeshComponent))
+			{
+				const int32 InstanceCount = Instances->GetInstanceCount();
+				for (int32 InstanceIndex = 0; InstanceIndex < InstanceCount; ++InstanceIndex)
+				{
+					FTransform InstanceTransform;
+					if (!Instances->GetInstanceTransform(InstanceIndex, InstanceTransform, true))
+						continue;
+					++InspectedInstanceCount;
+					ConsiderBounds(LocalBounds.TransformBy(InstanceTransform), Label);
+				}
+			}
+			else
+			{
+				++InspectedInstanceCount;
+				ConsiderBounds(
+					LocalBounds.TransformBy(MeshComponent->GetComponentTransform()), Label);
+			}
+		}
+	}
+
+	// 판끼리 비교: 각 칸을 자기 자신 + 오른쪽·위쪽·대각선 칸과만 비교한다(칸 경계에 걸친 판도 잡고, 같은 짝을 두 번 세지 않게).
+	// A slab can straddle a cell boundary, so each cell is compared against itself
+	// and the three neighbours on its positive side. That covers every adjacent pair
+	// exactly once instead of finding each one twice from both directions.
+	const FIntPoint CompareOffsets[] = {
+		FIntPoint(0, 0), FIntPoint(1, 0), FIntPoint(0, 1), FIntPoint(1, 1)
+	};
+	int32 CoplanarPairCount = 0;
+	float TightestGapCm = CoplanarToleranceCm;
+	TArray<FString> Samples;
+	TMap<FString, int32> PairCounts;
+	for (const TPair<FIntPoint, TArray<FFlatSurface>>& CellEntry : SurfacesByCell)
+	{
+		for (const FIntPoint& Offset : CompareOffsets)
+		{
+			const TArray<FFlatSurface>* Neighbours = SurfacesByCell.Find(CellEntry.Key + Offset);
+			if (Neighbours == nullptr)
+				continue;
+			const bool bSameCell = Offset == FIntPoint::ZeroValue;
+			for (int32 LeftIndex = 0; LeftIndex < CellEntry.Value.Num(); ++LeftIndex)
+			{
+				const FFlatSurface& Left = CellEntry.Value[LeftIndex];
+				const int32 FirstRight = bSameCell ? LeftIndex + 1 : 0;
+				for (int32 RightIndex = FirstRight; RightIndex < Neighbours->Num(); ++RightIndex)
+				{
+					const FFlatSurface& Right = (*Neighbours)[RightIndex];
+					// 두 판 윗면 높이 차가 5cm 넘으면 깜빡일 일 없음 → 다음 짝.
+					const float GapCm = FMath::Abs(Left.TopZ - Right.TopZ);
+					if (GapCm > CoplanarToleranceCm)
+						continue;
+
+					// 위에서 봤을 때 실제로 겹치는 넓이가 0.25㎡ 이상인가.
+					const float SharedX = FMath::Min(Left.Max.X, Right.Max.X)
+						- FMath::Max(Left.Min.X, Right.Min.X);
+					const float SharedY = FMath::Min(Left.Max.Y, Right.Max.Y)
+						- FMath::Max(Left.Min.Y, Right.Min.Y);
+					if (SharedX <= 0.0f || SharedY <= 0.0f
+						|| SharedX * SharedY < MinimumSharedAreaCm2)
+					{
+						continue;
+					}
+
+					// 깜빡이는 짝 발견: 세고, 어떤 메시끼리인지 기록, 처음 6개는 위치까지 적는다.
+					++CoplanarPairCount;
+					TightestGapCm = FMath::Min(TightestGapCm, GapCm);
+					PairCounts.FindOrAdd(FString::Printf(TEXT("%s|%s"), *Left.Label, *Right.Label))++;
+					if (Samples.Num() < 6)
+					{
+						const float SharedCenterX = (FMath::Max(Left.Min.X, Right.Min.X)
+							+ FMath::Min(Left.Max.X, Right.Max.X)) * 0.5f;
+						const float SharedCenterY = (FMath::Max(Left.Min.Y, Right.Min.Y)
+							+ FMath::Min(Left.Max.Y, Right.Max.Y)) * 0.5f;
+						Samples.Add(FString::Printf(
+							TEXT("world=(%.0f,%.0f) cell=(%d,%d) z=%.1f gap=%.2f area_m2=%.1f %s|%s"),
+							SharedCenterX, SharedCenterY,
+							FMath::RoundToInt(SharedCenterX / DesignCellSize),
+							FMath::RoundToInt(SharedCenterY / DesignCellSize),
+							Left.TopZ, GapCm, SharedX * SharedY / 10000.0f,
+							*Left.Label, *Right.Label));
+					}
+				}
+			}
+		}
+	}
+
+	// 가장 많이 겹친 메시 짝 5개를 순위로 뽑는다(어느 메시부터 고치면 되는지 보이게).
+	PairCounts.ValueSort([](int32 Left, int32 Right) { return Left > Right; });
+	TArray<FString> RankedPairs;
+	for (const TPair<FString, int32>& Entry : PairCounts)
+	{
+		RankedPairs.Add(FString::Printf(TEXT("%s x%d"), *Entry.Key, Entry.Value));
+		if (RankedPairs.Num() >= 5)
+			break;
+	}
+
+	// 로그 한 줄: 깜빡이는 짝이 0이면 pass=true.
+	UE_LOG(LogTemp, Display,
+		TEXT("Coplanar surface audit: tolerance_cm=%.0f min_draw_distance_cm=%.0f ")
+		TEXT("inspected_instances=%d near_field_components_skipped=%d flat_surfaces=%d ")
+		TEXT("truncated=%s coplanar_pairs=%d distinct_pairs=%d tightest_gap_cm=%.2f pass=%s ")
+		TEXT("top_pairs=[%s] sample=[%s]"),
+		CoplanarToleranceCm,
+		MinAuditDrawDistanceCm,
+		InspectedInstanceCount,
+		SkippedNearFieldComponents,
+		FlatSurfaceCount,
+		bTruncated ? TEXT("true") : TEXT("false"),
+		CoplanarPairCount,
+		PairCounts.Num(),
+		CoplanarPairCount > 0 ? TightestGapCm : 0.0f,
+		CoplanarPairCount == 0 ? TEXT("true") : TEXT("false"),
+		*FString::Join(RankedPairs, TEXT(" ; ")),
+		*FString::Join(Samples, TEXT(" ; ")));
 }
