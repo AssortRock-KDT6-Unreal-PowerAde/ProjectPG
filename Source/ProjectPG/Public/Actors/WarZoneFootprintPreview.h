@@ -249,7 +249,6 @@ private:
 	void RebuildGameplayPointHash();
 	void BuildPCGDressingGraph();
 	void VerifyLocalPerformance(float DeltaSeconds);
-	void VerifyNavigation();
 	void VerifyCriticalRoutes();
 	void VerifyTraversableElevation();
 	void VerifyCoplanarSurfaces();
@@ -516,9 +515,9 @@ private:
 	TObjectPtr<UPCGGraph> RuntimeDressingGraph;
 
 	TSet<int32> LoggedFacilityDesignLevelIndices;
-	bool bLoggedAllFacilityDesignLevelsLoaded = false;
-	bool bLoggedWorldCollision = false;
+	// 길찾기 검사 끝남
 	bool bLoggedNavigation = false;
+	bool bLoggedAllFacilityDesignLevelsLoaded = false;
 	bool bResolvedGameplayPointSafety = false;
 	bool bLoggedCriticalRoutes = false;
 	bool bLoggedMissingWarZoneFootprint = false;

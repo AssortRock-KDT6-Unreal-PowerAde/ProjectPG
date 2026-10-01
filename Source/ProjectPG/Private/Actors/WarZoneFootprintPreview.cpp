@@ -681,7 +681,7 @@ void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 	Verifier->VerifyTacticalLayoutQuality();
 	Verifier->VerifyTravelCoverDensity();
 	Verifier->VerifyGameplayPointDistribution();
-	VerifyNavigation();
+	Verifier->VerifyNavigation();
 	VerifyCriticalRoutes();
 	VerifyTraversableElevation();
 	VerifyCoplanarSurfaces();
@@ -2474,88 +2474,6 @@ void AWarZoneFootprintPreview::BuildLightweightWorldVisuals()
 		2025 - TileDesignPlacements.Num());
 }
 
-
-void AWarZoneFootprintPreview::VerifyNavigation()
-{
-	if (bLoggedNavigation || !bLoggedWorldCollision || LevelDesignPoints.IsEmpty())
-		return;
-
-	UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-	if (!IsValid(NavigationSystem))
-		return;
-
-	const double ElapsedSeconds = FPlatformTime::Seconds() - NavigationValidationStartTimeSeconds;
-	if (NavigationSystem->IsNavigationBuildInProgress() && ElapsedSeconds < 20.0)
-		return;
-
-	int32 CandidateCount = 0;
-	int32 ProjectedCount = 0;
-	TArray<FName> FailedPointIds;
-	const FVector QueryExtent(180.0f, 180.0f, 650.0f);
-	for (const FLevelDesignPoint& Point : LevelDesignPoints)
-	{
-		// Navigation is generated only around the central invoker. Points outside
-		// its 120 m generation radius are validated later when a player/AI invoker
-		// approaches them.
-		if (FVector::DistSquared2D(Point.WorldLocation, GetActorLocation()) > FMath::Square(10000.0f))
-			continue;
-
-		++CandidateCount;
-		FNavLocation ProjectedLocation;
-		if (NavigationSystem->ProjectPointToNavigation(Point.WorldLocation, ProjectedLocation, QueryExtent))
-		{
-			++ProjectedCount;
-			// Projection alone can succeed on an isolated polygon. Accept a movement
-			// pocket in any cardinal direction; the old +X-only check falsely rejected
-			// valid narrow rooms and rotated upper decks.
-			const FVector NeighborOffsets[] = {
-				FVector(350.0f, 0.0f, 0.0f), FVector(-350.0f, 0.0f, 0.0f),
-				FVector(0.0f, 350.0f, 0.0f), FVector(0.0f, -350.0f, 0.0f)
-			};
-			const bool bHasMovementPocket = Algo::AnyOf(
-				NeighborOffsets,
-				[NavigationSystem, &ProjectedLocation, &QueryExtent](const FVector& Offset)
-				{
-					FNavLocation NeighborLocation;
-					return NavigationSystem->ProjectPointToNavigation(
-						ProjectedLocation.Location + Offset,
-						NeighborLocation,
-						QueryExtent);
-				});
-			if (!bHasMovementPocket)
-			{
-				--ProjectedCount;
-				FailedPointIds.Add(Point.PointId);
-			}
-		}
-		else
-			FailedPointIds.Add(Point.PointId);
-	}
-
-	// Wait a little longer when the dynamic Recast generator has not exposed
-	// any polygon yet, then report a deterministic pass/fail result.
-	if (ProjectedCount == 0 && ElapsedSeconds < 20.0)
-		return;
-
-	bLoggedNavigation = true;
-	FString FailedSummary;
-	for (int32 Index = 0; Index < FMath::Min(FailedPointIds.Num(), 8); ++Index)
-	{
-		FailedSummary += FString::Printf(
-			TEXT("%s%s"),
-			*FailedPointIds[Index].ToString(),
-			Index + 1 < FMath::Min(FailedPointIds.Num(), 8) ? TEXT(",") : TEXT(""));
-	}
-
-	UE_LOG(LogTemp, Display,
-		TEXT("Design navigation: invoker_radius_cm=12000 candidates=%d projected=%d failed=%d build_pending=%s elapsed_ms=%.2f sample=[%s]"),
-		CandidateCount,
-		ProjectedCount,
-		FailedPointIds.Num(),
-		NavigationSystem->IsNavigationBuildInProgress() ? TEXT("true") : TEXT("false"),
-		ElapsedSeconds * 1000.0,
-		*FailedSummary);
-}
 
 void AWarZoneFootprintPreview::VerifyCriticalRoutes()
 {

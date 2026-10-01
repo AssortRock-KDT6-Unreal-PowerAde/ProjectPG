@@ -15,10 +15,11 @@
 #include "Engine/OverlapResult.h"
 // 큰 지형 땅( 산, 들판)
 #include "LandscapeProxy.h"
+#include "NavigationSystem.h"   // 길찾기 지도 담당
+#include "Algo/AnyOf.h"         // "하나라도 맞으면" 판정(동서남북 중 한 곳)
 // 칸 크기 (2000cm). 맵 cpp206줄과 같은 값이어야 한다.
 // constexpr : 절대 안바뀌는 숫자. 
 // const랑 차이는 빌드할때 이미아는 숫자냐. 게임 도는 도중에 정해지냐 차이. 
-
 constexpr float DesignCellSize = 2000.0f;
 
 void UMapVerifier::Init(AWarZoneFootprintPreview* InMap)
@@ -54,13 +55,13 @@ void UMapVerifier::VerifyPCGDressing()
 
 void UMapVerifier::VerifyWorldCollision()
 {
-	if (Map->bLoggedWorldCollision
+	if (bLoggedWorldCollision
 		|| !Map->AreAllFacilityLevelsLoaded())
 	{
 		return;
 	}
 
-	Map->bLoggedWorldCollision = true;
+	bLoggedWorldCollision = true;
 	int32 HitCount = 0;
 	TArray<FIntPoint> MissingCells;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(DesignWorldGroundValidation), true);
@@ -624,3 +625,88 @@ void UMapVerifier::VerifyGameplayPointDistribution()
 		Map->GameplayPointHash,
 		bPass ? TEXT("true") : TEXT("false"));
 }
+
+
+void UMapVerifier::VerifyNavigation()
+{
+	if (Map->bLoggedNavigation || !bLoggedWorldCollision || Map->LevelDesignPoints.IsEmpty())
+		return;
+
+	UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (!IsValid(NavigationSystem))
+		return;
+
+	const double ElapsedSeconds = FPlatformTime::Seconds() - Map->NavigationValidationStartTimeSeconds;
+	if (NavigationSystem->IsNavigationBuildInProgress() && ElapsedSeconds < 20.0)
+		return;
+
+	int32 CandidateCount = 0;
+	int32 ProjectedCount = 0;
+	TArray<FName> FailedPointIds;
+	const FVector QueryExtent(180.0f, 180.0f, 650.0f);
+	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
+	{
+		// Navigation is generated only around the central invoker. Points outside
+		// its 120 m generation radius are validated later when a player/AI invoker
+		// approaches them.
+		if (FVector::DistSquared2D(Point.WorldLocation, Map->GetActorLocation()) > FMath::Square(10000.0f))
+			continue;
+
+		++CandidateCount;
+		FNavLocation ProjectedLocation;
+		if (NavigationSystem->ProjectPointToNavigation(Point.WorldLocation, ProjectedLocation, QueryExtent))
+		{
+			++ProjectedCount;
+			// Projection alone can succeed on an isolated polygon. Accept a movement
+			// pocket in any cardinal direction; the old +X-only check falsely rejected
+			// valid narrow rooms and rotated upper decks.
+			const FVector NeighborOffsets[] = {
+				FVector(350.0f, 0.0f, 0.0f), FVector(-350.0f, 0.0f, 0.0f),
+				FVector(0.0f, 350.0f, 0.0f), FVector(0.0f, -350.0f, 0.0f)
+			};
+			const bool bHasMovementPocket = Algo::AnyOf(
+				NeighborOffsets,
+				[NavigationSystem, &ProjectedLocation, &QueryExtent](const FVector& Offset)
+				{
+					FNavLocation NeighborLocation;
+					return NavigationSystem->ProjectPointToNavigation(
+						ProjectedLocation.Location + Offset,
+						NeighborLocation,
+						QueryExtent);
+				});
+			if (!bHasMovementPocket)
+			{
+				--ProjectedCount;
+				FailedPointIds.Add(Point.PointId);
+			}
+		}
+		else
+			FailedPointIds.Add(Point.PointId);
+	}
+
+	// Wait a little longer when the dynamic Recast generator has not exposed
+	// any polygon yet, then report a deterministic pass/fail result.
+	if (ProjectedCount == 0 && ElapsedSeconds < 20.0)
+		return;
+
+	Map->bLoggedNavigation = true;
+	FString FailedSummary;
+	for (int32 Index = 0; Index < FMath::Min(FailedPointIds.Num(), 8); ++Index)
+	{
+		FailedSummary += FString::Printf(
+			TEXT("%s%s"),
+			*FailedPointIds[Index].ToString(),
+			Index + 1 < FMath::Min(FailedPointIds.Num(), 8) ? TEXT(",") : TEXT(""));
+	}
+
+	UE_LOG(LogTemp, Display,
+		TEXT("Design navigation: invoker_radius_cm=12000 candidates=%d projected=%d failed=%d build_pending=%s elapsed_ms=%.2f sample=[%s]"),
+		CandidateCount,
+		ProjectedCount,
+		FailedPointIds.Num(),
+		NavigationSystem->IsNavigationBuildInProgress() ? TEXT("true") : TEXT("false"),
+		ElapsedSeconds * 1000.0,
+		*FailedSummary);
+}
+
+

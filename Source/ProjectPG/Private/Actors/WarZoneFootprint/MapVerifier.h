@@ -54,6 +54,9 @@ public:
 	// GamePlayPoint(게임지점:시작,상자,몬스터,출구,퀘스트자리)
 	// Distribution(퍼진모양)= "게임 지점들이 골고루 알맞게 퍼져있나?"
 	void VerifyGameplayPointDistribution();
+	// 길 찾기. 몬스터 AI가 다닐 길 찾기 지도가 지대로 깔림? 
+	void VerifyNavigation();
+
 	
 private:
 	// 언리얼 한테 포인터 관리해달라.
@@ -74,6 +77,8 @@ private:
 	// 지점 안전 관리가 아직 안끝났다. 
 	// 셋다 통화하면 스티커를 ture로 붙이고 검사해서 로그찍음
 	bool bLoggedGameplayPointDistribution = false;
-	
+	// 바닥 구멍 검사 끝남
+	bool bLoggedWorldCollision = false;
+
 };
 
