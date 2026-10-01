@@ -65,6 +65,9 @@ public:
 	// Coplanar(같은 높이의 평면) Surfaces(바닥면) = "바닥 두 장이 같은 높이에 겹쳐서 깜빡이는 곳이 없나?"
 	// 멀리서 보면 바닥이 줄무늬처럼 지글거리는 그래픽 버그(Z-파이팅)를 찾는다.
 	void VerifyCoplanarSurfaces();
+	// Local(이 컴퓨터) Performance(성능) = "게임이 너무 버벅이지 않나?"
+	// 맵이 다 깔린 뒤 50프레임 평균 fps·액터 수·메모리를 로그에 남긴다(합격/불합격 없이 숫자만).
+	void VerifyLocalPerformance(float DeltaSeconds);
 
 	
 private:
@@ -94,6 +97,12 @@ private:
 	bool bLoggedTraversableElevation = false;
 	// "바닥 겹침 깜빡임" 검사 보고서를 이미 썼는지 표시. 로그를 한 번만 찍으려고.
 	bool bLoggedCoplanarSurfaces = false;
+	// 길찾기 지도 검사 끝남. 출구 검사·성능 검사가 이걸 보고 시작한다(순서 신호).
+	bool bLoggedNavigation = false;
+	// 성능 검사용 수첩: 지금까지 잰 프레임 수(50장 되면 로그).
+	int32 PerformanceSampleCount = 0;
+	// 성능 검사용 수첩: 잰 프레임들에 걸린 시간 합계(초). 평균 = 합계 ÷ 프레임 수.
+	double PerformanceDeltaSecondsTotal = 0.0;
 
 };
 

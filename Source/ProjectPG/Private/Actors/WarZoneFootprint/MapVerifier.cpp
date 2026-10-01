@@ -1,4 +1,4 @@
-//검사기가 불려서 일하는 곳
+﻿//검사기가 불려서 일하는 곳
 
 #include "MapVerifier.h"
 #include "PCGComponent.h"
@@ -18,8 +18,11 @@
 #include "NavigationSystem.h"   // 길찾기 지도 담당
 #include "Algo/AnyOf.h"         // "하나라도 맞으면" 판정(동서남북 중 한 곳)
 #include "Containers/Queue.h"   // 줄 세우기(먼저 넣은 칸부터 꺼냄) — 출구까지 길 찾을 때 씀
+#include "Misc/App.h"   // 이번 프레임에 걸린 시간(FApp::GetDeltaTime)
+#include "HAL/PlatformMemory.h"   // 메모리 사용량 읽기
 #include "EngineUtils.h"   // 월드의 모든 액터를 하나씩 돌기(TActorIterator)
 #include "Components/InstancedStaticMeshComponent.h"   // 같은 메시를 여러 장 찍은 묶음(땅판 수백 장 등)
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"   // 땅판·길판 묶음(맵 액터의 GroundHISM·RoadSurfaceHISM)
 #include "Engine/StaticMesh.h"   // 메시 모양 파일(크기 상자 읽기)
 // 칸 크기 (2000cm). 맵 cpp206줄과 같은 값이어야 한다.
 // constexpr : 절대 안바뀌는 숫자. 
@@ -640,7 +643,7 @@ void UMapVerifier::VerifyGameplayPointDistribution()
 
 void UMapVerifier::VerifyNavigation()
 {
-	if (Map->bLoggedNavigation || !bLoggedWorldCollision || Map->LevelDesignPoints.IsEmpty())
+	if (bLoggedNavigation || !bLoggedWorldCollision || Map->LevelDesignPoints.IsEmpty())
 		return;
 
 	UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
@@ -700,7 +703,7 @@ void UMapVerifier::VerifyNavigation()
 	if (ProjectedCount == 0 && ElapsedSeconds < 20.0)
 		return;
 
-	Map->bLoggedNavigation = true;
+	bLoggedNavigation = true;
 	FString FailedSummary;
 	for (int32 Index = 0; Index < FMath::Min(FailedPointIds.Num(), 8); ++Index)
 	{
@@ -729,8 +732,8 @@ void UMapVerifier::VerifyNavigation()
 void UMapVerifier::VerifyCriticalRoutes()
 {
 	// 이미 보고서 썼거나, 길찾기 지도 검사가 아직 안 끝났거나(맵 쪽 스티커), 칸 목록이 비었으면 이번엔 그냥 끝.
-	// bLoggedNavigation 은 성능 검사(VerifyLocalPerformance)도 아직 맵에서 보고 있어서 맵 집에 두고 빌려 본다.
-	if (bLoggedCriticalRoutes || !Map->bLoggedNavigation || Map->TileDesignPlacements.IsEmpty())
+	// bLoggedNavigation(길찾기 지도 검사 끝남) 은 이제 검사기 자기 스티커다.
+	if (bLoggedCriticalRoutes || !bLoggedNavigation || Map->TileDesignPlacements.IsEmpty())
 		return;
 
 	// 시작 자리(플레이어가 태어나는 곳) 하나를 찾는다. 없으면 출발할 데가 없으니 끝.
@@ -1267,4 +1270,53 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 		CoplanarPairCount == 0 ? TEXT("true") : TEXT("false"),
 		*FString::Join(RankedPairs, TEXT(" ; ")),
 		*FString::Join(Samples, TEXT(" ; ")));
+}
+
+// Local(이 컴퓨터) Performance(성능) = "게임이 너무 버벅이지 않나?"
+// 게임에서: 맵이 다 깔린 뒤 50프레임 동안 한 프레임에 걸린 시간을 재서 평균 fps(1초에 몇 장 그리나)를 로그에 남긴다.
+//           같이 액터 수, 땅판·길판 수, 풀 개수, 메모리 사용량도 적어서 "왜 느린지" 단서를 남긴다.
+//           pass/fail 은 없고 숫자만 적는다(사람이 보고 판단). 마지막의 layout_hash 는 같은 시드면 같은 맵인지 확인하는 번호.
+// DeltaSeconds 는 받기만 하고 안 쓴다 — 실제 시간은 FApp::GetDeltaTime() 으로 읽는다(원래 코드 그대로).
+void UMapVerifier::VerifyLocalPerformance(float DeltaSeconds)
+{
+	// 길찾기 지도 검사가 끝나기 전(맵이 아직 다 안 깔림)이거나, 50프레임을 이미 다 쟀으면 끝.
+	if (!bLoggedNavigation || PerformanceSampleCount >= 50)
+		return;
+
+	// 이번 프레임에 걸린 시간을 더하고 한 장 셌다. 50장이 안 됐으면 다음 프레임에 또.
+	PerformanceDeltaSecondsTotal += FApp::GetDeltaTime();
+	++PerformanceSampleCount;
+	if (PerformanceSampleCount < 50)
+		return;
+
+	// 50장째: 월드의 액터가 몇 개인지 센다(많을수록 무거움).
+	int32 ActorCount = 0;
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+		++ActorCount;
+
+	// 맵 액터에 붙은 묶음 중 "풀 뿌리기(PCG)" 표시가 붙은 것들의 풀 개수를 더한다.
+	int32 PCGInstanceCount = 0;
+	TArray<UActorComponent*> DressingInstanceComponents;
+	Map->GetComponents(UInstancedStaticMeshComponent::StaticClass(), DressingInstanceComponents);
+	for (UActorComponent* Component : DressingInstanceComponents)
+	{
+		const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Component);
+		if (IsValid(ISM) && ISM->ComponentTags.Contains(TEXT("PCG_Dressing")))
+			PCGInstanceCount += ISM->GetInstanceCount();
+	}
+
+	// 메모리 사용량과 평균 프레임 시간(→ fps)을 계산해서 로그 한 줄.
+	const FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
+	const double AverageFrameSeconds = PerformanceDeltaSecondsTotal / PerformanceSampleCount;
+	UE_LOG(LogTemp, Display,
+		TEXT("Local performance: samples=%d avg_frame_ms=%.3f sampled_fps=%.1f actors=%d ground_hism=%d road_hism=%d pcg_instances=%d used_physical_mb=%.1f layout_hash=%08X"),
+		PerformanceSampleCount,
+		AverageFrameSeconds * 1000.0,
+		AverageFrameSeconds > SMALL_NUMBER ? 1.0 / AverageFrameSeconds : 0.0,
+		ActorCount,
+		Map->GroundHISM->GetInstanceCount(),
+		Map->RoadSurfaceHISM->GetInstanceCount(),
+		PCGInstanceCount,
+		MemoryStats.UsedPhysical / (1024.0 * 1024.0),
+		Map->LayoutHash);
 }

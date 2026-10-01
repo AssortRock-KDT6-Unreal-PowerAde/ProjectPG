@@ -248,7 +248,6 @@ private:
 	void ResolveGameplayPointSafety();
 	void RebuildGameplayPointHash();
 	void BuildPCGDressingGraph();
-	void VerifyLocalPerformance(float DeltaSeconds);
 	void RefreshNavigationBlockerRegion(
 		UTacticalTileNavModifierComponent* Modifier,
 		const FVector& WorldCenter,
@@ -513,13 +512,10 @@ private:
 
 	TSet<int32> LoggedFacilityDesignLevelIndices;
 	// 길찾기 검사 끝남
-	bool bLoggedNavigation = false;
 	bool bLoggedAllFacilityDesignLevelsLoaded = false;
 	bool bResolvedGameplayPointSafety = false;
 	bool bLoggedMissingWarZoneFootprint = false;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
-	int32 PerformanceSampleCount = 0;
-	double PerformanceDeltaSecondsTotal = 0.0;
 	double NavigationValidationStartTimeSeconds = 0.0;
 	FIntPoint LastPlayerNavigationBlockerCell = FIntPoint(MAX_int32, MAX_int32);
 	TArray<double> FacilityLoadRequestTimeSeconds;
