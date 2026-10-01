@@ -3,15 +3,22 @@
 #include "MapVerifier.h"
 #include "PCGComponent.h"
 #include "PCGManagedResource.h"
-// 레벨스트리밍을 맵에 불러왔는지 객체에 질문,그런 레벨스트리밍을 모아 둔 목록
+// 레벨스트리밍을 맵에 불러왔는지 객체에 질문,레벨 스트리밍 하나를 담당하는 담당자.
 #include "Engine/LevelStreamingDynamic.h"   
 // 레벨스트리밍 할것의 소속 액터 모음
 #include "Engine/Level.h"                   
 // 액터자체는 이름표같은 빈껍데기니까 그 엑터에 붙은 모양. 컨테이너의 철판모양같은걸 구성하는게 StaticMeshComponent인데 UPrimitiveComponent의 자식이다.
 #include "Components/PrimitiveComponent.h"   
+//// 길 타일 조각(길이 뚫린 방향 번호를 가진 타일)
+#include "Actors/TacticalTileActor.h"
+// 캡슐을 세웠을 때 닿은 것 하나하나의 기록 
+#include "Engine/OverlapResult.h"
+// 큰 지형 땅( 산, 들판)
+#include "LandscapeProxy.h"
 // 칸 크기 (2000cm). 맵 cpp206줄과 같은 값이어야 한다.
 // constexpr : 절대 안바뀌는 숫자. 
 // const랑 차이는 빌드할때 이미아는 숫자냐. 게임 도는 도중에 정해지냐 차이. 
+
 constexpr float DesignCellSize = 2000.0f;
 
 void UMapVerifier::Init(AWarZoneFootprintPreview* InMap)
@@ -182,4 +189,198 @@ void UMapVerifier::VerifyDesignLevelSeparation()
 		BoundsByFacility.Num(), OverlapPairs, MinimumGapCm,
 		OverlapPairs == 0 ? TEXT("true") : TEXT("false"));
 	
+}
+
+// Tactical(전투용) + Layout(배치) + Quality(품질) = "전투하기 좋게 타일이 제대로 놓였니?"
+void UMapVerifier::VerifyTacticalLayoutQuality()
+// 타일과건물이 예정된 개수만큼 다 생길때 까지 기다린다. 
+{
+	int32 ExpectedRuntimeFacilityCount = 0;
+	for (const FFacilityPlacement& Placement : Map->FacilityPlacements)
+		if (Placement.VisualSet != EFacilityVisualSet::Checkpoint)
+			++ExpectedRuntimeFacilityCount;
+	// bLoggedTacticalLayoutQuality : 로그찍음(true)?
+	if (bLoggedTacticalLayoutQuality
+		// 타일 배치 목록이 비었나?
+		|| Map->TileDesignPlacements.IsEmpty()
+		// 만들어진 개수가 "타일 개수+방금 센 개수와 다른가?"
+		|| Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount
+		// 시설 레벨이 아직 다 안불려 왔나?
+		|| !Map->AreAllFacilityLevelsLoaded())
+		return;
+	// 스티커 붙이기: 이 검사 로그를 이제 찍는다고 표시. 다음 프레임부턴 위 if 에서 바로 return.
+	bLoggedTacticalLayoutQuality = true;
+
+	// int32 = 정수 하나(4바이트). 0부터 세는 칸들.
+	int32 GridMisalignments = 0;        // 칸 한가운데에 안 맞거나, 한 칸에 타일 두 장 겹친 타일 수
+	int32 OutOfBoundsComponents = 0;    // 벽·물건이 옆 칸으로 너무 삐져나간 타일 수
+
+	// TArray<FString> = 글자(이름)를 순서대로 담는 목록.
+	TArray<FString> OverflowSamples;    // 삐져나간 타일 이름 몇 개 (로그에 보여 주려고, 최대 12개)
+
+	int32 InvalidMasks = 0;             // 길 연결 번호(0~15)나 모양 번호(0~3)가 범위를 벗어난 타일 수
+	int32 UnsafeAnchorOverlaps = 0;     // 위험하게 겹친 지점 수 (뒤쪽 코드에서 셈)
+	TArray<FString> UnsafeAnchorSamples;// 그 위험 지점 이름 몇 개 (로그용)
+
+	// TSet<FIntPoint> = 같은 게 두 번 못 들어가는 모음. 순서는 없음. "이거 들어 있나?" 확인이 빠름.
+	// FIntPoint = 정수 두 개 (X, Y). 여기선 "몇 번째 칸"(예: 5, 7).
+	TSet<FIntPoint> OccupiedCells;      // 이미 타일이 놓인 칸 번호들. 같은 칸이 또 나오면 겹친 것.
+
+	// SpawnedRuntimeTiles(만들어 둔 타일 액터 목록)에서 하나씩 꺼내 Actor 라고 부르며 끝까지 돈다.
+	// AActor* = 타일 액터의 주소 쪽지.
+	for (AActor* Actor : Map->SpawnedRuntimeTiles)
+	{
+		if (!IsValid(Actor) || Actor->ActorHasTag(TEXT("RuntimeTacticalFacility")))
+			continue;
+
+		const FVector Location = Actor->GetActorLocation();
+		const FIntPoint Cell(
+			FMath::RoundToInt(Location.X / DesignCellSize),
+			FMath::RoundToInt(Location.Y / DesignCellSize));
+		if (!FMath::IsNearlyEqual(Location.X, Cell.X * DesignCellSize, 1.0f)
+			|| !FMath::IsNearlyEqual(Location.Y, Cell.Y * DesignCellSize, 1.0f)
+			|| OccupiedCells.Contains(Cell))
+		{
+			++GridMisalignments;
+		}
+		OccupiedCells.Add(Cell);
+
+		// 2. 벽·물건이 칸 밖으로 삐져나갔나
+		FVector Origin;
+		FVector Extent;
+		Actor->GetActorBounds(false, Origin, Extent, true);
+		// Ignore editor-only connection arrows and tall debug vectors. Validate only
+		// colliding primitive bounds because those are what can overlap neighbors.
+		TArray<UPrimitiveComponent*> PrimitiveComponents;
+		Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+		bool bActorOverflow = false;
+		for (const UPrimitiveComponent* Primitive : PrimitiveComponents)
+		{
+			if (!IsValid(Primitive)
+				|| Primitive->GetCollisionEnabled() == ECollisionEnabled::NoCollision
+				|| !Primitive->IsVisible())
+			{
+				continue;
+			}
+			const FString ComponentName = Primitive->GetName();
+			if (ComponentName.Contains(TEXT("Ground"))
+				|| ComponentName.Contains(TEXT("Road"))
+				|| ComponentName.Contains(TEXT("Roof"))
+				|| ComponentName.Contains(TEXT("Grass"))
+				|| ComponentName.Contains(TEXT("Tree"))
+				|| ComponentName.Contains(TEXT("Bush"))
+				|| ComponentName.Contains(TEXT("Rock"))
+				|| ComponentName.Contains(TEXT("Marking")))
+			{
+				continue;
+			}
+			const FBoxSphereBounds Bounds = Primitive->Bounds;
+			// Seam dressing and angled CQB cover may overhang the nominal 10 m
+			// half-cell slightly. Industrial props are intentionally used as visual
+			// bridges between adjacent WarZone cells, so they receive a larger but
+			// still bounded allowance. Structural walls retain the stricter limit.
+			const bool bIndustrialSeamProp = ComponentName.Contains(TEXT("Container"))
+				|| ComponentName.Contains(TEXT("Crane"))
+				|| ComponentName.Contains(TEXT("Tank"))
+				|| ComponentName.Contains(TEXT("Pallet"))
+				|| ComponentName.Contains(TEXT("Fence"))
+				|| ComponentName.Contains(TEXT("PipeRack"));
+			const float MaxComponentReach = bIndustrialSeamProp ? 1800.0f : 1400.0f;
+			if (FMath::Abs(Bounds.Origin.X - Location.X) + Bounds.BoxExtent.X > MaxComponentReach
+				|| FMath::Abs(Bounds.Origin.Y - Location.Y) + Bounds.BoxExtent.Y > MaxComponentReach)
+			{
+				bActorOverflow = true;
+				break;
+			}
+		}
+		if (bActorOverflow)
+		{
+			++OutOfBoundsComponents;
+			if (OverflowSamples.Num() < 12)
+				OverflowSamples.Add(Actor->GetActorLabel());
+		}
+		// 길이 뚫린 방향 번호가 정상인가(틀리면 길이 담벼락에 막힘)
+		if (const ATacticalTileActor* TacticalTile = Cast<ATacticalTileActor>(Actor))
+		{
+			if (TacticalTile->GetEffectiveConnectionMask() > 15
+				|| TacticalTile->GetEffectiveLayoutVariant() > 3)
+			{
+				++InvalidMasks;
+			}
+		}
+	}
+	// 4. 시작, 출구 , 루팅 자리에서 사람캡슐 끼이는지. 
+	FCollisionQueryParams AnchorQuery(SCENE_QUERY_STAT(TacticalAnchorSafety), false);
+	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
+	{
+		if (Point.Type != ELevelDesignPointType::Spawn
+			&& Point.Type != ELevelDesignPointType::Exit
+			&& Point.Type != ELevelDesignPointType::Loot
+			&& Point.Type != ELevelDesignPointType::AISpawn
+			&& Point.Type != ELevelDesignPointType::Quest)
+		{
+			continue;
+		}
+		// 캡슐 = "여기 사람이 서도 되나?" 확인용 가짜 사람. 시작 자리에 잠깐 세워 본다(새로 만드는 건 없음).
+		// 반지름 55cm, 반높이 95cm(대략 사람 크기). 몸에 벽이 닿으면 "여기서 태어나면 벽에 낀다".
+		const FCollisionShape Capsule = FCollisionShape::MakeCapsule(55.0f, 95.0f);
+		// 캡슐에 닿은 것들의 목록이 나온다. 벽,땅,상자.
+		TArray<FOverlapResult> AnchorOverlaps;
+		// OverlapMultiByChannel 시작자리에 사람 캡슐을 세움 
+		const bool bHasOverlap = GetWorld()->OverlapMultiByChannel(
+			AnchorOverlaps,
+			Point.WorldLocation + FVector(0, 0, 95.0f),
+			FQuat::Identity,
+			ECC_Pawn,
+			Capsule,
+			AnchorQuery);
+		const bool bBlockedByTacticalGeometry = bHasOverlap && AnchorOverlaps.ContainsByPredicate(
+			[this](const FOverlapResult& Result)
+			{
+				// 목록에서 하나씩 꺼내 본다
+				const AActor* HitActor = Result.GetActor();
+				const UPrimitiveComponent* HitComponent = Result.GetComponent();
+				return IsValid(HitActor) && HitActor != Map
+					&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
+					&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
+					&& IsValid(HitComponent)
+					&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
+			});
+		if (bBlockedByTacticalGeometry)
+		{
+			++UnsafeAnchorOverlaps;
+			if (UnsafeAnchorSamples.Num() < 8)
+			{
+				const FOverlapResult* Blocking = AnchorOverlaps.FindByPredicate(
+					[this](const FOverlapResult& Result)
+					{
+						const AActor* HitActor = Result.GetActor();
+						const UPrimitiveComponent* HitComponent = Result.GetComponent();
+						return IsValid(HitActor) && HitActor != Map
+							&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
+							&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
+							&& IsValid(HitComponent)
+							&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
+					});
+				UnsafeAnchorSamples.Add(FString::Printf(TEXT("%s:%s/%s"),
+					*Point.PointId.ToString(),
+					Blocking && IsValid(Blocking->GetActor()) ? *Blocking->GetActor()->GetActorLabel() : TEXT("UnknownActor"),
+					Blocking && IsValid(Blocking->GetComponent()) ? *Blocking->GetComponent()->GetName() : TEXT("UnknownComponent")));
+			}
+		}
+	}
+	const FString UnsafeSummary = FString::Join(UnsafeAnchorSamples, TEXT(","));
+	// 5. 로그 남기기.
+	UE_LOG(LogTemp, Display,
+		TEXT("Tactical layout quality: single_cell_tiles=%d facilities=%d grid_or_duplicate=%d bounds_overflow=%d invalid_specs=%d unsafe_anchors=%d pass=%s overflow_sample=[%s] unsafe_sample=[%s]"),
+		Map->TileDesignPlacements.Num(),
+		ExpectedRuntimeFacilityCount,
+		GridMisalignments,
+		OutOfBoundsComponents,
+		InvalidMasks,
+		UnsafeAnchorOverlaps,
+		GridMisalignments == 0 && OutOfBoundsComponents == 0 && InvalidMasks == 0 && UnsafeAnchorOverlaps == 0
+			? TEXT("true") : TEXT("false"),
+		*FString::Join(OverflowSamples, TEXT(",")),
+		*UnsafeSummary);
 }

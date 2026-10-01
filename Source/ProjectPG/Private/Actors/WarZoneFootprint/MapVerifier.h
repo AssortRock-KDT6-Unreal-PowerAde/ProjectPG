@@ -45,6 +45,11 @@ public:
 	// 큰 시설이 서로서로 잘 떨어져 있는가? 
 	// 겹친 짝이 하나라도 있으면 로그에 pass=false라고 뜸
 	void VerifyDesignLevelSeparation();
+	// Tactical(전투용) Layout(배치) Quality(품질)
+	// 타일이 깔린 뒤, 플레이어가 막히거나 끼이거나 빠지는 곳이 없나 확인.
+	void VerifyTacticalLayoutQuality();
+	
+	
 	
 	
 private:
@@ -57,5 +62,7 @@ private:
 	bool bLoggedPCGDressing = false;
 	// 시설끼리 겹침 검사 보고서를 이미 썼는지 표시. 로그를 한 번만 찍으려고.
 	bool bLoggedDesignLevelSeparation = false;
+	// 타일 배치  품질 검사 보고서를 이미 썼는지 표시.
+	bool bLoggedTacticalLayoutQuality = false;
 };
 
