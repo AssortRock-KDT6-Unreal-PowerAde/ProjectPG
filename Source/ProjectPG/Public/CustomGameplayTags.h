@@ -23,4 +23,12 @@ namespace CustomGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Sprinting);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_UsingStamina);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Jumping);
+
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Equip);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Fire_Hip);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Fire_Ironsights);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Reload_Hip);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Reload_Ironsights);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Death_Hip);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Death_Ironsights);
 };

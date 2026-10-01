@@ -6,6 +6,7 @@
 #include "Animation/AnimMontage.h"
 #include "Characters/CustomPlayerCharacter.h"
 #include "Common/GameData.h"
+#include "CustomGameplayTags.h"
 
 bool UNA_DebugAnimDead::ShouldRegisterTriggerEvent(ETriggerEvent TriggerEvent) const
 {
@@ -21,10 +22,10 @@ void UNA_DebugAnimDead::Started(const FInputActionValue& InputActionValue, ACust
 	if (!AnimationSet)
 		return;
 
-	UAnimMontage* Montage = PlayerCharacter->IsAiming()
-		? AnimationSet->DeathIronsights.Get()
-		: AnimationSet->DeathHip.Get();
+	const FGameplayTag& MontageTag = PlayerCharacter->IsAiming()
+		? CustomGameplayTags::WeaponAnimation_Death_Ironsights
+		: CustomGameplayTags::WeaponAnimation_Death_Hip;
+	UAnimMontage* Montage = AnimationSet->FindMontage(MontageTag);
 	if (IsValid(Montage))
 		PlayerCharacter->PlayMontage(Montage);
 }
-

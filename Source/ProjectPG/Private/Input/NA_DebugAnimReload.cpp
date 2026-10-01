@@ -6,6 +6,7 @@
 #include "Animation/AnimMontage.h"
 #include "Characters/CustomPlayerCharacter.h"
 #include "Common/GameData.h"
+#include "CustomGameplayTags.h"
 
 bool UNA_DebugAnimReload::ShouldRegisterTriggerEvent(ETriggerEvent TriggerEvent) const
 {
@@ -21,9 +22,10 @@ void UNA_DebugAnimReload::Started(const FInputActionValue& InputActionValue, ACu
 	if (!AnimationSet)
 		return;
 
-	UAnimMontage* Montage = PlayerCharacter->IsAiming()
-		? AnimationSet->ReloadIronsights.Get()
-		: AnimationSet->ReloadHip.Get();
+	const FGameplayTag& MontageTag = PlayerCharacter->IsAiming()
+		? CustomGameplayTags::WeaponAnimation_Reload_Ironsights
+		: CustomGameplayTags::WeaponAnimation_Reload_Hip;
+	UAnimMontage* Montage = AnimationSet->FindMontage(MontageTag);
 	if (IsValid(Montage))
 		PlayerCharacter->PlayMontage(Montage);
 }

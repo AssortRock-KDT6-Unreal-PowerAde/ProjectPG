@@ -194,23 +194,11 @@ struct FWeaponAnimationSet
 	TSubclassOf<class UAnimInstance> AnimInstanceClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<class UAnimMontage> FireHip;
+	TMap<FGameplayTag, TObjectPtr<class UAnimMontage>> Montages;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UAnimMontage> FireIronsights;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UAnimMontage> ReloadHip;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UAnimMontage> ReloadIronsights;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UAnimMontage> Equip;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UAnimMontage> DeathHip;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UAnimMontage> DeathIronsights;
+	UAnimMontage* FindMontage(const FGameplayTag& MontageTag) const
+	{
+		const TObjectPtr<UAnimMontage>* Montage = Montages.Find(MontageTag);
+		return Montage ? Montage->Get() : nullptr;
+	}
 };

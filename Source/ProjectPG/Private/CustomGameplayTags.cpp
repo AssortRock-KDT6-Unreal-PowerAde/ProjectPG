@@ -21,4 +21,12 @@ namespace CustomGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Sprinting, "State.Sprinting");
 	UE_DEFINE_GAMEPLAY_TAG(State_UsingStamina, "State.UsingStamina");
 	UE_DEFINE_GAMEPLAY_TAG(State_Jumping, "State.Jumping");
+
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Equip, "WeaponAnimation.Equip");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Fire_Hip, "WeaponAnimation.Fire.Hip");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Fire_Ironsights, "WeaponAnimation.Fire.Ironsights");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Reload_Hip, "WeaponAnimation.Reload.Hip");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Reload_Ironsights, "WeaponAnimation.Reload.Ironsights");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Death_Hip, "WeaponAnimation.Death.Hip");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Death_Ironsights, "WeaponAnimation.Death.Ironsights");
 };
