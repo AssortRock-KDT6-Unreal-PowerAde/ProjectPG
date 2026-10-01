@@ -22,6 +22,13 @@
 // constexpr : 절대 안바뀌는 숫자. 
 // const랑 차이는 빌드할때 이미아는 숫자냐. 게임 도는 도중에 정해지냐 차이. 
 constexpr float DesignCellSize = 2000.0f;
+// 캐릭터가 걸어서 넘을 수 있는 가장 높은 턱(45cm). 이보다 높으면 점프해야 넘는다. 맵 cpp 의 같은 이름 값과 같아야 한다.
+constexpr float MaxTraversableStepCm = 45.0f;
+// 워존 한가운데 큰 공장(창고) 구역이 차지하는 칸 수: 가로 3칸 × 세로 5칸. 맵 cpp 의 같은 이름 값과 같아야 한다.
+const FIntPoint WarZoneCoreFootprint(3, 5);
+// 그 공장 구역의 가운데 칸이 왼쪽 위 칸에서 얼마나 떨어져 있나(가로 1칸, 세로 2칸).
+const FIntPoint WarZoneCoreCentreOffset(
+	(WarZoneCoreFootprint.X - 1) / 2, (WarZoneCoreFootprint.Y - 1) / 2);
 
 void UMapVerifier::Init(AWarZoneFootprintPreview* InMap)
 {
@@ -802,4 +809,208 @@ void UMapVerifier::VerifyCriticalRoutes()
 		TargetCount - ReachableTargets,
 		TargetCount == ReachableTargets ? TEXT("true") : TEXT("false"),
 		*FString::Join(FailedRoutes, TEXT(",")));
+}
+
+// Traversable(걸어서 넘을 수 있는) Elevation(높이) = "출구까지 가는 길에 못 올라가는 턱이 없나?"
+// 게임에서: 칸끼리는 이어져 있어도, 옆 칸 바닥이 45cm 넘게 높으면 플레이어가 걸어서 못 올라가고 점프해야 한다.
+//           들판 한가운데 그런 턱이 있으면 버그(걷다가 막힘), 큰 건물 둘레의 높은 받침대는 일부러 만든 벽(경사로·계단으로 들어감).
+// 방법: 출구 검사처럼 시작 칸에서 물감을 번지게 하는데, 옆 칸과 바닥 높이 차가 45cm 넘으면 거기서 멈춘다(경사로·계단 자리만 예외).
+void UMapVerifier::VerifyTraversableElevation()
+{
+	// 이미 보고서 썼거나 칸 목록이 비었으면 끝.
+	if (bLoggedTraversableElevation || Map->TileDesignPlacements.IsEmpty())
+		return;
+
+	// 시작 자리(플레이어가 태어나는 곳)를 찾는다. 없으면 출발할 데가 없으니 끝.
+	const FLevelDesignPoint* Spawn = Map->LevelDesignPoints.FindByPredicate(
+		[](const FLevelDesignPoint& Point) { return Point.Type == ELevelDesignPointType::Spawn; });
+	if (Spawn == nullptr)
+		return;
+
+	bLoggedTraversableElevation = true;
+
+	// 출구 검사는 "칸이 이어졌나" 만 보고 높이는 안 본다. 그래서 거기서 "갈 수 있음" 이어도
+	// 캐릭터가 못 넘는 턱에 막힐 수 있다. 이 검사는 같은 칸들을 실제 바닥 높이를 넣고 다시 본다.
+	// VerifyCriticalRoutes answers "is the cell field connected"; it says nothing
+	// about height, so a route it calls reachable can still be walled off by a lip
+	// the character cannot step over. This audit walks the same field with the
+	// authored surface heights applied.
+
+	// 칸마다 바닥 높이 적기(물 칸은 빼고 개수만 센다).
+	TMap<FIntPoint, float> SurfaceByCell;
+	SurfaceByCell.Reserve(Map->TileDesignPlacements.Num());
+	int32 WaterCellCount = 0;
+	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
+	{
+		// 호수 칸은 일부러 못 가게 만든 곳(호숫가가 벽 역할). 걷는 칸으로 치면
+		// 모든 호숫가가 "못 넘는 턱" 으로 잡혀서 맵 전체가 실패로 나온다.
+		// Lake cells are deliberately unreachable - the bank is the Maze barrier the
+		// design calls for. Counting them as walkable would report every shoreline as
+		// an unclimbable lip and mark the whole map unreachable.
+		if (Placement.Visual == ETileDesignVisual::Water)
+		{
+			++WaterCellCount;
+			continue;
+		}
+		SurfaceByCell.Add(Placement.GridCell, Map->GetSurfaceElevationForCell(Placement.GridCell));
+	}
+	// 큰 건물(검문소·은신처·공장 등)이 차지한 칸도 높이를 적고, "건물 칸" 으로 따로 기억해 둔다.
+	TSet<FIntPoint> FacilityCells;
+	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
+	{
+		for (const FIntPoint& Cell : Facility.OccupiedCells)
+		{
+			FacilityCells.Add(Cell);
+			SurfaceByCell.Add(Cell, Map->GetSurfaceElevationForCell(Cell));
+		}
+	}
+
+	// 건물 받침대로 올라가는 차량 경사로·사람 계단 자리 목록.
+	// 경사로·계단은 "건물 안 입구 칸" 과 "바로 바깥 칸" 사이 한 군데에만 있고, 받침대 나머지 가장자리는 일부러 벽이다.
+	// 지형을 만든 함수(GetFacilityAccessEdges)와 같은 목록을 써야 검사와 실제가 어긋나지 않는다.
+	// Each vehicle ramp and infantry stair bridges exactly one cell edge: an entrance
+	// cell inside the footprint and the cell just outside it. Every other pad edge is
+	// a deliberate wall. Read the access points from the same helper the terrain
+	// builder uses so the audit cannot drift out of step with what was built.
+	TArray<TPair<FIntPoint, FIntPoint>> RampBridgedEdges;
+	TArray<TPair<FIntPoint, FIntPoint>> AccessEdges;
+	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
+	{
+		Map->GetFacilityAccessEdges(Facility, AccessEdges);
+		for (const TPair<FIntPoint, FIntPoint>& AccessEdge : AccessEdges)
+		{
+			const FIntPoint OutsideCell = AccessEdge.Key + AccessEdge.Value;
+			RampBridgedEdges.Emplace(AccessEdge.Key, OutsideCell);
+			RampBridgedEdges.Emplace(OutsideCell, AccessEdge.Key);
+		}
+	}
+
+	const FIntPoint Directions[] = {
+		FIntPoint(1, 0), FIntPoint(-1, 0), FIntPoint(0, 1), FIntPoint(0, -1)
+	};
+	// "From 칸에서 옆 To 칸으로 걸어서 넘어갈 수 있나?" 판정기.
+	// 두 칸 높이 차가 45cm 이하면 OK, 아니면 그 자리에 경사로·계단이 있을 때만 OK.
+	auto IsTraversableEdge = [&SurfaceByCell, &RampBridgedEdges](
+		const FIntPoint& From, const FIntPoint& To)
+	{
+		const float* FromZ = SurfaceByCell.Find(From);
+		const float* ToZ = SurfaceByCell.Find(To);
+		if (FromZ == nullptr || ToZ == nullptr)
+			return false;
+		if (FMath::Abs(*ToZ - *FromZ) <= MaxTraversableStepCm)
+			return true;
+		return RampBridgedEdges.Contains(TPair<FIntPoint, FIntPoint>(From, To));
+	};
+
+	// 못 넘는 턱 세기: 건물 받침대 쪽(일부러 만든 벽)과 들판 한가운데(항상 버그)로 나눠서 센다.
+	// 들판 쪽은 가장 높은 턱과 그 칸도 기억해 둔다.
+	// Census of unclimbable risers, split by whether they belong to a facility pad
+	// (intended, and ramped) or sit out on open ground (always a defect).
+	int32 OpenGroundHardEdges = 0;
+	int32 FacilityWallEdges = 0;
+	float WorstOpenGroundStepCm = 0.0f;
+	FIntPoint WorstOpenGroundCell = FIntPoint::ZeroValue;
+	for (const TPair<FIntPoint, float>& Entry : SurfaceByCell)
+	{
+		for (const FIntPoint& Direction : Directions)
+		{
+			const float* NeighborZ = SurfaceByCell.Find(Entry.Key + Direction);
+			if (NeighborZ == nullptr)
+				continue;
+			const float StepCm = FMath::Abs(*NeighborZ - Entry.Value);
+			if (StepCm <= MaxTraversableStepCm)
+				continue;
+			if (FacilityCells.Contains(Entry.Key) || FacilityCells.Contains(Entry.Key + Direction))
+			{
+				++FacilityWallEdges;
+				continue;
+			}
+			++OpenGroundHardEdges;
+			if (StepCm > WorstOpenGroundStepCm)
+			{
+				WorstOpenGroundStepCm = StepCm;
+				WorstOpenGroundCell = Entry.Key;
+			}
+		}
+	}
+
+	// 시작 칸부터 물감 번지기 — 이번엔 위 판정기(IsTraversableEdge)가 OK 인 옆 칸으로만 번진다.
+	TSet<FIntPoint> Visited;
+	TQueue<FIntPoint> Queue;
+	Queue.Enqueue(Spawn->GridCell);
+	Visited.Add(Spawn->GridCell);
+	FIntPoint Cell;
+	while (Queue.Dequeue(Cell))
+	{
+		for (const FIntPoint& Direction : Directions)
+		{
+			const FIntPoint Neighbor = Cell + Direction;
+			if (!Visited.Contains(Neighbor) && IsTraversableEdge(Cell, Neighbor))
+			{
+				Visited.Add(Neighbor);
+				Queue.Enqueue(Neighbor);
+			}
+		}
+	}
+
+	// 워존 한가운데 큰 공장 구역(3×5칸)은 이 판의 핵심 목적지라, 따로 이름 붙여 "걸어서 갈 수 있나" 를 적는다.
+	// The WarZone core is the raid's headline destination, so it is reported by name
+	// rather than folded into the facility tally.
+	FIntPoint WarZoneCoreCell = FIntPoint::ZeroValue;
+	bool bHasWarZoneCore = false;
+	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
+	{
+		if (Facility.VisualSet == EFacilityVisualSet::Warehouse
+			&& Facility.Footprint == WarZoneCoreFootprint)
+		{
+			WarZoneCoreCell = Facility.AnchorCell + WarZoneCoreCentreOffset;
+			bHasWarZoneCore = true;
+			break;
+		}
+	}
+	const bool bWarZoneCoreWalkable = bHasWarZoneCore && Visited.Contains(WarZoneCoreCell);
+
+	// 출구 자리들이 물든 칸 안에 있나 — 안 물들었으면 턱에 막혀 그 출구는 못 감.
+	int32 TargetCount = 0;
+	int32 ReachableTargets = 0;
+	TArray<FString> FailedTargets;
+	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
+	{
+		if (Point.Type != ELevelDesignPointType::Exit)
+			continue;
+		++TargetCount;
+		if (Visited.Contains(Point.GridCell)) ++ReachableTargets;
+		else FailedTargets.Add(Point.PointId.ToString());
+	}
+	// 큰 건물마다 차지한 칸 중 하나라도 물들었나 — 아니면 턱에 막혀 그 건물에 못 들어감.
+	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
+	{
+		++TargetCount;
+		const bool bReached = Facility.OccupiedCells.ContainsByPredicate(
+			[&Visited](const FIntPoint& FacilityCell) { return Visited.Contains(FacilityCell); });
+		if (bReached) ++ReachableTargets;
+		else FailedTargets.Add(FString::Printf(TEXT("Facility_%s_%d_%d"),
+			*Facility.FacilityId.ToString(), Facility.AnchorCell.X, Facility.AnchorCell.Y));
+	}
+
+	// 합격 조건: 들판 한가운데 못 넘는 턱 0개 + (공장 구역이 있으면) 걸어서 갈 수 있음 + 출구·건물 전부 갈 수 있음.
+	const bool bPass = OpenGroundHardEdges == 0
+		&& (!bHasWarZoneCore || bWarZoneCoreWalkable)
+		&& TargetCount == ReachableTargets;
+	UE_LOG(LogTemp, Display,
+		TEXT("Ground step continuity: max_step_cm=%.0f water_cells_excluded=%d cells=%d open_ground_hard_edges=%d ")
+		TEXT("worst_open_step_cm=%.0f worst_open_cell=(%d,%d) facility_wall_edges=%d ")
+		TEXT("step_aware_reachable=%d/%d warzone_core=%s targets=%d failures=%d pass=%s sample=[%s]"),
+		MaxTraversableStepCm,
+		WaterCellCount,
+		SurfaceByCell.Num(),
+		OpenGroundHardEdges,
+		WorstOpenGroundStepCm,
+		WorstOpenGroundCell.X, WorstOpenGroundCell.Y,
+		FacilityWallEdges,
+		Visited.Num(), SurfaceByCell.Num(),
+		bHasWarZoneCore ? (bWarZoneCoreWalkable ? TEXT("reachable") : TEXT("blocked")) : TEXT("absent"),
+		TargetCount, TargetCount - ReachableTargets,
+		bPass ? TEXT("true") : TEXT("false"),
+		*FString::Join(FailedTargets, TEXT(",")));
 }

@@ -249,7 +249,6 @@ private:
 	void RebuildGameplayPointHash();
 	void BuildPCGDressingGraph();
 	void VerifyLocalPerformance(float DeltaSeconds);
-	void VerifyTraversableElevation();
 	void VerifyCoplanarSurfaces();
 	void RefreshNavigationBlockerRegion(
 		UTacticalTileNavModifierComponent* Modifier,
@@ -519,7 +518,6 @@ private:
 	bool bLoggedAllFacilityDesignLevelsLoaded = false;
 	bool bResolvedGameplayPointSafety = false;
 	bool bLoggedMissingWarZoneFootprint = false;
-	bool bLoggedTraversableElevation = false;
 	bool bLoggedCoplanarSurfaces = false;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
 	int32 PerformanceSampleCount = 0;
