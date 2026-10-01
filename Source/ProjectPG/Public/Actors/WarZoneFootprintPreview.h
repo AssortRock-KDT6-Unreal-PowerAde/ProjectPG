@@ -270,7 +270,6 @@ private:
 	void LoadFacilityDesignLevel(const FFacilityPlacement& Placement, int32 PlacementIndex);
 	void BuildBorderMountains();
 	bool AreAllFacilityLevelsLoaded() const;
-	void VerifyDesignLevelSeparation();
 	void ReserveFacility(
 		EFacilityVisualSet VisualSet,
 		const FIntPoint& Anchor,
@@ -521,7 +520,6 @@ private:
 
 	TSet<int32> LoggedFacilityDesignLevelIndices;
 	bool bLoggedAllFacilityDesignLevelsLoaded = false;
-	bool bLoggedDesignLevelSeparation = false;
 	bool bLoggedWorldCollision = false;
 	bool bLoggedNavigation = false;
 	bool bLoggedTacticalLayoutQuality = false;

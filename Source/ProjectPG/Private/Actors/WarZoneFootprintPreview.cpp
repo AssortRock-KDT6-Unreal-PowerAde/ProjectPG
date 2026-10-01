@@ -674,7 +674,7 @@ void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 			LoadedLevelCount);
 	}
 
-	VerifyDesignLevelSeparation();
+	Verifier->VerifyDesignLevelSeparation();
 	Verifier->VerifyWorldCollision();
 	ResolveGameplayPointSafety();
 	VerifyTacticalLayoutQuality();
@@ -5634,92 +5634,6 @@ bool AWarZoneFootprintPreview::AreAllFacilityLevelsLoaded() const
 		if (!IsValid(Instance) || !Instance->IsLevelLoaded() || !Instance->IsLevelVisible())
 			return false;
 	return true;
-}
-
-void AWarZoneFootprintPreview::VerifyDesignLevelSeparation()
-{
-	if (bLoggedDesignLevelSeparation || !AreAllFacilityLevelsLoaded())
-	{
-		return;
-	}
-
-	auto GetLoadedLevelBounds = [](const ULevel* Level)
-	{
-		FBox Bounds(EForceInit::ForceInit);
-		if (!IsValid(Level))
-			return Bounds;
-
-		for (const AActor* Actor : Level->Actors)
-		{
-			if (!IsValid(Actor) || Actor->IsHidden())
-				continue;
-
-			TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
-			Actor->GetComponents(PrimitiveComponents);
-			for (const UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
-			{
-				if (IsValid(PrimitiveComponent)
-					&& PrimitiveComponent->IsRegistered()
-					&& PrimitiveComponent->IsVisible())
-				{
-					Bounds += PrimitiveComponent->Bounds.GetBox();
-				}
-			}
-		}
-		return Bounds;
-	};
-
-	TArray<FBox> BoundsByFacility;
-	if (bUseRuntimeBlueprintTiles)
-	{
-		for (const AActor* SpawnedActor : SpawnedRuntimeTiles)
-		{
-			if (!IsValid(SpawnedActor)
-				|| !SpawnedActor->Tags.Contains(TEXT("RuntimeTacticalFacility")))
-			{
-				continue;
-			}
-			const FBox Bounds = SpawnedActor->GetComponentsBoundingBox(true);
-			if (Bounds.IsValid)
-				BoundsByFacility.Add(Bounds);
-		}
-	}
-	else
-	{
-		for (const ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
-		{
-			if (IsValid(Instance))
-				BoundsByFacility.Add(GetLoadedLevelBounds(Instance->GetLoadedLevel()));
-		}
-	}
-	int32 OverlapPairs = 0;
-	float MinimumGapCm = 0.0f;
-	bool bMeasuredGap = false;
-	for (int32 A = 0; A < BoundsByFacility.Num(); ++A)
-	{
-		for (int32 B = A + 1; B < BoundsByFacility.Num(); ++B)
-		{
-			if (BoundsByFacility[A].Intersect(BoundsByFacility[B]))
-				++OverlapPairs;
-			const FVector Delta = BoundsByFacility[A].GetCenter() - BoundsByFacility[B].GetCenter();
-			const float PairGapX = FMath::Abs(Delta.X)
-				- BoundsByFacility[A].GetExtent().X - BoundsByFacility[B].GetExtent().X;
-			const float PairGapY = FMath::Abs(Delta.Y)
-				- BoundsByFacility[A].GetExtent().Y - BoundsByFacility[B].GetExtent().Y;
-			// For axis-aligned facility bounds, separation on either axis is enough.
-			// The old radial extent calculation could report a negative gap even when
-			// Intersect() correctly said the facilities did not overlap.
-			const float PairGapCm = FMath::Max(PairGapX, PairGapY);
-			MinimumGapCm = bMeasuredGap ? FMath::Min(MinimumGapCm, PairGapCm) : PairGapCm;
-			bMeasuredGap = true;
-		}
-	}
-
-	bLoggedDesignLevelSeparation = true;
-	UE_LOG(LogTemp, Display,
-		TEXT("Facility visible separation: count=%d overlap_pairs=%d minimum_gap_cm=%.1f pass=%s"),
-		BoundsByFacility.Num(), OverlapPairs, MinimumGapCm,
-		OverlapPairs == 0 ? TEXT("true") : TEXT("false"));
 }
 
 void AWarZoneFootprintPreview::ReserveFacility(

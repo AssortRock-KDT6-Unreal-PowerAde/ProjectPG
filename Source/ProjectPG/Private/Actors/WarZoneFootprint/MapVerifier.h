@@ -38,10 +38,13 @@ public:
 	// 맵 액터(AWarZoneFootprintPreview)의 Tick 이 매 프레임 부른다.
 	// bLoggedPCGDressing 가 true 면 바로 끝낸다. 아니면 true 로 바꾸고 로그를 찍는다.
 	void VerifyPCGDressing();
-	
-	
+	// 칸마다 위에서 아래로 막대기(선)을 꽂아 바닥 구멍 찾기. 
 	void VerifyWorldCollision();
-	
+	// DesignLevel : 따로 만든 시설 조각
+	// Separation : 떨어져 있음
+	// 큰 시설이 서로서로 잘 떨어져 있는가? 
+	// 겹친 짝이 하나라도 있으면 로그에 pass=false라고 뜸
+	void VerifyDesignLevelSeparation();
 	
 	
 private:
@@ -52,5 +55,7 @@ private:
 	// 플래그라는 말로도 씀.
 	// 덤불 검사를 이미 했는지 표시. 로그를 한 번만 찍으려고.
 	bool bLoggedPCGDressing = false;
+	// 시설끼리 겹침 검사 보고서를 이미 썼는지 표시. 로그를 한 번만 찍으려고.
+	bool bLoggedDesignLevelSeparation = false;
 };
 
