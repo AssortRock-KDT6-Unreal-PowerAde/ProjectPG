@@ -686,7 +686,7 @@ void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 	Verifier->VerifyTraversableElevation();
 	Verifier->VerifyCoplanarSurfaces();
 	Verifier->VerifyPCGDressing();
-	VerifyLocalPerformance(DeltaSeconds);
+	Verifier->VerifyLocalPerformance(DeltaSeconds);
 
 	// 지금 조작 중인 플레이어 폰(팀 캐릭터) 주변 60 m 길찾기 차단을 갱신한다.
 	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
@@ -2478,44 +2478,6 @@ void AWarZoneFootprintPreview::BuildLightweightWorldVisuals()
 
 
 
-void AWarZoneFootprintPreview::VerifyLocalPerformance(float DeltaSeconds)
-{
-	if (!bLoggedNavigation || PerformanceSampleCount >= 50)
-		return;
-
-	PerformanceDeltaSecondsTotal += FApp::GetDeltaTime();
-	++PerformanceSampleCount;
-	if (PerformanceSampleCount < 50)
-		return;
-
-	int32 ActorCount = 0;
-	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
-		++ActorCount;
-
-	int32 PCGInstanceCount = 0;
-	TArray<UActorComponent*> DressingInstanceComponents;
-	GetComponents(UInstancedStaticMeshComponent::StaticClass(), DressingInstanceComponents);
-	for (UActorComponent* Component : DressingInstanceComponents)
-	{
-		const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Component);
-		if (IsValid(ISM) && ISM->ComponentTags.Contains(TEXT("PCG_Dressing")))
-			PCGInstanceCount += ISM->GetInstanceCount();
-	}
-
-	const FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
-	const double AverageFrameSeconds = PerformanceDeltaSecondsTotal / PerformanceSampleCount;
-	UE_LOG(LogTemp, Display,
-		TEXT("Local performance: samples=%d avg_frame_ms=%.3f sampled_fps=%.1f actors=%d ground_hism=%d road_hism=%d pcg_instances=%d used_physical_mb=%.1f layout_hash=%08X"),
-		PerformanceSampleCount,
-		AverageFrameSeconds * 1000.0,
-		AverageFrameSeconds > SMALL_NUMBER ? 1.0 / AverageFrameSeconds : 0.0,
-		ActorCount,
-		GroundHISM->GetInstanceCount(),
-		RoadSurfaceHISM->GetInstanceCount(),
-		PCGInstanceCount,
-		MemoryStats.UsedPhysical / (1024.0 * 1024.0),
-		LayoutHash);
-}
 
 void AWarZoneFootprintPreview::BuildTileDesignPlacements(
 	const TMap<FIntPoint, AMapTile*>& TileByCell)
