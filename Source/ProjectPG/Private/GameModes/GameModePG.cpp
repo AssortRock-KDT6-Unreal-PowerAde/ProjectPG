@@ -2,7 +2,7 @@
 
 
 #include "GameModes/GameModePG.h"
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 #include "Actors/MapTile.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
@@ -20,7 +20,7 @@ void AGameModePG::BeginPlay()
 	Super::BeginPlay();
 	_mapGenerator->Generate();
 	
-	// 논리용 빨간 타일은 숨기고, 보이는 맵은 WarZoneFootprintPreview 가 그린다.
+	// 논리용 빨간 타일은 숨기고, 보이는 맵은 MapBuilder 가 그린다.
 	for (TActorIterator<AMapTile> It(GetWorld()); It; ++It)
 	{
 		It->SetActorHiddenInGame(true);    // 안 보이게 해라 → true
@@ -28,15 +28,15 @@ void AGameModePG::BeginPlay()
 		It->SetActorTickEnabled(false);    // 매 프레임 업데이트 켜기 → false = 끄기
 	}
 
-	// 레벨에 Preview 가 없으면 하나 만든다. 이미 있으면 중복으로 만들지 않는다.
+	// 레벨에 MapBuilder 가 없으면 하나 만든다. 이미 있으면 중복으로 만들지 않는다.
 	if (IsValid(GetWorld())                        // 월드가 있고
 		&& !IsValid(                               // 그리고 못 찾았으면
 			UGameplayStatics::GetActorOfClass(     //   "이 종류 액터 하나 찾아줘"
 				this,                              //   나(GameMode)가 있는 월드에서
-				AWarZoneFootprintPreview::StaticClass())))  //   찾을 종류 = Preview
+				AMapBuilder::StaticClass())))  //   찾을 종류 = MapBuilder
 	{
-		GetWorld()->SpawnActor<AWarZoneFootprintPreview>(   // 새로 만들어라
-			AWarZoneFootprintPreview::StaticClass(),        // 이 종류로
+		GetWorld()->SpawnActor<AMapBuilder>(   // 새로 만들어라
+			AMapBuilder::StaticClass(),        // 이 종류로
 			FVector::ZeroVector,                            // 위치 (0,0,0)
 			FRotator::ZeroRotator);                         // 회전 0
 	}

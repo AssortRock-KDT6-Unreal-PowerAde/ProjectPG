@@ -1,7 +1,7 @@
-﻿#include "Actors/WarZoneFootprint/MapGroundBuilder.h"
+﻿#include "Actors/MapBuilder/MapGroundBuilder.h"
 
-#include "Actors/WarZoneFootprint/MapBuildShared.h"
-#include "Actors/WarZoneFootprint/MapAssetSet.h"
+#include "Actors/MapBuilder/MapBuildShared.h"
+#include "Actors/MapBuilder/MapAssetSet.h"
 #include "Actors/TacticalTileActor.h"
 #include "Actors/TacticalTileRoadStraight.h"
 #include "Actors/ProceduralFacilityActor.h"
@@ -45,7 +45,7 @@
 
 using namespace MapBuild;
 
-void UMapGroundBuilder::Init(AWarZoneFootprintPreview* InMap)
+void UMapGroundBuilder::Init(AMapBuilder* InMap)
 {
 	Map = InMap;
 }

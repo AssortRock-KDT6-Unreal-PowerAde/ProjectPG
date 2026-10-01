@@ -1,7 +1,7 @@
-﻿#include "Actors/WarZoneFootprint/MapFacilityPlanner.h"
+﻿#include "Actors/MapBuilder/MapFacilityPlanner.h"
 
-#include "Actors/WarZoneFootprint/MapBuildShared.h"
-#include "Actors/WarZoneFootprint/MapAssetSet.h"
+#include "Actors/MapBuilder/MapBuildShared.h"
+#include "Actors/MapBuilder/MapAssetSet.h"
 #include "Actors/MapTile.h"
 #include "GameModes/GameModePG.h"
 #include "Engine/World.h"
@@ -9,7 +9,7 @@
 // 맵 cpp 와 같은 도우미(호수 위치, 시설 레벨 경로, 태그)를 이름 상자째로 쓴다.
 using namespace MapBuild;
 
-void UMapFacilityPlanner::Init(AWarZoneFootprintPreview* InMap)
+void UMapFacilityPlanner::Init(AMapBuilder* InMap)
 {
 	Map = InMap;
 }

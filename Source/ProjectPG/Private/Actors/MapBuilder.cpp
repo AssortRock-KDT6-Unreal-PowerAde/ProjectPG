@@ -1,6 +1,6 @@
 ﻿// Visual layer for the procedural map: turns the logical AMapTile grid into tiles, facilities and the border lake.
 
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 #include "Actors/TacticalTileActor.h"
 #include "Actors/TacticalTileRoadStraight.h"
 #include "Actors/ProceduralFacilityActor.h"
@@ -42,19 +42,19 @@
 #include "TimerManager.h"
 #include "HAL/PlatformMemory.h"
 #include "Materials/MaterialInterface.h"
-#include "Actors/WarZoneFootprint/MapVerifier.h"
+#include "Actors/MapBuilder/MapVerifier.h"
 // 같이 쓰는 숫자·경로·작은 계산은 MapBuildShared.h 한 곳에 있다(일꾼들도 같은 것을 본다).
-#include "Actors/WarZoneFootprint/MapBuildShared.h"
-#include "Actors/WarZoneFootprint/MapAssetSet.h"
-#include "Actors/WarZoneFootprint/MapFacilityPlanner.h"
-#include "Actors/WarZoneFootprint/MapTilePlanner.h"
-#include "Actors/WarZoneFootprint/MapRoadPlanner.h"
-#include "Actors/WarZoneFootprint/MapTileSpawner.h"
-#include "Actors/WarZoneFootprint/MapGroundBuilder.h"
+#include "Actors/MapBuilder/MapBuildShared.h"
+#include "Actors/MapBuilder/MapAssetSet.h"
+#include "Actors/MapBuilder/MapFacilityPlanner.h"
+#include "Actors/MapBuilder/MapTilePlanner.h"
+#include "Actors/MapBuilder/MapRoadPlanner.h"
+#include "Actors/MapBuilder/MapTileSpawner.h"
+#include "Actors/MapBuilder/MapGroundBuilder.h"
 using namespace MapBuild;
 
 
-AWarZoneFootprintPreview::AWarZoneFootprintPreview()
+AMapBuilder::AMapBuilder()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickInterval = 0.1f;
@@ -239,7 +239,7 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 
 // 보이는 것 목록 읽기. 처음 부를 때 DA_MapAssets 를 불러 두고, 없으면 C++ 기본값(예전 경로)을 쓴다.
 // 게임에서: 팀원이 DA_MapAssets 에서 숲 타일을 바꾸면 다음 판부터 그 숲이 깔린다(코드·빌드 필요 없음).
-const UMapAssetSet& AWarZoneFootprintPreview::GetMapAssets()
+const UMapAssetSet& AMapBuilder::GetMapAssets()
 {
 	if (!LoadedMapAssets)
 	{
@@ -254,7 +254,7 @@ const UMapAssetSet& AWarZoneFootprintPreview::GetMapAssets()
 
 // 그릇에 메시·머티리얼 끼우기. 예전엔 생성자에서 경로 글자로 끼웠다.
 // 그릇들은 Movable 이라 판 중에도 바꿀 수 있다. 칸이 비어 있으면(못 불러오면) 그 그릇은 건드리지 않는다.
-void AWarZoneFootprintPreview::ApplyMapAssets()
+void AMapBuilder::ApplyMapAssets()
 {
 	const UMapAssetSet& Assets = GetMapAssets();
 	auto SetMesh = [](UStaticMeshComponent* Component, const TSoftObjectPtr<UStaticMesh>& Mesh)
@@ -293,7 +293,7 @@ void AWarZoneFootprintPreview::ApplyMapAssets()
 	}
 }
 
-void AWarZoneFootprintPreview::BeginPlay()
+void AMapBuilder::BeginPlay()
 {
 	Super::BeginPlay();
 	// 땅판·산·돌·풀 그릇에 DA_MapAssets 의 메시·머티리얼을 먼저 끼운다(타일을 세우기 전에).
@@ -343,13 +343,13 @@ void AWarZoneFootprintPreview::BeginPlay()
 	GetWorldTimerManager().SetTimer(
 		RetryTimer,
 		this,
-		&AWarZoneFootprintPreview::TryReserveFootprint,
+		&AMapBuilder::TryReserveFootprint,
 		0.2f,
 		true,
 		0.2f);
 }
 
-void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
+void AMapBuilder::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
@@ -428,7 +428,7 @@ void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 	}
 }
 
-void AWarZoneFootprintPreview::TryReserveFootprint()
+void AMapBuilder::TryReserveFootprint()
 {
 	TArray<AMapTile*> AllTiles;
 	TArray<float> UniqueX;
@@ -547,7 +547,7 @@ void AWarZoneFootprintPreview::TryReserveFootprint()
 		FacilityPlanner->FoundCheckpoint() ? TEXT("true") : TEXT("false"), GridStep);
 }
 
-void AWarZoneFootprintPreview::BuildGameplayPointMarkers()
+void AMapBuilder::BuildGameplayPointMarkers()
 {
 	LevelDesignPoints.Reset();
 	TMap<ELevelDesignPointType, int32> Counts;
@@ -899,7 +899,7 @@ void AWarZoneFootprintPreview::BuildGameplayPointMarkers()
 		GameplayPointHash);
 }
 
-void AWarZoneFootprintPreview::RebuildGameplayPointHash()
+void AMapBuilder::RebuildGameplayPointHash()
 {
 	GameplayPointHash = 0;
 	for (const FLevelDesignPoint& Point : LevelDesignPoints)
@@ -920,7 +920,7 @@ void AWarZoneFootprintPreview::RebuildGameplayPointHash()
 	}
 }
 
-void AWarZoneFootprintPreview::ResolveGameplayPointSafety()
+void AMapBuilder::ResolveGameplayPointSafety()
 {
 	if (bResolvedGameplayPointSafety || !AreAllFacilityLevelsLoaded() || LevelDesignPoints.IsEmpty())
 		return;
@@ -1035,7 +1035,7 @@ void AWarZoneFootprintPreview::ResolveGameplayPointSafety()
 
 
 
-void AWarZoneFootprintPreview::BuildShoreTransitionMap(
+void AMapBuilder::BuildShoreTransitionMap(
 	const TSet<FIntPoint>& LakeCells,
 	TMap<FIntPoint, TPair<int32, int32>>& OutShoreTileByCell) const
 {
@@ -1121,7 +1121,7 @@ void AWarZoneFootprintPreview::BuildShoreTransitionMap(
 
 
 
-float AWarZoneFootprintPreview::GetSurfaceElevationForCell(const FIntPoint& Cell) const
+float AMapBuilder::GetSurfaceElevationForCell(const FIntPoint& Cell) const
 {
 	for (const FFacilityPlacement& Placement : FacilityPlacements)
 	{
@@ -1144,7 +1144,7 @@ float AWarZoneFootprintPreview::GetSurfaceElevationForCell(const FIntPoint& Cell
 	return BaseGroundSurfaceZ;
 }
 
-void AWarZoneFootprintPreview::GetFacilityAccessEdges(
+void AMapBuilder::GetFacilityAccessEdges(
 	const FFacilityPlacement& Placement,
 	TArray<TPair<FIntPoint, FIntPoint>>& OutAccessEdges) const
 {
@@ -1195,7 +1195,7 @@ void AWarZoneFootprintPreview::GetFacilityAccessEdges(
 	}
 }
 
-bool AWarZoneFootprintPreview::AreAllFacilityLevelsLoaded() const
+bool AMapBuilder::AreAllFacilityLevelsLoaded() const
 {
 	if (FacilityPlacements.IsEmpty())
 		return false;
@@ -1224,7 +1224,7 @@ bool AWarZoneFootprintPreview::AreAllFacilityLevelsLoaded() const
 	return true;
 }
 
-FVector AWarZoneFootprintPreview::GetDesignFootprintCenter(
+FVector AMapBuilder::GetDesignFootprintCenter(
 	const FFacilityPlacement& Placement) const
 {
 	if (Placement.OccupiedCells.IsEmpty())

@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 #include "MapRoadPlanner.generated.h"
 
 // 흙길 담당.
@@ -14,7 +14,7 @@ class UMapRoadPlanner : public UObject
 {
 	GENERATED_BODY()
 public:
-	void Init(AWarZoneFootprintPreview* InMap);
+	void Init(AMapBuilder* InMap);
 	virtual UWorld* GetWorld() const override;
 
 	// 흙길 칸 정하기. 입력: 칸 쪽지, 줄 세운 칸 목록, 이미 건물·언덕이 차지한 칸, 판 시드.
@@ -29,5 +29,5 @@ public:
 
 private:
 	UPROPERTY()
-	TObjectPtr<AWarZoneFootprintPreview> Map;
+	TObjectPtr<AMapBuilder> Map;
 };

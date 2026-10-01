@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 #include "MapTilePlanner.generated.h"
 
 // 칸 모양 담당.
@@ -14,7 +14,7 @@ class UMapTilePlanner : public UObject
 {
 	GENERATED_BODY()
 public:
-	void Init(AWarZoneFootprintPreview* InMap);
+	void Init(AMapBuilder* InMap);
 	virtual UWorld* GetWorld() const override;
 
 	// 칸 설계 카드 전부 만들기. 건물 자리(FacilityPlacements)가 먼저 정해져 있어야 한다.
@@ -22,5 +22,5 @@ public:
 
 private:
 	UPROPERTY()
-	TObjectPtr<AWarZoneFootprintPreview> Map;
+	TObjectPtr<AMapBuilder> Map;
 };

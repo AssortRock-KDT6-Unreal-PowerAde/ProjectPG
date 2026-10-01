@@ -9,7 +9,7 @@
 #include "CoreMinimal.h"
 #include "UObject/SoftObjectPath.h"
 #include "Actors/MapTile.h"
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 
 namespace MapBuild
 {

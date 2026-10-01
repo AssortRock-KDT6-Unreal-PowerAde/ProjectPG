@@ -44,7 +44,7 @@ const FIntPoint WarZoneCoreCentreOffset(
 }
 
 
-void UMapVerifier::Init(AWarZoneFootprintPreview* InMap)
+void UMapVerifier::Init(AMapBuilder* InMap)
 {
 	
 	Map=InMap;

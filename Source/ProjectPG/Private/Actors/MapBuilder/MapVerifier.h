@@ -4,7 +4,7 @@
 #include "CoreMinimal.h"
 // public UObeject 쓰려고.
 #include "UObject/Object.h"
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 // Generated_body쓰려고.
 #include "MapVerifier.generated.h"
 
@@ -25,7 +25,7 @@ public:
 	// 받는 주소 어디에? 검사함수들이 계속 써야해서 맴버 변수 Map에 적어둔다.
 	// Init : 처음 채워넣기
 	// InMap : 밖에서 들어온 값. 언리얼 습관
-	void Init(AWarZoneFootprintPreview* InMap);
+	void Init(AMapBuilder* InMap);
 	// 부모소속 함수. 그걸 바꿔써야함
 	// UBobject에 이미 있는데 자기가 어느 월드에 있는지 모름
 	// 검사기 선쏘기, 길찾기 확인 같은일에 월드가 필요. 
@@ -35,7 +35,7 @@ public:
 	virtual UWorld* GetWorld()const override;
 	// PCG뿌리는 기계.
 	// DressingPCGComponent 맵 액터에 달린 풀 뿌리는 기계.
-	// 맵 액터(AWarZoneFootprintPreview)의 Tick 이 매 프레임 부른다.
+	// 맵 액터(AMapBuilder)의 Tick 이 매 프레임 부른다.
 	// bLoggedPCGDressing 가 true 면 바로 끝낸다. 아니면 true 로 바꾸고 로그를 찍는다.
 	void VerifyPCGDressing();
 	// 칸마다 위에서 아래로 막대기(선)을 꽂아 바닥 구멍 찾기. 
@@ -73,7 +73,7 @@ public:
 private:
 	// 언리얼 한테 포인터 관리해달라.
 	UPROPERTY()
-	TObjectPtr<AWarZoneFootprintPreview> Map;	
+	TObjectPtr<AMapBuilder> Map;	
 	
 	// 플래그라는 말로도 씀.
 	// 덤불 검사를 이미 했는지 표시. 로그를 한 번만 찍으려고.

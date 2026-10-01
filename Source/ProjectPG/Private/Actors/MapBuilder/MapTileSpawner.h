@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 #include "MapTileSpawner.generated.h"
 
 // 공사 담당.
@@ -15,7 +15,7 @@ class UMapTileSpawner : public UObject
 {
 	GENERATED_BODY()
 public:
-	void Init(AWarZoneFootprintPreview* InMap);
+	void Init(AMapBuilder* InMap);
 	virtual UWorld* GetWorld() const override;
 
 	// 타일·건물 전부 세우기. 판 시작 때 한 번.
@@ -34,5 +34,5 @@ private:
 
 private:
 	UPROPERTY()
-	TObjectPtr<AWarZoneFootprintPreview> Map;
+	TObjectPtr<AMapBuilder> Map;
 };

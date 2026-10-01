@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 #include "MapGroundBuilder.generated.h"
 
 // 바닥 담당.
@@ -15,7 +15,7 @@ class UMapGroundBuilder : public UObject
 {
 	GENERATED_BODY()
 public:
-	void Init(AWarZoneFootprintPreview* InMap);
+	void Init(AMapBuilder* InMap);
 	virtual UWorld* GetWorld() const override;
 
 	// 땅판·도로 판·호수를 깐다. 게임에서: 걸어 다니는 바닥과 호수.
@@ -27,5 +27,5 @@ public:
 
 private:
 	UPROPERTY()
-	TObjectPtr<AWarZoneFootprintPreview> Map;
+	TObjectPtr<AMapBuilder> Map;
 };

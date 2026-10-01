@@ -1,12 +1,12 @@
-﻿#include "Actors/WarZoneFootprint/MapRoadPlanner.h"
+﻿#include "Actors/MapBuilder/MapRoadPlanner.h"
 
-#include "Actors/WarZoneFootprint/MapBuildShared.h"
+#include "Actors/MapBuilder/MapBuildShared.h"
 #include "Actors/MapTile.h"
 #include "Engine/World.h"
 
 using namespace MapBuild;
 
-void UMapRoadPlanner::Init(AWarZoneFootprintPreview* InMap)
+void UMapRoadPlanner::Init(AMapBuilder* InMap)
 {
 	Map = InMap;
 }

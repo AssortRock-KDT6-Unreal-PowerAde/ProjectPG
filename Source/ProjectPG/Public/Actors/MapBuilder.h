@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 // 처음엔 시설 자리 미리보기로 만들어짐
-#include "WarZoneFootprintPreview.generated.h"
+#include "MapBuilder.generated.h"
 
 class AMapTile;
 class ANavigationData;
@@ -210,12 +210,12 @@ struct FFacilityPlacement
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLevelDesignPointsBuilt, const TArray<FLevelDesignPoint>&);
 
 UCLASS()
-class PROJECTPG_API AWarZoneFootprintPreview : public AActor
+class PROJECTPG_API AMapBuilder : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	AWarZoneFootprintPreview();
+	AMapBuilder();
 
 	// 데이터 전용 계약. 스폰·루팅 시스템이 읽기만 한다.
 	const TArray<FLevelDesignPoint>& GetLevelDesignPoints() const { return LevelDesignPoints; }

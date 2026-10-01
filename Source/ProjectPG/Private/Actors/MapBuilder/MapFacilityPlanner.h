@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include "Actors/WarZoneFootprintPreview.h"
+#include "Actors/MapBuilder.h"
 #include "MapFacilityPlanner.generated.h"
 
 // 건물 자리 담당.
@@ -16,7 +16,7 @@ class UMapFacilityPlanner : public UObject
 	GENERATED_BODY()
 public:
 	// 맵 주소를 받아 둔다. 맵 BeginPlay 에서 만들자마자 부른다.
-	void Init(AWarZoneFootprintPreview* InMap);
+	void Init(AMapBuilder* InMap);
 	// 레벨에 시드 묻기(GameMode)에 월드가 필요 → 맵 액터의 월드를 빌려 쓴다.
 	virtual UWorld* GetWorld() const override;
 
@@ -42,7 +42,7 @@ private:
 		const TMap<FIntPoint, AMapTile*>& TileByCell);
 
 	UPROPERTY()
-	TObjectPtr<AWarZoneFootprintPreview> Map;
+	TObjectPtr<AMapBuilder> Map;
 
 	// "워존이 작아서 못 지음" 에러를 한 번만 찍으려는 스티커. 이 일꾼만 읽는다.
 	bool bLoggedMissingWarZoneFootprint = false;

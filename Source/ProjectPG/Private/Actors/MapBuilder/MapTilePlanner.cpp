@@ -1,7 +1,7 @@
-﻿#include "Actors/WarZoneFootprint/MapTilePlanner.h"
+﻿#include "Actors/MapBuilder/MapTilePlanner.h"
 
-#include "Actors/WarZoneFootprint/MapBuildShared.h"
-#include "Actors/WarZoneFootprint/MapRoadPlanner.h"
+#include "Actors/MapBuilder/MapBuildShared.h"
+#include "Actors/MapBuilder/MapRoadPlanner.h"
 #include "Actors/MapTile.h"
 #include "GameModes/GameModePG.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
@@ -9,7 +9,7 @@
 
 using namespace MapBuild;
 
-void UMapTilePlanner::Init(AWarZoneFootprintPreview* InMap)
+void UMapTilePlanner::Init(AMapBuilder* InMap)
 {
 	Map = InMap;
 }
