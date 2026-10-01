@@ -65,18 +65,6 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 	// well so PIE does not reject the attachment before Recast can consume it.
 	SceneRoot->SetMobility(EComponentMobility::Static);
 
-	FloorProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FloorProxy"));
-	BackWallProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BackWallProxy"));
-	LeftWallProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LeftWallProxy"));
-	RightWallProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RightWallProxy"));
-	FrontWallLeftProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FrontWallLeftProxy"));
-	FrontWallRightProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FrontWallRightProxy"));
-	RoofProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RoofProxy"));
-	YardFloorProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("YardFloorProxy"));
-	YardCoverNorthProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("YardCoverNorthProxy"));
-	YardCoverSouthProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("YardCoverSouthProxy"));
-	YardCoverWestProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("YardCoverWestProxy"));
-	YardCoverEastProxy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("YardCoverEastProxy"));
 	GroundHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("GroundHISM"));
 	WarZoneGroundHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("WarZoneGroundHISM"));
 	TransitionGroundHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("TransitionGroundHISM"));
@@ -95,22 +83,6 @@ AWarZoneFootprintPreview::AWarZoneFootprintPreview()
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(
 		TEXT("/Script/Engine.StaticMesh'/Engine/BasicShapes/Cube.Cube'"));
-	UStaticMeshComponent* ProxyComponents[] = {
-		FloorProxy, BackWallProxy, LeftWallProxy, RightWallProxy,
-		FrontWallLeftProxy, FrontWallRightProxy, RoofProxy,
-		YardFloorProxy, YardCoverNorthProxy, YardCoverSouthProxy,
-		YardCoverWestProxy, YardCoverEastProxy
-	};
-
-	for (UStaticMeshComponent* Component : ProxyComponents)
-	{
-		Component->SetupAttachment(SceneRoot);
-		Component->SetStaticMesh(CubeMesh.Object);
-		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Component->SetGenerateOverlapEvents(false);
-		Component->SetVisibility(false);
-		Component->SetMobility(EComponentMobility::Movable);
-	}
 
 	UHierarchicalInstancedStaticMeshComponent* WorldComponents[] = {
 		GroundHISM, WarZoneGroundHISM, TransitionGroundHISM, RoadSurfaceHISM,
@@ -357,23 +329,6 @@ void AWarZoneFootprintPreview::BeginPlay()
 void AWarZoneFootprintPreview::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	bool bAnyGameWorldRunning = false;
-	if (IsValid(GEngine))
-	{
-		for (const FWorldContext& Context : GEngine->GetWorldContexts())
-		{
-			if (Context.WorldType == EWorldType::PIE || Context.WorldType == EWorldType::Game)
-			{
-				bAnyGameWorldRunning = true;
-				break;
-			}
-		}
-	}
-	if (!bAnyGameWorldRunning && IsValid(GetWorld()) && !GetWorld()->IsGameWorld())
-	{
-		DrawReservation();
-		DrawDesignScalePreview();
-	}
 
 	for (int32 Index = 0; Index < FacilityDesignLevelInstances.Num(); ++Index)
 	{
@@ -533,25 +488,6 @@ void AWarZoneFootprintPreview::TryReserveFootprint()
 
 	Tags.AddUnique(ReservedTag);
 	Tags.AddUnique(TEXT("FacilityPlacementPreview"));
-	if (!bUseRuntimeBlueprintTiles)
-	{
-		ShowWarehouseProxy(GetFootprintCenter(FacilityPlacements[0]));
-		ShowYardProxy(GetFootprintCenter(FacilityPlacements[1]));
-	}
-	else
-	{
-		UStaticMeshComponent* ProxyComponents[] = {
-			FloorProxy, BackWallProxy, LeftWallProxy, RightWallProxy,
-			FrontWallLeftProxy, FrontWallRightProxy, RoofProxy,
-			YardFloorProxy, YardCoverNorthProxy, YardCoverSouthProxy,
-			YardCoverWestProxy, YardCoverEastProxy
-		};
-		for (UStaticMeshComponent* Component : ProxyComponents)
-		{
-			if (IsValid(Component))
-				Component->SetVisibility(false, true);
-		}
-	}
 	GroundBuilder->BuildLightweightWorldVisuals();
 	TileSpawner->SpawnRuntimeBlueprintTiles();
 	BuildGameplayPointMarkers();
@@ -1265,20 +1201,6 @@ bool AWarZoneFootprintPreview::AreAllFacilityLevelsLoaded() const
 	return true;
 }
 
-FVector AWarZoneFootprintPreview::GetFootprintCenter(const FFacilityPlacement& Placement) const
-{
-	if (Placement.OccupiedCells.IsEmpty())
-		return FVector::ZeroVector;
-
-	FVector Center = FVector::ZeroVector;
-	for (const FIntPoint& Cell : Placement.OccupiedCells)
-	{
-		Center.X += Cell.X * GridStep;
-		Center.Y += Cell.Y * GridStep;
-	}
-	return Center / Placement.OccupiedCells.Num();
-}
-
 FVector AWarZoneFootprintPreview::GetDesignFootprintCenter(
 	const FFacilityPlacement& Placement) const
 {
@@ -1301,190 +1223,3 @@ FVector AWarZoneFootprintPreview::GetDesignFootprintCenter(
 	return Center;
 }
 
-void AWarZoneFootprintPreview::ConfigureProxyMesh(
-	UStaticMeshComponent* Component,
-	const FVector& RelativeLocation,
-	const FVector& Size)
-{
-	if (!IsValid(Component))
-		return;
-
-	Component->SetRelativeLocation(RelativeLocation);
-	Component->SetRelativeScale3D(Size / 100.0f);
-	Component->SetVisibility(true);
-}
-
-void AWarZoneFootprintPreview::ShowWarehouseProxy(const FVector& FootprintCenter)
-{
-	const float FootprintSize = GridStep * 1.8f;
-	const float HalfSize = FootprintSize * 0.5f;
-	const float WallThickness = GridStep * 0.12f;
-	const float WallHeight = GridStep * 1.0f;
-	const float FloorThickness = GridStep * 0.12f;
-	const float DoorWidth = GridStep * 0.65f;
-	const float FrontSegmentWidth = (FootprintSize - DoorWidth) * 0.5f;
-
-	const FVector BaseOffset = FootprintCenter - GetActorLocation();
-	ConfigureProxyMesh(
-		FloorProxy,
-		BaseOffset + FVector(0.0f, 0.0f, FloorThickness * 0.5f),
-		FVector(FootprintSize, FootprintSize, FloorThickness));
-	ConfigureProxyMesh(
-		BackWallProxy,
-		BaseOffset + FVector(0.0f, HalfSize - WallThickness * 0.5f, WallHeight * 0.5f),
-		FVector(FootprintSize, WallThickness, WallHeight));
-	ConfigureProxyMesh(
-		LeftWallProxy,
-		BaseOffset + FVector(-HalfSize + WallThickness * 0.5f, 0.0f, WallHeight * 0.5f),
-		FVector(WallThickness, FootprintSize, WallHeight));
-	ConfigureProxyMesh(
-		RightWallProxy,
-		BaseOffset + FVector(HalfSize - WallThickness * 0.5f, 0.0f, WallHeight * 0.5f),
-		FVector(WallThickness, FootprintSize, WallHeight));
-
-	const float FrontSegmentOffset = DoorWidth * 0.5f + FrontSegmentWidth * 0.5f;
-	ConfigureProxyMesh(
-		FrontWallLeftProxy,
-		BaseOffset + FVector(-FrontSegmentOffset, -HalfSize + WallThickness * 0.5f, WallHeight * 0.5f),
-		FVector(FrontSegmentWidth, WallThickness, WallHeight));
-	ConfigureProxyMesh(
-		FrontWallRightProxy,
-		BaseOffset + FVector(FrontSegmentOffset, -HalfSize + WallThickness * 0.5f, WallHeight * 0.5f),
-		FVector(FrontSegmentWidth, WallThickness, WallHeight));
-	ConfigureProxyMesh(
-		RoofProxy,
-		BaseOffset + FVector(0.0f, 0.0f, WallHeight + FloorThickness * 0.5f),
-		FVector(FootprintSize, FootprintSize, FloorThickness));
-}
-
-void AWarZoneFootprintPreview::ShowYardProxy(const FVector& FootprintCenter)
-{
-	const FVector BaseOffset = FootprintCenter - GetActorLocation();
-	const float FootprintSize = GridStep * 1.8f;
-	const float FloorThickness = GridStep * 0.08f;
-	const float CoverLength = GridStep * 0.65f;
-	const float CoverThickness = GridStep * 0.18f;
-	const float CoverHeight = GridStep * 0.45f;
-	const float CoverOffset = GridStep * 0.48f;
-
-	ConfigureProxyMesh(
-		YardFloorProxy,
-		BaseOffset + FVector(0.0f, 0.0f, FloorThickness * 0.5f),
-		FVector(FootprintSize, FootprintSize, FloorThickness));
-	ConfigureProxyMesh(
-		YardCoverNorthProxy,
-		BaseOffset + FVector(0.0f, CoverOffset, CoverHeight * 0.5f),
-		FVector(CoverLength, CoverThickness, CoverHeight));
-	ConfigureProxyMesh(
-		YardCoverSouthProxy,
-		BaseOffset + FVector(0.0f, -CoverOffset, CoverHeight * 0.5f),
-		FVector(CoverLength, CoverThickness, CoverHeight));
-	ConfigureProxyMesh(
-		YardCoverWestProxy,
-		BaseOffset + FVector(-CoverOffset, 0.0f, CoverHeight * 0.5f),
-		FVector(CoverThickness, CoverLength, CoverHeight));
-	ConfigureProxyMesh(
-		YardCoverEastProxy,
-		BaseOffset + FVector(CoverOffset, 0.0f, CoverHeight * 0.5f),
-		FVector(CoverThickness, CoverLength, CoverHeight));
-}
-
-void AWarZoneFootprintPreview::DrawReservation() const
-{
-	if (FacilityPlacements.Num() < 2 || GridStep <= 0.0f)
-		return;
-
-	const FVector CellExtent(GridStep * 0.42f, GridStep * 0.42f, GridStep * 0.12f);
-	for (const FFacilityPlacement& Placement : FacilityPlacements)
-	{
-		FColor Color = FColor::Cyan;
-		const TCHAR* Label = TEXT("WAREHOUSE 2x2");
-		if (Placement.VisualSet == EFacilityVisualSet::Yard)
-		{
-			Color = FColor::Yellow;
-			Label = TEXT("YARD 2x2");
-		}
-		else if (Placement.VisualSet == EFacilityVisualSet::Checkpoint)
-		{
-			Color = FColor::Green;
-			Label = TEXT("CHECKPOINT 1x2");
-		}
-		for (const FIntPoint& Cell : Placement.OccupiedCells)
-		{
-			const FVector Location(Cell.X * GridStep, Cell.Y * GridStep, GridStep * 0.7f);
-			DrawDebugBox(GetWorld(), Location, CellExtent, Color, false, 0.12f, 0, 1.5f);
-		}
-
-		const FVector Center = GetFootprintCenter(Placement) + FVector(0.0f, 0.0f, GridStep * 0.7f);
-		DrawDebugBox(
-			GetWorld(), Center,
-			FVector(GridStep * 0.92f, GridStep * 0.92f, GridStep * 0.22f),
-			Color, false, 0.12f, 0, 3.0f);
-		DrawDebugString(
-			GetWorld(), Center + FVector(0.0f, 0.0f, GridStep * 0.5f),
-			Label, nullptr, Color, 0.12f, true, 1.0f);
-	}
-}
-
-void AWarZoneFootprintPreview::DrawDesignScalePreview() const
-{
-	if (FacilityPlacements.Num() < 2)
-		return;
-
-	for (const FFacilityPlacement& Placement : FacilityPlacements)
-	{
-		FVector PreviewCenter = FVector::ZeroVector;
-		FColor Color = FColor::Cyan;
-		const TCHAR* Label = TEXT("DESIGN: WAREHOUSE 2x2");
-		if (Placement.VisualSet == EFacilityVisualSet::Warehouse)
-		{
-			PreviewCenter = FVector(-5000.0f, 4000.0f, 100.0f);
-		}
-		else if (Placement.VisualSet == EFacilityVisualSet::Yard)
-		{
-			PreviewCenter = FVector(0.0f, 4000.0f, 100.0f);
-			Color = FColor::Yellow;
-			Label = TEXT("DESIGN: YARD 2x2");
-		}
-		else
-		{
-			PreviewCenter = FVector(4500.0f, 4000.0f, 100.0f);
-			Color = FColor::Green;
-			Label = TEXT("DESIGN: CHECKPOINT 1x2");
-		}
-
-		int32 MinX = TNumericLimits<int32>::Max();
-		int32 MinY = TNumericLimits<int32>::Max();
-		int32 MaxX = TNumericLimits<int32>::Lowest();
-		int32 MaxY = TNumericLimits<int32>::Lowest();
-		for (const FIntPoint& Cell : Placement.OccupiedCells)
-		{
-			MinX = FMath::Min(MinX, Cell.X);
-			MinY = FMath::Min(MinY, Cell.Y);
-			MaxX = FMath::Max(MaxX, Cell.X);
-			MaxY = FMath::Max(MaxY, Cell.Y);
-		}
-
-		const float Width = (MaxX - MinX + 1) * DesignCellSize;
-		const float Height = (MaxY - MinY + 1) * DesignCellSize;
-		for (const FIntPoint& Cell : Placement.OccupiedCells)
-		{
-			const float LocalX = (Cell.X - MinX + 0.5f) * DesignCellSize - Width * 0.5f;
-			const float LocalY = (Cell.Y - MinY + 0.5f) * DesignCellSize - Height * 0.5f;
-			DrawDebugBox(
-				GetWorld(),
-				PreviewCenter + FVector(LocalX, LocalY, 0.0f),
-				FVector(DesignCellSize * 0.48f, DesignCellSize * 0.48f, 100.0f),
-				Color, false, 0.12f, 0, 10.0f);
-		}
-
-		DrawDebugBox(
-			GetWorld(), PreviewCenter,
-			FVector(Width * 0.5f, Height * 0.5f, 180.0f),
-			Color, false, 0.12f, 0, 15.0f);
-		DrawDebugString(
-			GetWorld(), PreviewCenter + FVector(0.0f, 0.0f, 350.0f),
-			FString::Printf(TEXT("%s | CELL=20m | ROT=%d"), Label, Placement.RotationQuarterTurns * 90),
-			nullptr, Color, 0.12f, true, 1.5f);
-	}
-}

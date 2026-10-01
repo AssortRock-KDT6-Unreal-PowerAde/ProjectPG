@@ -243,17 +243,8 @@ private:
 	void BuildGameplayPointMarkers();
 	void ResolveGameplayPointSafety();
 	void RebuildGameplayPointHash();
-	void DrawReservation() const;
-	void ConfigureProxyMesh(
-		UStaticMeshComponent* Component,
-		const FVector& RelativeLocation,
-		const FVector& Size);
-	void ShowWarehouseProxy(const FVector& FootprintCenter);
-	void ShowYardProxy(const FVector& FootprintCenter);
 	bool AreAllFacilityLevelsLoaded() const;
-	FVector GetFootprintCenter(const FFacilityPlacement& Placement) const;
 	FVector GetDesignFootprintCenter(const FFacilityPlacement& Placement) const;
-	void DrawDesignScalePreview() const;
 
 	// 협력객체 : 맵 자체 검사
 	// friend class : 검사기가 private볼 수 있게.
@@ -289,44 +280,8 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapGroundBuilder> GroundBuilder;
 	
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
+	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<USceneComponent> SceneRoot;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> FloorProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> BackWallProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> LeftWallProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> RightWallProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> FrontWallLeftProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> FrontWallRightProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> RoofProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardFloorProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardCoverNorthProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardCoverSouthProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardCoverWestProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardCoverEastProxy;
 
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> GroundHISM;
