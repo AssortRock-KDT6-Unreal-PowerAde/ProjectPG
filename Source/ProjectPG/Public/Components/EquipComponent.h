@@ -54,6 +54,6 @@ private:
 
 		void RemoveItemData(EEquipSlot slot);
 
-		UFUNCTION() void SetServerEquipData(const FInventoryMapWrapper InWrapper);
+		UFUNCTION() void SetServerEquipData(const FInventoryMapWrapper& InWrapper);
 		
 };

@@ -1,6 +1,8 @@
 // DataComponent.cpp
 #include "Components/DataComponent.h"
 #include "Server/WebSocketSubSystem.h"
+#include "Server/InventorySubSystem.h"
+
 #include "Components/InventoryComponent.h"
 
 UDataComponent::UDataComponent()
@@ -14,14 +16,14 @@ void UDataComponent::BeginPlay()
 
 	
 		// [Client / Standalone] 로비 세션일 때는 기존처럼 WebSocketSubSystem 델리게이트 바인딩
-		if (UWebSocketSubSystem* Subsystem = UWebSocketSubSystem::Get(GetWorld()))
+		if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld()))
 		{
 			Subsystem->OnInventoryReceived.RemoveDynamic(this, &UDataComponent::LoadInventoryData);
 			Subsystem->OnInventoryReceived.AddDynamic(this, &UDataComponent::LoadInventoryData);
 		}
 	
 }
-void UDataComponent::LoadInventoryData(FInventoryMapWrapper ItemsWrapper)
+void UDataComponent::LoadInventoryData(const FInventoryMapWrapper& ItemsWrapper)
 {
 	ItemData = ItemsWrapper.InventoryMap;
 

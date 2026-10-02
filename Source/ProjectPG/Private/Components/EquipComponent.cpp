@@ -9,6 +9,7 @@
 #include "Core/UIManagerSubSystem.h"
 #include <Server/WebSocketSubSystem.h>
 #include "GameFramework/PlayerState.h"
+#include <Server/InventorySubSystem.h>
 
 // Sets default values for this component's properties
 UEquipComponent::UEquipComponent()
@@ -23,12 +24,11 @@ void UEquipComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// WebSocketSubsystem 가져오기 및 서버 수신 델리게이트 바인딩
-	if (UWebSocketSubSystem* Subsystem = UWebSocketSubSystem::Get(GetWorld()))
+	// 💡 WebSocketSubSystem 대신 UInventorySubSystem에 바인딩
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
-		Subsystem->OnEquipRecived.RemoveDynamic(this, &UEquipComponent::SetServerEquipData);
-
-		Subsystem->OnEquipRecived.AddDynamic(this, &UEquipComponent::SetServerEquipData);
+		InvenSub->OnEquipReceived.RemoveDynamic(this, &UEquipComponent::SetServerEquipData);
+		InvenSub->OnEquipReceived.AddDynamic(this, &UEquipComponent::SetServerEquipData);
 	}
 }
 
@@ -77,13 +77,10 @@ bool UEquipComponent::Equip(const FItemInstance& Item)
 		UE_LOG(LogTemp, Error, TEXT("[EquipComponent] 장착 실패: 슬롯 타입(%d)에 해당하는 유효한 TargetSlotGuid를 찾지 못했습니다!"), (int32)Slot);
 		return false;
 	}
-	// 웹소켓 서버로 장착 패킷 전송
-	if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
-
-		WebSocketSub->RequestEquipItem(Item.GUID, TargetSlotGuid, true);
+		InvenSub->RequestEquipItem(Item.GUID, TargetSlotGuid, true);
 	}
-
 	// 장착 변경 이벤트 전파 (UI 가 이 델리게이트 내부에서 다시 Equip을 부르지 않는지 확인 필요!)
 	OnEquipmentChanged.Broadcast();
 	return true;
@@ -311,7 +308,7 @@ void UEquipComponent::RemoveItemData( EEquipSlot slot)
 	}
 }
 
-void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper InWrapper)
+void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 {
 	if (!InWrapper.BackPack.IsValid() && !InWrapper.MainWeapon.IsValid() /* ...다른 슬롯들도 체크... */)
 	{

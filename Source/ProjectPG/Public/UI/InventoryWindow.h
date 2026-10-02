@@ -72,7 +72,7 @@ public:
 	void OnClickedBackBtn();
 
 private:
-	UFUNCTION()	void OnInventoryDataReceived(const FInventoryMapWrapper InventoryMapWrapper);
+	UFUNCTION()	void OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper);
 
 	UFUNCTION() void RefreshAllGrids();
 

@@ -3,9 +3,11 @@
 
 #include "UI/Controller/LobbyUIFlowController.h"
 #include "Server/WebSocketSubSystem.h"
+#include "Server/AuthSubSystem.h"         // 인증 전담 서브시스템 추가
 #include "Core/UIManagerSubSystem.h"
 #include "Common/GameData.h"
 #include <Kismet/GameplayStatics.h>
+#include <Server/InventorySubSystem.h>
 
 ULobbyUIFlowController* ULobbyUIFlowController::Get(const UObject* worldContext)
 {
@@ -14,14 +16,12 @@ ULobbyUIFlowController* ULobbyUIFlowController::Get(const UObject* worldContext)
 	UGameInstance* inst = UGameplayStatics::GetGameInstance(worldContext);
 	if (nullptr == inst) return nullptr;
 
-
 	return inst->GetSubsystem<ULobbyUIFlowController>();
 }
 
 void ULobbyUIFlowController::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	
 }
 
 void ULobbyUIFlowController::Deinitialize()
@@ -43,28 +43,28 @@ void ULobbyUIFlowController::BeginSetting()
 		UIsubSystem->OpenUI(EUIType::LoginWindow);
 		UIsubSystem->OpenUI(EUIType::Login);
 	}
-
-
 }
 
 void ULobbyUIFlowController::RequestIDCreate(FString UserID)
 {
-	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
-	if (nullptr == subSystem) return;
+	// 아이디 생성 요청은 AuthSubSystem을 통해 처리
+	UAuthSubSystem* AuthSub = GetGameInstance()->GetSubsystem<UAuthSubSystem>();
+	if (nullptr == AuthSub) return;
 
-	subSystem->OnCreateIDStatusChanged.RemoveDynamic(this, &ULobbyUIFlowController::HandleCreateIDStatus);
-	subSystem->OnCreateIDStatusChanged.AddDynamic(this, &ULobbyUIFlowController::HandleCreateIDStatus);
+	AuthSub->OnCreateIDStatusChanged.RemoveDynamic(this, &ULobbyUIFlowController::HandleCreateIDStatus);
+	AuthSub->OnCreateIDStatusChanged.AddDynamic(this, &ULobbyUIFlowController::HandleCreateIDStatus);
 
-	subSystem->RequestCreateID(UserID);
+	AuthSub->RequestCreateID(UserID);
 }
+
 void ULobbyUIFlowController::CancleIDCreateWindow()
 {
-	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
-	if (nullptr == subSystem) return;
-	subSystem->OnCreateIDStatusChanged.RemoveDynamic(this, &ULobbyUIFlowController::HandleCreateIDStatus);
-
+	UAuthSubSystem* AuthSub = GetGameInstance()->GetSubsystem<UAuthSubSystem>();
+	if (nullptr == AuthSub) return;
+	AuthSub->OnCreateIDStatusChanged.RemoveDynamic(this, &ULobbyUIFlowController::HandleCreateIDStatus);
 }
-void ULobbyUIFlowController::SuccedCreateIDpopup()//아이디 생성후 다음동작
+
+void ULobbyUIFlowController::SuccedCreateIDpopup() // 아이디 생성 후 다음 동작
 {
 	UUIManagerSubSystem* UIsubSystem = UUIManagerSubSystem::Get(GetWorld());
 	if (false == IsValid(UIsubSystem)) return;
@@ -72,29 +72,34 @@ void ULobbyUIFlowController::SuccedCreateIDpopup()//아이디 생성후 다음�
 	UIsubSystem->OpenUI(EUIType::Login);
 	UIsubSystem->OnPopupClosed.RemoveDynamic(this, &ULobbyUIFlowController::SuccedCreateIDpopup);
 }
+
 void ULobbyUIFlowController::RequestLogin(FString UserID)
 {
-	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
-	if (nullptr == subSystem) return;
-	subSystem->OnLoginStatusChanged.RemoveDynamic(this, &ULobbyUIFlowController::SucceedLogin);
-	subSystem->OnLoginStatusChanged.AddDynamic(this, &ULobbyUIFlowController::SucceedLogin);
-	subSystem->RequestLogin(UserID);
+	// 로그인 요청은 AuthSubSystem을 통해 처리
+	UAuthSubSystem* AuthSub = GetGameInstance()->GetSubsystem<UAuthSubSystem>();
+	if (nullptr == AuthSub) return;
+
+	AuthSub->OnLoginStatusChanged.RemoveDynamic(this, &ULobbyUIFlowController::SucceedLogin);
+	AuthSub->OnLoginStatusChanged.AddDynamic(this, &ULobbyUIFlowController::SucceedLogin);
+
+	AuthSub->RequestLogin(UserID);
 }
+
 void ULobbyUIFlowController::HandleCreateIDStatus(bool bSuccess, const FString& UserID, const FString& Message)
 {
 	UUIManagerSubSystem* UIsubSystem = UUIManagerSubSystem::Get(GetWorld());
 	if (false == IsValid(UIsubSystem)) return;
+
 	if (bSuccess)
 	{
 		UE_LOG(LogTemp, Log, TEXT("아이디 생성 성공: %s"), *UserID);
 		if (IsValid(UIsubSystem))
 		{
 			UIsubSystem->OnPopupClosed.RemoveDynamic(this, &ULobbyUIFlowController::SuccedCreateIDpopup);
-			UIsubSystem->OnPopupClosed.AddDynamic(this,&ULobbyUIFlowController::SuccedCreateIDpopup);
-			UIsubSystem->OpenUI(EUIType::MessagePopup);
+			UIsubSystem->OnPopupClosed.AddDynamic(this, &ULobbyUIFlowController::SuccedCreateIDpopup);
 			if (UIsubSystem->OnMessagePopupEvent.IsBound())
 			{
-				UIsubSystem->OnMessagePopupEvent.Broadcast(TEXT("아이디 생성 성공"), 0);
+				UIsubSystem->OpenMessageBox(TEXT("아이디 생성 성공"), 0);
 			}
 		}
 	}
@@ -103,14 +108,13 @@ void ULobbyUIFlowController::HandleCreateIDStatus(bool bSuccess, const FString& 
 		UE_LOG(LogTemp, Warning, TEXT("아이디 생성 실패: %s"), *Message);
 		if (IsValid(UIsubSystem))
 		{
-			UIsubSystem->OpenUI(EUIType::MessagePopup);
-			UIsubSystem->OnMessagePopupEvent.Broadcast(FString::Printf(TEXT("아이디 생성 실패 : %s"), *Message), 0);
+			UIsubSystem->OpenMessageBox(FString::Printf(TEXT("아이디 생성 실패 : %s"), *Message), 0);
 		}
 	}
 
-	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
-	if (nullptr == subSystem) return;
-	subSystem->OnCreateIDStatusChanged.RemoveDynamic(this, &ULobbyUIFlowController::HandleCreateIDStatus);
+	UAuthSubSystem* AuthSub = GetGameInstance()->GetSubsystem<UAuthSubSystem>();
+	if (nullptr == AuthSub) return;
+	AuthSub->OnCreateIDStatusChanged.RemoveDynamic(this, &ULobbyUIFlowController::HandleCreateIDStatus);
 }
 
 void ULobbyUIFlowController::SucceedLogin(bool bIsLogedIn, bool bDataLoaded, const FString& Messsage)
@@ -118,13 +122,15 @@ void ULobbyUIFlowController::SucceedLogin(bool bIsLogedIn, bool bDataLoaded, con
 	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
 	UUIManagerSubSystem* UIsubSystem = UUIManagerSubSystem::Get(GetWorld());
 	UE_LOG(LogTemp, Warning, TEXT("로그인 상태 %s"), *Messsage);
+
 	if (nullptr == subSystem) return;
+
 	if (subSystem->GetCurrentUserID().IsEmpty())
 	{
 		UIsubSystem->OpenUI(EUIType::LoginWindow);
 		UIsubSystem->OpenUI(EUIType::Login);
 	}
-	else 
+	else
 	{
 		if (false == IsValid(UIsubSystem)) return;
 		if (bIsLogedIn && bDataLoaded)
@@ -133,9 +139,7 @@ void ULobbyUIFlowController::SucceedLogin(bool bIsLogedIn, bool bDataLoaded, con
 		}
 		else
 		{
-			UIsubSystem->ToggleUI(EUIType::MessagePopup);
-			UIsubSystem->OnMessagePopupEvent.Broadcast(FString::Printf(TEXT("아이디 생성 실패 : %s"), *Messsage), 0);
-
+			UIsubSystem->OpenMessageBox(FString::Printf(TEXT("로그인 실패 : %s"), *Messsage), 0);
 		}
 	}
 }
@@ -143,16 +147,18 @@ void ULobbyUIFlowController::SucceedLogin(bool bIsLogedIn, bool bDataLoaded, con
 void ULobbyUIFlowController::DataLoadPopup()
 {
 	UUIManagerSubSystem* UIsubSystem = UUIManagerSubSystem::Get(GetWorld());
-	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
+	UInventorySubSystem* InvSub = UInventorySubSystem::Get(GetWorld()); // 인벤토리 전담 서브시스템 호출
+
 	if (false == IsValid(UIsubSystem)) return;
-	if (false == IsValid(subSystem)) return;
+	if (false == IsValid(InvSub)) return;
 
 	UIsubSystem->CloseAllUI();
-	UIsubSystem->OpenUI(EUIType::MessagePopup);
-	UIsubSystem->OnMessagePopupEvent.Broadcast(TEXT("데이터 로딩중..."), 0);
+	UIsubSystem->OpenMessageBox(TEXT("데이터 로딩중..."), 0);
 	UIsubSystem->OnPopupClosed.RemoveDynamic(this, &ULobbyUIFlowController::ShowLobby);
 	UIsubSystem->OnPopupClosed.AddDynamic(this, &ULobbyUIFlowController::ShowLobby);
-	subSystem->RequestGetInventory();
+
+	// 서버로 인벤토리(데이터) 요청
+	InvSub->RequestGetInventory();
 }
 
 void ULobbyUIFlowController::ShowLobby()
@@ -161,6 +167,4 @@ void ULobbyUIFlowController::ShowLobby()
 	if (false == IsValid(UIsubSystem)) return;
 
 	UIsubSystem->OpenUI(EUIType::Lobby);
-
 }
-

@@ -1,37 +1,53 @@
-#include "ItemContextWidget.h"
+#include "UI/ItemContextWidget.h"
 
 #include "Components/EquipComponent.h"
 #include "Components/InventoryComponent.h"
 #include "Components/Button.h"
+#include "Components/Overlay.h"
+
 #include "UI/InventoryWindow.h"
 #include "Core/UIManagerSubSystem.h"
 #include "GameMode/CustomPlayerState.h"
-#include "InventoryGridWidget.h"
+#include "UI/InventoryGridWidget.h"
 #include "GameFrameWork/Actor.h"
-#include "BagPopupWindow.h"
+#include "UI/BagPopupWindow.h"
 #include "Core/TableSubSystem.h"
 
 void UItemContextWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-
-	if (EquipButton)
+	if (MainOverlay)
+	{
+		MainOverlay->SetVisibility(
+			ESlateVisibility::SelfHitTestInvisible
+		);
+	}
+	if (EquipButton) {
+		EquipButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnEquipClickedBtn);
 		EquipButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnEquipClickedBtn);
-
-	if (UnEquipButton)
+	}
+	if (UnEquipButton) {
+		UnEquipButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnUnEquipClickedBtn);
 		UnEquipButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnUnEquipClickedBtn);
-	if (UseButton)
+	}
+	if (UseButton) {
+		UseButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnUsedClickedBtn);
 		UseButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnUsedClickedBtn);
-
-	if (DropButton)
+	}
+	if (DropButton) {
+		DropButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnDropClicked);
 		DropButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnDropClicked);
+	}
+	if (CancleButton) {
+		CancleButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnCancledClicked);
 
-	if (CancleButton)
 		CancleButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnCancledClicked);
+	}
+	if (OpenButton) {
+		OpenButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnOpenClickBtn);
 
-	if(OpenButton)
 		OpenButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnOpenClickBtn);
-
+	}
 }
 
 void UItemContextWidget::InitWidget(UInventoryComponent* InInventory, UEquipComponent* InEquip)
@@ -175,9 +191,6 @@ void UItemContextWidget::OnOpenClickBtn()
 {
 	FItemInstance LocalItem = CurrentItem;
 	if (LocalItem.ItemID.IsNone()) return;
-
-	// 진단 로그: 선택된 아이템 정보 출력
-	UE_LOG(LogTemp, Warning, TEXT("[OnOpenClickBtn] Item GUID=%s ItemID=%s parent_inventory_guid=%s inventory_guid=%s OwnerIsValid=%d"), *LocalItem.GUID.ToString(), *LocalItem.ItemID.ToString(), *LocalItem.parent_inventory_guid.ToString(), *LocalItem.inventory_guid.ToString(), LocalItem.Owner.IsValid());
 
 	UUIManagerSubSystem* UIMgr = UUIManagerSubSystem::Get(GetWorld());
 	if (!IsValid(UIMgr)) return;
