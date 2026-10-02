@@ -291,6 +291,28 @@ private:
 	friend class UMapGroundBuilder;
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapGroundBuilder> GroundBuilder;
+
+	// 협력객체 : 시작 구역 담당(멀티 최대 4명 — 가장자리에 시작 대기소를 더 고른다).
+	friend class UMapSpawnRegionPlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapSpawnRegionPlanner> SpawnRegionPlanner;
+
+	// ---- 시작 구역(멀티) ---- 고르는 규칙은 MapSpawnRegionPlanner.cpp 주석.
+	// 시작 구역 최대 수. 1번은 형님 생성기가 준 시작 칸, 나머지는 가장자리 빈 땅에서 더 고른다. 1 이면 예전처럼 한 곳.
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "1", ClampMax = "8"))
+	int32 SpawnRegionCount = 4;
+	// 시작 구역끼리 최소 거리(칸, 1칸 = 20m). 가까우면 나오자마자 마주친다.
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "2"))
+	int32 MinSpawnRegionSpacingCells = 10;
+	// 시작 구역과 출구 사이 최소 거리(칸). 나오자마자 탈출하는 걸 막는다.
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "0"))
+	int32 MinSpawnToExitCells = 5;
+	// 맵 가장자리에서 이 칸 수 안쪽만 후보(출발은 바깥, 워존은 가운데).
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "1"))
+	int32 SpawnRegionEdgeBandCells = 5;
+	// 이번 판 시작 구역 칸(0번 = 형님 시작 칸).
+	UPROPERTY(VisibleInstanceOnly, Category = "Spawn Regions")
+	TArray<FIntPoint> SpawnRegionCells;
 	
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<USceneComponent> SceneRoot;

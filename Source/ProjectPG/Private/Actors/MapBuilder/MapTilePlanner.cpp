@@ -2,6 +2,7 @@
 
 #include "Actors/MapBuilder/MapBuildShared.h"
 #include "Actors/MapBuilder/MapRoadPlanner.h"
+#include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 #include "Actors/MapTile.h"
 #include "GameModes/GameModePG.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
@@ -606,6 +607,10 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		Map->LayoutHash = HashCombine(Map->LayoutHash, GetTypeHash(Placement.RotationQuarterTurns));
 		Map->LayoutHash = HashCombine(Map->LayoutHash, GetTypeHash(Placement.LocalSeed));
 	}
+
+	// 7) 시작 구역 칸을 "시작 대기소" 로 바꾼다(시작 구역 담당). 지문·길 연결 확인 뒤에 해야 한다
+	//    (그 확인은 길 타일 기준이라, 대기소로 바꾼 칸을 보면 틀렸다고 센다).
+	Map->SpawnRegionPlanner->DressExtraSpawnRegions(MinCell, MaxCell);
 
 	UE_LOG(LogTemp, Display,
 		TEXT("Design placement spec: cells=%d reserved=%d invalid_rotations=%d map_extent_cm=%.0f layout_hash=%08X"),

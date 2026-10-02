@@ -1,6 +1,7 @@
 ﻿#include "Actors/MapBuilder/MapRoadPlanner.h"
 
 #include "Actors/MapBuilder/MapBuildShared.h"
+#include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 #include "Actors/MapTile.h"
 #include "Engine/World.h"
 
@@ -232,6 +233,16 @@ void UMapRoadPlanner::PlanAccessRoads(
 		FarthestUnpavedCells, UnreachableFacilityCount,
 		FacilitySpurCellCount + UnpavedCellsTotal);
 
+	// 시작 구역 고르기(시작 구역 담당). 시설 흙길 다음, 시작점·출구 흙길 전.
+	// 건물·언덕·이미 흙길인 칸은 고르지 않는다. 고른 칸은 아래 3) 에서 워존까지 흙길을 받는다.
+	TSet<FIntPoint> ExtraSpawnCells;
+	{
+		TSet<FIntPoint> Blocked = ReservedCells;
+		Blocked.Append(SupplementalRoadCells);
+		Map->SpawnRegionPlanner->PickSpawnRegions(TileByCell, Blocked, RaidSeed);
+		ExtraSpawnCells = Map->SpawnRegionPlanner->GetExtraSpawnCells();
+	}
+
 	// The facility tree above does not include server-authored Spawn/Exit cells.
 	// Repair each endpoint to the nearest real road through valid non-facility
 	// cells, otherwise one seed can leave a spawn pad visually stranded even
@@ -272,7 +283,8 @@ void UMapRoadPlanner::PlanAccessRoads(
 			for (int32 DirectionIndex = 0; DirectionIndex < 4; ++DirectionIndex)
 			{
 				const FIntPoint Neighbor = Current + NeighborOffsets[(DirectionIndex + DirectionOffset) % 4];
-				if (ParentByCell.Contains(Neighbor) || ReservedCells.Contains(Neighbor))
+				// 시작 구역 칸은 지나가지 않는다(대기소 담장에 입구가 둘 생기면 안 되니까).
+				if (ParentByCell.Contains(Neighbor) || ReservedCells.Contains(Neighbor) || ExtraSpawnCells.Contains(Neighbor))
 					continue;
 				AMapTile* const* NeighborTilePtr = TileByCell.Find(Neighbor);
 				if (NeighborTilePtr == nullptr || !IsValid(*NeighborTilePtr))
@@ -344,7 +356,8 @@ void UMapRoadPlanner::PlanAccessRoads(
 		if (SpawnTilePtr == nullptr || !IsValid(*SpawnTilePtr))
 			continue;
 		const ETileType EndpointType = (*SpawnTilePtr)->GetType();
-		if (EndpointType != ETileType::Spawn && EndpointType != ETileType::Exit)
+		// 시작 구역 칸도 워존까지 흙길을 받는다.
+		if (EndpointType != ETileType::Spawn && EndpointType != ETileType::Exit && !ExtraSpawnCells.Contains(SpawnCell))
 			continue;
 
 		++SpawnRouteCount;
@@ -366,7 +379,8 @@ void UMapRoadPlanner::PlanAccessRoads(
 			for (int32 DirectionIndex = 0; DirectionIndex < 4; ++DirectionIndex)
 			{
 				const FIntPoint Neighbor = Current + NeighborOffsets[(DirectionIndex + DirectionOffset) % 4];
-				if (ParentByCell.Contains(Neighbor))
+				// 다른 시작 구역을 지나가면 그 담장에 입구가 둘 필요해진다 — 돌아간다.
+				if (ParentByCell.Contains(Neighbor) || ExtraSpawnCells.Contains(Neighbor))
 					continue;
 				AMapTile* const* NeighborTilePtr = TileByCell.Find(Neighbor);
 				if (NeighborTilePtr == nullptr || !IsValid(*NeighborTilePtr))

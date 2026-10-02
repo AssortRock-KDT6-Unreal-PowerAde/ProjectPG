@@ -51,6 +51,7 @@
 #include "Actors/MapBuilder/MapRoadPlanner.h"
 #include "Actors/MapBuilder/MapTileSpawner.h"
 #include "Actors/MapBuilder/MapGroundBuilder.h"
+#include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 using namespace MapBuild;
 
 
@@ -334,6 +335,11 @@ void AMapBuilder::BeginPlay()
 	{
 		GroundBuilder = NewObject<UMapGroundBuilder>(this, TEXT("GroundBuilder"));
 		GroundBuilder->Init(this);
+	}
+	if (!SpawnRegionPlanner)
+	{
+		SpawnRegionPlanner = NewObject<UMapSpawnRegionPlanner>(this, TEXT("SpawnRegionPlanner"));
+		SpawnRegionPlanner->Init(this);
 	}
 	if (!HasAuthority())
 		return;
@@ -700,6 +706,10 @@ void AMapBuilder::BuildGameplayPointMarkers()
 			continue;
 		if (Placement.Visual == ETileDesignVisual::Spawn)
 		{
+			// 추가 시작 구역(1번부터)의 자리는 아래(칸 돌기가 끝난 뒤)에서 넣는다.
+			// 왜: 검사기가 "첫 번째 시작 지점" 을 출발점으로 쓴다. 칸 순서대로 넣으면 첫 자리가 다른 구역으로 바뀐다.
+			if (SpawnRegionCells.IndexOfByKey(Placement.GridCell) > 0)
+				continue;
 			// Four candidates prevent a future squad from stacking into one capsule.
 			AddPoint(ELevelDesignPointType::Spawn, Placement.GridCell, FVector(0, -430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
 			AddPoint(ELevelDesignPointType::Spawn, Placement.GridCell, FVector(0, 430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
@@ -761,6 +771,16 @@ void AMapBuilder::BuildGameplayPointMarkers()
 					TEXT("AISpawnPoint"), AIProfile, 1, 350, 3);
 			}
 		}
+	}
+
+	// 추가 시작 구역(1번부터)마다 자리 4개. 0번(형님 시작 칸) 자리보다 뒤에 넣는다(위 주석).
+	for (int32 RegionIndex = 1; RegionIndex < SpawnRegionCells.Num(); ++RegionIndex)
+	{
+		const FIntPoint& RegionCell = SpawnRegionCells[RegionIndex];
+		AddPoint(ELevelDesignPointType::Spawn, RegionCell, FVector(0, -430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
+		AddPoint(ELevelDesignPointType::Spawn, RegionCell, FVector(0, 430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
+		AddPoint(ELevelDesignPointType::Spawn, RegionCell, FVector(360, -430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
+		AddPoint(ELevelDesignPointType::Spawn, RegionCell, FVector(360, 430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
 	}
 
 	auto AddFacilityPoint = [this, &AddPoint](
