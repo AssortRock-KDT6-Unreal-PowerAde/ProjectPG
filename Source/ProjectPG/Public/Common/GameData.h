@@ -184,3 +184,21 @@ struct FTaggedAbility
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<UGameplayAbility> GameAbilityClass;
 };
+
+USTRUCT(BlueprintType)
+struct FWeaponAnimationSet
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<class UAnimInstance> AnimInstanceClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TMap<FGameplayTag, TObjectPtr<class UAnimMontage>> Montages;
+
+	UAnimMontage* FindMontage(const FGameplayTag& MontageTag) const
+	{
+		const TObjectPtr<UAnimMontage>* Montage = Montages.Find(MontageTag);
+		return Montage ? Montage->Get() : nullptr;
+	}
+};

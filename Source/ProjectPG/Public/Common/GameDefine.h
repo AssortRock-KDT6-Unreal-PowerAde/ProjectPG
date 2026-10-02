@@ -61,10 +61,20 @@ enum class EItemType : uint8
 };
 
 UENUM(BlueprintType)
+enum class EWeaponType : uint8
+{
+	None,
+	Rifle,
+	Shotgun,
+	Pistol,
+};
+
+UENUM(BlueprintType)
 enum class EDropType : uint8
 {
 	Monster,Chest,Quest
 };
+
 UENUM(BlueprintType)
 enum class EAbility : uint8
 {
@@ -92,3 +102,13 @@ enum class EBorderHighlightState : uint8
 	Hovered     UMETA(DisplayName = "Hovered"),  // 마우스 호버 (선택 사항)
 	Selected    UMETA(DisplayName = "Selected")  // 선택됨 (선택 사항)
 };
+
+namespace ECustomMovementMode
+{
+	UENUM(BlueprintType)
+	enum Type : uint8
+	{
+		MOVE_None UMETA(DisplayName="None"),
+		MOVE_Prone UMETA(DisplayName="Prone"),
+	};
+}
