@@ -86,10 +86,20 @@ enum class EItemType : uint8
 };
 
 UENUM(BlueprintType)
+enum class EWeaponType : uint8
+{
+	None,
+	Rifle,
+	Shotgun,
+	Pistol,
+};
+
+UENUM(BlueprintType)
 enum class EDropType : uint8
 {
 	Monster,Chest,Quest
 };
+
 UENUM(BlueprintType)
 enum class EAbility : uint8
 {

@@ -4,16 +4,22 @@
 #include "Characters/CustomPlayerCharacter.h"
 
 #include "AbilitySystemComponent.h"
+#include "Animation/AnimMontage.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Animations/CustomAnimInstance.h"
 #include "Camera/CameraComponent.h"
+#include "Characters/CustomCharacterMovementComponent.h"
 #include "Components/NativeActionComponent.h"
 #include "Core/TableSubSystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameplayAbilities/CustomAbilitySystemComponent.h"
+#include "Net/UnrealNetwork.h"
 
-ACustomPlayerCharacter::ACustomPlayerCharacter()
+ACustomPlayerCharacter::ACustomPlayerCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomCharacterMovementComponent>(
+		ACharacter::CharacterMovementComponentName))
 {
 	USceneComponent* rootComp = GetRootComponent();
 	if (!IsValid(rootComp))
@@ -24,21 +30,21 @@ ACustomPlayerCharacter::ACustomPlayerCharacter()
 		return;
 
 	CameraArmComp->SetupAttachment(rootComp);
+	CameraArmComp->bUsePawnControlRotation = true;
+	CameraArmComp->bInheritYaw = true;
+	CameraArmComp->bInheritPitch = true;
+	CameraArmComp->bInheritRoll = false;
 
 	FVector cameraArmAdditiveLocation = FVector::ZeroVector;
-	cameraArmAdditiveLocation.Z += 50.;
+	cameraArmAdditiveLocation.Z += 80.;
 	CameraArmComp->AddRelativeLocation(cameraArmAdditiveLocation);
-	CameraArmComp->TargetArmLength = 200.f;
+	CameraArmComp->TargetArmLength = 250.f;
 
 	CameraComp = CreateDefaultSubobject<UCameraComponent>("Camera");
 	if (!IsValid(CameraComp))
 		return;
 
 	CameraComp->SetupAttachment(CameraArmComp);
-
-	FVector cameraAdditiveLocation = FVector::ZeroVector;
-	cameraAdditiveLocation.Y += 30.;
-	CameraComp->AddRelativeLocation(cameraAdditiveLocation);
 
 	NativeActionComp = CreateDefaultSubobject<UNativeActionComponent>(TEXT("NativeAction"));
 	if (!IsValid(NativeActionComp))
@@ -80,7 +86,7 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 
 	const FPlayerDefaultActionTableRow* playerDefaultActionRow = tableSubSystem->FindTableRow<
 		FPlayerDefaultActionTableRow>(
-		"PlayerDefaultActionTable", "PlayerDefault");
+		"PlayerDefaultActionTable", "PlayerDefault_Debug");
 	if (nullptr == playerDefaultActionRow)
 		return;
 
@@ -127,6 +133,11 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 	}
 }
 
+void ACustomPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+}
+
 UCustomAbilitySystemComponent* ACustomPlayerCharacter::GetCustomAbilitySystemComponent() const
 {
 	return Cast<UCustomAbilitySystemComponent>(AbilitySystemComp);
@@ -137,9 +148,94 @@ USpringArmComponent* ACustomPlayerCharacter::GetCameraArm() const
 	return CameraArmComp;
 }
 
+void ACustomPlayerCharacter::PlayMontage(UAnimMontage* Montage)
+{
+	if (!IsLocallyControlled() || !IsValid(Montage))
+		return;
+
+	if (HasAuthority())
+	{
+		OnRep_PlayMontage(Montage);
+	}
+	else
+	{
+		PlayAnimMontage(Montage);
+		OnReq_PlayMontage(Montage);
+	}
+}
+
+void ACustomPlayerCharacter::OnReq_PlayMontage_Implementation(UAnimMontage* Montage)
+{
+	if (IsValid(Montage))
+		OnRep_PlayMontage(Montage);
+}
+
+void ACustomPlayerCharacter::OnRep_PlayMontage_Implementation(UAnimMontage* Montage)
+{
+	// The owning client already started playback before sending the request.
+	if (!IsValid(Montage) || (!HasAuthority() && IsLocallyControlled()))
+		return;
+
+	PlayAnimMontage(Montage);
+}
+
+void ACustomPlayerCharacter::OnReq_SyncAimRotation_Implementation(FVector2D AimDirection)
+{
+	if (!HasAuthority())
+		return;
+
+	OnRep_SyncAimRotation(AimDirection);
+}
+
+void ACustomPlayerCharacter::OnRep_SyncAimRotation_Implementation(FVector2D AimDirection)
+{
+	if (IsLocallyControlled())
+		return;
+
+	USkeletalMeshComponent* mesh = GetMesh();
+	if (!IsValid(mesh))
+		return;
+
+	UCustomAnimInstance* animInstance = Cast<UCustomAnimInstance>(mesh->GetAnimInstance());
+	if (!IsValid(animInstance))
+		return;
+
+	animInstance->SyncAim(AimDirection.X, AimDirection.Y);
+}
+
+void ACustomPlayerCharacter::OnReq_SyncCharacterRotation_Implementation(FVector2D AimDirection,
+                                                                        FRotator ActorRotation)
+{
+	if (!HasAuthority())
+		return;
+
+	// Legacy RPC: CharacterMovement now owns body rotation.
+	OnRep_SyncCharacterRotation(AimDirection);
+}
+
+void ACustomPlayerCharacter::OnRep_SyncCharacterRotation_Implementation(FVector2D AimDirection)
+{
+	if (IsLocallyControlled())
+		return;
+
+	USkeletalMeshComponent* mesh = GetMesh();
+	if (!IsValid(mesh))
+		return;
+
+	UCustomAnimInstance* animInstance = Cast<UCustomAnimInstance>(mesh->GetAnimInstance());
+	if (!IsValid(animInstance))
+		return;
+
+	animInstance->SyncAim(AimDirection.X, AimDirection.Y);
+}
+
 void ACustomPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	float playerAngle = FMath::DegreesToRadians(CameraComp->FieldOfView * 0.3333333333f);
+	FVector cameraLocation = FVector::ZeroVector;
+	cameraLocation.Y = CameraArmComp->TargetArmLength * FMath::Tan(playerAngle) * 0.5f;
+	CameraComp->AddRelativeLocation(cameraLocation);
 
 	AbilitySystemComp->InitAbilityActorInfo(this, this);
 
@@ -153,14 +249,11 @@ void ACustomPlayerCharacter::BeginPlay()
 		CharacterAttributeSet->InitMaxHealth(100.f);
 		CharacterAttributeSet->InitStamina(100.f);
 		CharacterAttributeSet->InitMaxStamina(100.f);
-		CharacterAttributeSet->InitWalkSpeed(300.f);
-		CharacterAttributeSet->InitSprintSpeed(700.f);
 
 		UCharacterMovementComponent* movementComp = GetCharacterMovement();
 		if (!IsValid(movementComp))
 			return;
 
-		movementComp->MaxWalkSpeed = 300.f;
 		// ~TODO: Table로 옮기기
 
 		UTableSubSystem* tableSubSystem = UTableSubSystem::Get(this);
