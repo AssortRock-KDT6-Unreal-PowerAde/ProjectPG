@@ -299,6 +299,11 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapPointPlanner> PointPlanner;
 
+	// 협력객체 : 아이템 담당(상자 자리마다 바닥 아이템 놓기).
+	friend class UMapItemSpawner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapItemSpawner> ItemSpawner;
+
 	// ---- 기획 숫자(에디터에서 맵 액터를 골라 바꾼다) ----
 	// 워존에 놓는 2×2 마당 시설 수.
 	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "1", ClampMax = "8"))

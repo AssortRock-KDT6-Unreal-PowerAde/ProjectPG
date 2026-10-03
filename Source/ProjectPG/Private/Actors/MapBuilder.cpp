@@ -53,6 +53,7 @@
 #include "Actors/MapBuilder/MapGroundBuilder.h"
 #include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 #include "Actors/MapBuilder/MapPointPlanner.h"
+#include "Actors/MapBuilder/MapItemSpawner.h"
 using namespace MapBuild;
 
 
@@ -347,6 +348,11 @@ void AMapBuilder::BeginPlay()
 		PointPlanner = NewObject<UMapPointPlanner>(this, TEXT("PointPlanner"));
 		PointPlanner->Init(this);
 	}
+	if (!ItemSpawner)
+	{
+		ItemSpawner = NewObject<UMapItemSpawner>(this, TEXT("ItemSpawner"));
+		ItemSpawner->Init(this);
+	}
 	if (!HasAuthority())
 		return;
 
@@ -412,6 +418,8 @@ void AMapBuilder::Tick(float DeltaSeconds)
 	Verifier->VerifyWorldCollision();
 	// 시설 레벨이 다 보이면 벽 속 지점을 빈 곳으로 옮긴다(한 번만).
 	PointPlanner->ResolveSafety();
+	// 끼임 정리가 끝나면 상자 자리마다 아이템을 놓는다(한 번만).
+	ItemSpawner->SpawnLootOnce();
 	// 들어온 플레이어를 시작 구역에 나눠 세운다(서버만, 새로 들어온 사람만). 시작 자리 정리가 끝난 뒤부터 일한다.
 	SpawnRegionPlanner->PlaceJoinedPlayers();
 	//Tactical(전투용)+Layout(배치)+Quality(품질) = 전투하기 좋게 타일이 제대로 놓였니? 

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Actors/WorldItemActor.h"
 #include "MapAssetSet.generated.h"
 
 class UDataTable;
@@ -127,6 +128,14 @@ public:
 	// 시설 안 지점 표(행 구조 FFacilityPointRow, MapPointPlanner.h). 창고 2층 상자 자리 같은 좌표를 여기서 고친다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UDataTable> FacilityPointTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Data/DT_FacilityPoints.DT_FacilityPoints")));
+
+	// ---------- 아이템 (아이템 담당) ----------
+	// 상자 자리에 무엇이 얼마나 자주 나오나(행 구조 FLootSpawnRow, MapItemSpawner.h).
+	UPROPERTY(EditAnywhere, Category = "아이템")
+	TSoftObjectPtr<UDataTable> LootSpawnTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Data/DT_LootSpawn.DT_LootSpawn")));
+	// 바닥 아이템 BP(부모 AWorldItemActor). 비면 C++ 기본 클래스(대신 모양 없음)를 쓴다.
+	UPROPERTY(EditAnywhere, Category = "아이템")
+	TSoftClassPtr<AWorldItemActor> WorldItemClass = TSoftClassPtr<AWorldItemActor>(FSoftObjectPath(TEXT("/Game/PG/Blueprint/Item/BP_WorldItem.BP_WorldItem_C")));
 
 	// ---------- 바닥 머티리얼 (바닥 담당) ----------
 	// 들판 땅. 언덕·호숫가 비탈·타일 바닥판도 이 색으로 맞춘다(이음매가 안 보이게).
