@@ -4,6 +4,7 @@
 #include "Engine/DataAsset.h"
 #include "MapAssetSet.generated.h"
 
+class UDataTable;
 class UMaterialInterface;
 class UStaticMesh;
 
@@ -122,6 +123,10 @@ public:
 	// shared flat pad has to be suppressed underneath it.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> RuralHideoutLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_RuralDiorama_2x2.LD_Facility_RuralDiorama_2x2")));
+
+	// 시설 안 지점 표(행 구조 FFacilityPointRow, MapPointPlanner.h). 창고 2층 상자 자리 같은 좌표를 여기서 고친다.
+	UPROPERTY(EditAnywhere, Category = "시설")
+	TSoftObjectPtr<UDataTable> FacilityPointTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Data/DT_FacilityPoints.DT_FacilityPoints")));
 
 	// ---------- 바닥 머티리얼 (바닥 담당) ----------
 	// 들판 땅. 언덕·호숫가 비탈·타일 바닥판도 이 색으로 맞춘다(이음매가 안 보이게).

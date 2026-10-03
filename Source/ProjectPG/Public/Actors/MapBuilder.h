@@ -240,9 +240,6 @@ private:
 	void BuildShoreTransitionMap(
 		const TSet<FIntPoint>& LakeCells,
 		TMap<FIntPoint, TPair<int32, int32>>& OutShoreTileByCell) const;
-	void BuildGameplayPointMarkers();
-	void ResolveGameplayPointSafety();
-	void RebuildGameplayPointHash();
 	bool AreAllFacilityLevelsLoaded() const;
 	FVector GetDesignFootprintCenter(const FFacilityPlacement& Placement) const;
 
@@ -296,6 +293,11 @@ private:
 	friend class UMapSpawnRegionPlanner;
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapSpawnRegionPlanner> SpawnRegionPlanner;
+
+	// 협력객체 : 지점 담당(시작·상자·몬스터·출구·퀘스트 자리 찍기 + 끼임 정리). 결과는 LevelDesignPoints.
+	friend class UMapPointPlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapPointPlanner> PointPlanner;
 
 	// ---- 시작 구역(멀티) ---- 고르는 규칙은 MapSpawnRegionPlanner.cpp 주석.
 	// 시작 구역 최대 수. 1번은 형님 생성기가 준 시작 칸, 나머지는 가장자리 빈 땅에서 더 고른다. 1 이면 예전처럼 한 곳.
