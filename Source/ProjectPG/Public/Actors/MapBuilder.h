@@ -299,6 +299,17 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapPointPlanner> PointPlanner;
 
+	// ---- 기획 숫자(에디터에서 맵 액터를 골라 바꾼다) ----
+	// 워존에 놓는 2×2 마당 시설 수.
+	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "1", ClampMax = "8"))
+	int32 WarZoneYardCount = 3;
+	// 들판에 놓는 언덕(땅 모양) 최대 수.
+	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 MaxTerrainFeatureCount = 28;
+	// 몬스터 길찾기 막힘을 갱신하는 반경(cm). 플레이어 주변·맵 가운데 둘 다 이 값.
+	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "1000"))
+	float NavigationBlockerRadiusCm = 6000.0f;
+
 	// ---- 시작 구역(멀티) ---- 고르는 규칙은 MapSpawnRegionPlanner.cpp 주석.
 	// 시작 구역 최대 수. 1번은 형님 생성기가 준 시작 칸, 나머지는 가장자리 빈 땅에서 더 고른다. 1 이면 예전처럼 한 곳.
 	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "1", ClampMax = "8"))

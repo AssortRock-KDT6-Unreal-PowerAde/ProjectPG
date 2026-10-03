@@ -839,7 +839,7 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		UE_LOG(LogTemp, Display, TEXT("WarZone visual count: variant=%s count=%d"),
 			*Pair.Key.ToString(), Pair.Value);
 
-	RefreshNavigationBlockerRegion(Map->CenterNavigationBlockers, Map->GetActorLocation(), 6000.0f);
+	RefreshNavigationBlockerRegion(Map->CenterNavigationBlockers, Map->GetActorLocation(), Map->NavigationBlockerRadiusCm);
 }
 
 // 언덕 위 건물 단·경사로. 게임에서: 마당·막사가 1m쯤 높은 단 위에 있고, 입구 쪽에 올라가는 경사로가 있다.

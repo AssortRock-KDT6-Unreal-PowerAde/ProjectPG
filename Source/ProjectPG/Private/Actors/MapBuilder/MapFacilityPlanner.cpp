@@ -142,8 +142,8 @@ bool UMapFacilityPlanner::PlanFacilities(
 		for (const FIntPoint& Offset : FootprintOffsets)
 			SelectedFacilityCells.Add(Anchor + Offset);
 	};
-	// 3) 마당 3곳: 이미 고른 곳에서 가장 멀리 떨어진 후보를 하나씩 고른다(마당끼리 뭉치지 않게).
-	while (SelectedFacilityAnchors.Num() < 3)
+	// 3) 마당 WarZoneYardCount 곳(기본 3): 이미 고른 곳에서 가장 멀리 떨어진 후보를 하나씩 고른다(마당끼리 뭉치지 않게).
+	while (SelectedFacilityAnchors.Num() < Map->WarZoneYardCount)
 	{
 		bool bFoundNext = false;
 		int64 BestMinimumDistanceSquared = -1;

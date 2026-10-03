@@ -437,7 +437,7 @@ void AMapBuilder::Tick(float DeltaSeconds)
 		if (PlayerCell != LastPlayerNavigationBlockerCell)
 		{
 			LastPlayerNavigationBlockerCell = PlayerCell;
-			TileSpawner->RefreshNavigationBlockerRegion(PlayerNavigationBlockers, PlayerLocation, 6000.0f);
+			TileSpawner->RefreshNavigationBlockerRegion(PlayerNavigationBlockers, PlayerLocation, NavigationBlockerRadiusCm);
 			LastPlayerNavigationBlockerUpdateTimeSeconds = FPlatformTime::Seconds();
 		}
 	}

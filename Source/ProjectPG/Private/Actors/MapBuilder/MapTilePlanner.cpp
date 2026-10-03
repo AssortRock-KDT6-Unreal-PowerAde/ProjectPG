@@ -86,7 +86,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 	int32 TerrainFeatureCount = 0;
 	for (const FIntPoint& FeatureAnchor : SortedCells)
 	{
-		if (TerrainFeatureCount >= 28 || FeatureMeshes.IsEmpty())
+		if (TerrainFeatureCount >= Map->MaxTerrainFeatureCount || FeatureMeshes.IsEmpty())
 			break;
 
 		const uint32 FeatureHash = HashCombine(
