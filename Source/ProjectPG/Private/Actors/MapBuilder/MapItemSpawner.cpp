@@ -4,6 +4,8 @@
 #include "Actors/WorldItemActor.h"
 #include "Core/ItemSubSystem.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "TimerManager.h"
 #include "Components/PrimitiveComponent.h"
 
 void UMapItemSpawner::Init(AMapBuilder* InMap)
@@ -23,9 +25,30 @@ UWorld* UMapItemSpawner::GetWorld() const
 // ④ 결과를 지문(item_hash)으로 남긴다. 같은 시드면 같은 값이어야 한다(검사 기준).
 void UMapItemSpawner::SpawnLootOnce()
 {
-	if (bSpawned || !Map->bResolvedGameplayPointSafety || !Map->HasAuthority())
+	if (bSpawned || !Map->bResolvedGameplayPointSafety)
 		return;
 	bSpawned = true;
+	// 서버만 놓는다. 들어온 사람은 서버가 놓은 아이템을 복제로 받는다(여기서 또 놓으면 두 벌이 된다).
+	// 확인용: 몇 초 뒤 받은 아이템 수를 로그에 남긴다(가까운 것만 오므로 서버 수보다 적을 수 있다).
+	if (GetWorld()->GetNetMode() == NM_Client)
+	{
+		FTimerHandle CountTimer;
+		TWeakObjectPtr<UWorld> WeakWorld(GetWorld());
+		GetWorld()->GetTimerManager().SetTimer(CountTimer, FTimerDelegate::CreateLambda([WeakWorld]()
+		{
+			if (!WeakWorld.IsValid())
+				return;
+			int32 Count = 0, Shaped = 0;
+			for (TActorIterator<AWorldItemActor> It(WeakWorld.Get()); It; ++It)
+			{
+				++Count;
+				if (!It->GetItemID().IsNone())
+					++Shaped;
+			}
+			UE_LOG(LogTemp, Display, TEXT("Item spawn: client received items=%d with_item_id=%d"), Count, Shaped);
+		}), 5.0f, false);
+		return;
+	}
 
 	const UMapAssetSet& Assets = Map->GetMapAssets();
 	const UDataTable* LootTable = Assets.LootSpawnTable.LoadSynchronous();

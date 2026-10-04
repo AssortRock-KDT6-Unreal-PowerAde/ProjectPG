@@ -3,10 +3,12 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/ItemSubSystem.h"
 #include "Engine/StaticMesh.h"
+#include "Net/UnrealNetwork.h"
 
 AWorldItemActor::AWorldItemActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
 
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	SetRootComponent(Mesh);
@@ -18,6 +20,19 @@ AWorldItemActor::AWorldItemActor()
 	Mesh->SetGenerateOverlapEvents(false);
 	Mesh->SetCanEverAffectNavigation(false);
 	Tags.Add(TEXT("WorldItem"));
+}
+
+void AWorldItemActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AWorldItemActor, ItemID);
+	DOREPLIFETIME(AWorldItemActor, Quantity);
+}
+
+// 들어온 사람 쪽: 번호·개수가 오면 서버와 같은 모양·크기로 바꾼다(위치는 서버가 이미 바닥에 맞춰 둔 것이 함께 온다).
+void AWorldItemActor::OnRep_Item()
+{
+	SetItem(ItemID, Quantity);
 }
 
 void AWorldItemActor::SetItem(FName InItemID, int32 InQuantity)

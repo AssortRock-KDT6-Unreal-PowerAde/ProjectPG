@@ -54,6 +54,8 @@
 #include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 #include "Actors/MapBuilder/MapPointPlanner.h"
 #include "Actors/MapBuilder/MapItemSpawner.h"
+#include "Actors/MapManifestActor.h"
+#include "Components/MapGeneratorComponent.h"
 using namespace MapBuild;
 
 
@@ -353,8 +355,9 @@ void AMapBuilder::BeginPlay()
 		ItemSpawner = NewObject<UMapItemSpawner>(this, TEXT("ItemSpawner"));
 		ItemSpawner->Init(this);
 	}
-	if (!HasAuthority())
-		return;
+	// (10/4 리슨 서버) 예전엔 여기서 "서버가 아니면 끝" 이었다. 이제 들어온 사람도 맵 설계도(AMapManifestActor)로
+	// 칸 쪽지를 받아 같은 맵을 직접 세우므로 양쪽 다 기다린다. 쪽지가 생길 때까지 TryReserveFootprint 가 빈손으로 돌아온다.
+	// 서버만 해야 하는 일(설계도 만들기·아이템 놓기·플레이어 세우기)은 각자 넷 모드로 거른다.
 
 	// GameMode creates the logical grid during BeginPlay. Retry briefly so this
 	// preview does not depend on actor BeginPlay ordering.
@@ -451,6 +454,35 @@ void AMapBuilder::Tick(float DeltaSeconds)
 	}
 }
 
+int64 AMapBuilder::GetRaidSeed() const
+{
+	if (const AGameModePG* GameMode = Cast<AGameModePG>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
+		return GameMode->GetMapGenerationSeed();
+	return ReplicatedRaidSeed;
+}
+
+// 형님 생성기의 시작 구역 상자 크기(_startPositionRangeSize). 형님 코드에 getter 를 더하지 않으려고 이름으로 찾아 읽는다(리플렉션).
+// 이름이 바뀌면 4 로 돌아간다.
+int32 AMapBuilder::GetStartRangeSize() const
+{
+	if (const AGameModePG* GameMode = Cast<AGameModePG>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
+	{
+		const UMapGeneratorComponent* Generator = GameMode->FindComponentByClass<UMapGeneratorComponent>();
+		const FIntProperty* RangeProperty = FindFProperty<FIntProperty>(UMapGeneratorComponent::StaticClass(), TEXT("_startPositionRangeSize"));
+		if (Generator && RangeProperty)
+			return FMath::Max(1, RangeProperty->GetPropertyValue_InContainer(Generator));
+		return 4;
+	}
+	return ReplicatedStartRange;
+}
+
+void AMapBuilder::ApplyReplicatedManifest(int64 InSeed, int32 InStartRange)
+{
+	bHasReplicatedManifest = true;
+	ReplicatedRaidSeed = InSeed;
+	ReplicatedStartRange = InStartRange;
+}
+
 void AMapBuilder::TryReserveFootprint()
 {
 	TArray<AMapTile*> AllTiles;
@@ -500,6 +532,18 @@ void AMapBuilder::TryReserveFootprint()
 
 	if (GridStep <= 0.0f)
 		return;
+
+	// 서버: 칸 쪽지를 다 읽었으면 설계도(칸 위치·종류 + 시드)를 만들어 들어온 사람에게 보낸다(리슨 서버).
+	if (GetWorld()->GetNetMode() != NM_Client && !IsValid(Manifest))
+	{
+		TArray<FMapTileRecord> Records;
+		Records.Reserve(AllTiles.Num());
+		for (const AMapTile* Tile : AllTiles)
+			Records.Add({ FVector_NetQuantize(Tile->GetActorLocation()), Tile->GetType() });
+		Manifest = GetWorld()->SpawnActor<AMapManifestActor>(AMapManifestActor::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
+		if (Manifest)
+			Manifest->SetManifest(Records, GetRaidSeed(), GetStartRangeSize());
+	}
 
 	TMap<FIntPoint, AMapTile*> WarZoneByCell;
 	TMap<FIntPoint, AMapTile*> TileByCell;

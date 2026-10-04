@@ -81,8 +81,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 			break;
 		}
 	}
-	const AGameModePG* FeatureGameMode = Cast<AGameModePG>(GetWorld()->GetAuthGameMode());
-	const int64 FeatureSeed = IsValid(FeatureGameMode) ? FeatureGameMode->GetMapGenerationSeed() : 0;
+	const int64 FeatureSeed = Map->GetRaidSeed();
 	int32 TerrainFeatureCount = 0;
 	for (const FIntPoint& FeatureAnchor : SortedCells)
 	{
@@ -203,8 +202,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		MaxCell.X = FMath::Max(MaxCell.X, Cell.X);
 		MaxCell.Y = FMath::Max(MaxCell.Y, Cell.Y);
 	}
-	const AGameModePG* GameMode = Cast<AGameModePG>(GetWorld()->GetAuthGameMode());
-	const int64 RaidSeed = IsValid(GameMode) ? GameMode->GetMapGenerationSeed() : 0;
+	const int64 RaidSeed = Map->GetRaidSeed();
 
 	// 흙길: 시설 입구·시작점·출구가 도로나 워존에 이어지도록 흙길 칸을 정한다(흙길 담당).
 	// 결과 두 개: 흙길이 될 칸 목록, 그리고 칸마다 어느 쪽으로 이어지는지(연결 번호 N=1,E=2,S=4,W=8).

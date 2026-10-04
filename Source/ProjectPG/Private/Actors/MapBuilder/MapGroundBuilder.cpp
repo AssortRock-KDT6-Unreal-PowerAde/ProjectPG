@@ -349,8 +349,7 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 	TArray<FTransform> ShoreRockTransforms;
 	TArray<FTransform> ShoreReedTransforms;
 	{
-		const AGameModePG* ShoreGameMode = Cast<AGameModePG>(GetWorld()->GetAuthGameMode());
-		const int64 ShoreRaidSeed = IsValid(ShoreGameMode) ? ShoreGameMode->GetMapGenerationSeed() : 0;
+		const int64 ShoreRaidSeed = Map->GetRaidSeed();
 		TSet<FIntPoint> WaterCells;
 		for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
 			if (Placement.Visual == ETileDesignVisual::Water)
@@ -541,8 +540,7 @@ void UMapGroundBuilder::BuildBorderMountains()
 	// from centre, scales 0.4-1.5, sunk 15-34 m so only ridgelines rise over the
 	// valley floor. The inner ring carries the silhouette; the sparser, larger
 	// outer ring gives the range depth so it does not read as a fence of hills.
-	const AGameModePG* GameMode = Cast<AGameModePG>(GetWorld()->GetAuthGameMode());
-	const int64 RaidSeed = IsValid(GameMode) ? GameMode->GetMapGenerationSeed() : 0;
+	const int64 RaidSeed = Map->GetRaidSeed();
 	FRandomStream MountainStream(static_cast<int32>(GetTypeHash(RaidSeed) ^ 0x304Au));
 	TArray<FTransform> MountainTransforms;
 	const struct { int32 Count; float Radius; float ScaleMin; float ScaleMax; float BaseZ; } Rings[] = {

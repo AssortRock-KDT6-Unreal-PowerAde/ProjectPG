@@ -425,8 +425,7 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 	int32 HiddenTerrainUnderlayCount = 0;
 	TMap<ETacticalTileKind, int32> KindCounts;
 	TMap<FName, int32> WarZoneVariantCounts;
-	const AGameModePG* RuntimeGameMode = Cast<AGameModePG>(GetWorld()->GetAuthGameMode());
-	const int64 RuntimeRaidSeed = IsValid(RuntimeGameMode) ? RuntimeGameMode->GetMapGenerationSeed() : 0;
+	const int64 RuntimeRaidSeed = Map->GetRaidSeed();
 	auto FloorDivide = [](const int32 Value, const int32 Divisor)
 	{
 		const int32 Quotient = Value / Divisor;

@@ -9,6 +9,7 @@
 #include "Engine/World.h"
 #include "Components/PrimitiveComponent.h"
 #include "LandscapeProxy.h"
+#include "GameFramework/Pawn.h"
 
 using namespace MapBuild;
 
@@ -134,6 +135,7 @@ void UMapPointPlanner::BuildPoints()
 					const AActor* HitActor = Result.GetActor();
 					const UPrimitiveComponent* HitComponent = Result.GetComponent();
 					return IsValid(HitActor) && HitActor != Map
+						&& !HitActor->IsA<APawn>() // 사람·몬스터는 맵이 아니다(리슨 서버에서 들어온 사람 쪽엔 이미 캐릭터가 서 있어 자리가 달라졌음)
 						&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
 						&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
 						&& IsValid(HitComponent)
@@ -427,6 +429,7 @@ void UMapPointPlanner::ResolveSafety()
 				const AActor* HitActor = Result.GetActor();
 				const UPrimitiveComponent* HitComponent = Result.GetComponent();
 				return IsValid(HitActor) && HitActor != Map
+					&& !HitActor->IsA<APawn>()
 					&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
 					&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
 					&& IsValid(HitComponent)

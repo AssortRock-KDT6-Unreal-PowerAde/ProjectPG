@@ -79,16 +79,8 @@ void UMapSpawnRegionPlanner::PickSpawnRegions(
 	const float LakeRadiusCells = Map->BorderLakeRadiusCells;
 	const FBorderLake Lake = GetBorderLake(RaidSeed, GridMin, GridMax, LakeRadiusCells, CollectTraversalCells(TileByCell));
 
-	// 형님 생성기의 시작 구역 상자 크기(_startPositionRangeSize). 형님 코드에 getter 를 더하지 않으려고 이름으로 찾아 읽는다(리플렉션).
-	// 이름이 바뀌면 4 로 돌아가니 로그에 값을 남긴다.
-	int32 RangeSize = 4;
-	if (const AGameModePG* GameMode = Cast<AGameModePG>(GetWorld()->GetAuthGameMode()))
-	{
-		const UMapGeneratorComponent* Generator = GameMode->FindComponentByClass<UMapGeneratorComponent>();
-		const FIntProperty* RangeProperty = FindFProperty<FIntProperty>(UMapGeneratorComponent::StaticClass(), TEXT("_startPositionRangeSize"));
-		if (Generator && RangeProperty)
-			RangeSize = FMath::Max(1, RangeProperty->GetPropertyValue_InContainer(Generator));
-	}
+	// 형님 생성기의 시작 구역 상자 크기(서버 = 생성기, 들어온 사람 = 설계도). 로그에 값을 남긴다.
+	const int32 RangeSize = Map->GetStartRangeSize();
 
 	// ③ 빈 모서리 상자(길·시작·출구·워존이 하나도 없는 모서리). 호수 모서리는 뺀다.
 	const FVector2D MapCentreCell((GridMin.X + GridMax.X) * 0.5f, (GridMin.Y + GridMax.Y) * 0.5f);

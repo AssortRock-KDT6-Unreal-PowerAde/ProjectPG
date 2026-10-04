@@ -223,6 +223,14 @@ public:
 
 	FOnLevelDesignPointsBuilt OnLevelDesignPointsBuilt;
 
+	// 판 시드. 서버는 게임모드(형님 생성기)의 시드, 들어온 사람은 맵 설계도(AMapManifestActor)로 받은 시드.
+	// 맵 계산(언덕·호수·시설 씨앗·흙길·산)은 전부 이걸 쓴다 — 예전엔 게임모드에서 직접 읽어서 클라에서는 0 이었다.
+	int64 GetRaidSeed() const;
+	// 형님 생성기의 시작 구역 상자 크기. 같은 이유로 서버는 생성기에서, 클라는 설계도에서.
+	int32 GetStartRangeSize() const;
+	// 들어온 사람: 맵 설계도가 도착하면 시드·상자 크기를 넣는다(칸 쪽지를 만들기 전에).
+	void ApplyReplicatedManifest(int64 InSeed, int32 InStartRange);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -534,4 +542,12 @@ private:
 	TArray<double> FacilityLoadRequestTimeSeconds;
 
 	FTimerHandle RetryTimer;
+
+	// 들어온 사람이 설계도로 받은 값(서버에서는 안 씀).
+	bool bHasReplicatedManifest = false;
+	int64 ReplicatedRaidSeed = 0;
+	int32 ReplicatedStartRange = 4;
+	// 서버: 설계도를 이미 만들었나(쪽지를 읽는 재시도 때 두 번 만들지 않게).
+	UPROPERTY(Transient)
+	TObjectPtr<class AMapManifestActor> Manifest;
 };

@@ -356,8 +356,7 @@ bool UMapFacilityPlanner::PlanFacilities(
 	// boats have somewhere to be. ReserveThemedDistrict picks the nearest legal 2x2
 	// to this point, and flooding never touches reserved cells, so the settlement
 	// itself always ends up on dry land.
-	const AGameModePG* LakeGameMode = Cast<AGameModePG>(GetWorld()->GetAuthGameMode());
-	const int64 LakeRaidSeed = IsValid(LakeGameMode) ? LakeGameMode->GetMapGenerationSeed() : 0;
+	const int64 LakeRaidSeed = Map->GetRaidSeed(); // 서버 = 게임모드 시드, 들어온 사람 = 설계도로 받은 시드
 	const FBorderLake RuralLake = GetBorderLake(
 		LakeRaidSeed, FIntPoint(MinCellX, MinCellY), FIntPoint(MaxCellX, MaxCellY),
 		Map->BorderLakeRadiusCells, CollectTraversalCells(TileByCell));
@@ -528,8 +527,7 @@ void UMapFacilityPlanner::ReserveFacility(
 	Placement.AnchorCell = Anchor;
 	Placement.Footprint = Footprint;
 	Placement.RotationQuarterTurns = RotationQuarterTurns;
-	const AGameModePG* GameMode = Cast<AGameModePG>(GetWorld()->GetAuthGameMode());
-	const int64 RaidSeed = IsValid(GameMode) ? GameMode->GetMapGenerationSeed() : 0;
+	const int64 RaidSeed = Map->GetRaidSeed();
 	Placement.LocalSeed = static_cast<int64>(HashCombine(
 		GetTypeHash(RaidSeed),
 		HashCombine(GetTypeHash(Anchor.X), HashCombine(GetTypeHash(Anchor.Y), GetTypeHash(static_cast<uint8>(VisualSet))))));
