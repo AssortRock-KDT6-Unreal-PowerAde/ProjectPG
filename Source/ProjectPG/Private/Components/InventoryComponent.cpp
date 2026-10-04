@@ -44,7 +44,7 @@ void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 💡 WebSocketSubSystem 대신 UInventorySubSystem에 인벤토리 수신 델리게이트 바인딩
+	// 인벤토리 담당(UInventorySubSystem)이 칸을 만들면 받는다.
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
 		InvenSub->OnInventoryReceived.RemoveDynamic(this, &UInventoryComponent::HandleInventoryReceived);
@@ -336,11 +336,7 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	RebuildGridMapByGuid(SourceGuid);
 	RebuildGridMapByGuid(TargetInvenGuid);
 
-	// 💡 5. 서버로 이동 패킷 전송 (UInventorySubSystem을 거치도록 수정 완료)
-	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
-	{
-		InvenSub->RequestMoveItem(SourceGuid, TargetInvenGuid, ItemGUID, NewPos, bNewRotated);
-	}
+	// 5. (예전: 서버로 이동 패킷 전송) 10/4 웹 서버를 빼서 여기서 옮긴 것이 곧 결과다.
 
 	// 6. UI 동기화 알림
 	OnInventoryUpdated.Broadcast();

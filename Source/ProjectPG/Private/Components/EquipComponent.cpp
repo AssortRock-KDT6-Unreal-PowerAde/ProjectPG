@@ -7,7 +7,6 @@
 #include "Actor/EquipActor.h"
 #include "Core/TableSubSystem.h"
 #include "Core/UIManagerSubSystem.h"
-#include <Server/WebSocketSubSystem.h>
 #include "GameFramework/PlayerState.h"
 #include <Server/InventorySubSystem.h>
 
@@ -24,7 +23,7 @@ void UEquipComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 💡 WebSocketSubSystem 대신 UInventorySubSystem에 바인딩
+	// 인벤토리 담당(UInventorySubSystem)이 장비 칸을 알리면 받는다.
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
 		InvenSub->OnEquipReceived.RemoveDynamic(this, &UEquipComponent::SetServerEquipData);
@@ -77,10 +76,7 @@ bool UEquipComponent::Equip(const FItemInstance& Item)
 		UE_LOG(LogTemp, Error, TEXT("[EquipComponent] 장착 실패: 슬롯 타입(%d)에 해당하는 유효한 TargetSlotGuid를 찾지 못했습니다!"), (int32)Slot);
 		return false;
 	}
-	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
-	{
-		InvenSub->RequestEquipItem(Item.GUID, TargetSlotGuid, true);
-	}
+	// (예전: 서버로 장착 패킷 전송) 10/4 웹 서버를 빼서 여기서 장착한 것이 곧 결과다.
 	// 장착 변경 이벤트 전파 (UI 가 이 델리게이트 내부에서 다시 Equip을 부르지 않는지 확인 필요!)
 	OnEquipmentChanged.Broadcast();
 	return true;
@@ -110,12 +106,6 @@ bool UEquipComponent::UnEquip(EEquipSlot slot)
 
 	// 2. 맵에서 완전 제거
 	Equipments.Remove(slot);
-
-	// 3. 웹소켓 서버로 해제 패킷 전송
-	//if (UWebSocketSubSystem* WebSocketSub = UWebSocketSubSystem::Get(GetWorld()))
-	//{
-	//	WebSocketSub->RequestEquipItem(RemovedItem.GUID, RemovedItem.parent_inventory_guid, false);
-	//}
 
 	OnEquipmentChanged.Broadcast();
 	return true;

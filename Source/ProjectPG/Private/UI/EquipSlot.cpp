@@ -11,7 +11,6 @@
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Components/InventoryComponent.h"
 #include "Components/EquipComponent.h"
-#include "Server/WebSocketSubSystem.h"
 
 void UEquipSlot::NativeConstruct()
 {

@@ -38,6 +38,34 @@ struct FDefineTableRow : public FTableRowBase
 	FString StringValue = TEXT("");
 };
 
+// 시작 짐이 들어갈 곳.
+UENUM(BlueprintType)
+enum class EStarterContainer : uint8
+{
+	Stash,   // 창고(로비 캐릭터 화면 오른쪽 큰 격자)
+	Pocket,  // 주머니
+	Equip    // 바로 장착(아이템 표의 장비 칸으로)
+};
+
+// 시작 짐 한 줄 (StarterInventoryTable). 처음 로비에 들어왔을 때 갖고 있는 아이템.
+// 왜 표로 뺐나: 무엇을 주고 시작할지는 기획 값이라 코드 없이 바꿀 수 있어야 해서.
+USTRUCT(BlueprintType)
+struct FStarterInventoryRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	// 아이템 표(ItemTable)의 번호.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName ItemID = NAME_None;
+
+	// 개수(쌓이는 아이템만 의미 있음, 아이템 표 MaxStack 을 넘으면 거기까지).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Count = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EStarterContainer Container = EStarterContainer::Stash;
+};
+
 USTRUCT(BlueprintType)
 struct FItemBackpackTable : public FTableRowBase
 {

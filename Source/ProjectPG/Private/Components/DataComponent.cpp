@@ -1,6 +1,5 @@
 // DataComponent.cpp
 #include "Components/DataComponent.h"
-#include "Server/WebSocketSubSystem.h"
 #include "Server/InventorySubSystem.h"
 
 #include "Components/InventoryComponent.h"
@@ -15,7 +14,7 @@ void UDataComponent::BeginPlay()
 	Super::BeginPlay();
 
 	
-		// [Client / Standalone] 로비 세션일 때는 기존처럼 WebSocketSubSystem 델리게이트 바인딩
+		// 인벤토리 담당(UInventorySubSystem)이 칸을 만들면 받는다.
 		if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld()))
 		{
 			Subsystem->OnInventoryReceived.RemoveDynamic(this, &UDataComponent::LoadInventoryData);

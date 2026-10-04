@@ -10,8 +10,10 @@
 UENUM(BlueprintType)
 enum class EUIType : uint8
 {
-	None, LoginWindow, Login, CreateUser,
+	None,
 	Character, Inventory, EquipMent, Quest, MessagePopup, Lobby, ItemContext, BackPackPopup,
+	Matching,	// 매칭 화면(게임 시작 → 리슨 서버 방 찾기/열기)
+	Option,		// 옵션(설정) 화면
 };
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMessagePopupView, const FString&, Message, int32, Popuptype);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPopupClosed);

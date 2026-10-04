@@ -197,15 +197,15 @@ void UInventoryWindow::OnClickedBackBtn()
 	if (!IsValid(subSystem)) return;
 
 	subSystem->CloseUI(EUIType::Character);
+	// 기획서: 뒤로가기 → 메인 메뉴.
+	subSystem->OpenUI(EUIType::Lobby);
 }
 
 void UInventoryWindow::UpdateState()
 {
 
-	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
-	{
-		InvenSub->RequestGetInventory();
-	}
+	// (예전: 서버에 인벤토리 요청) 이제 데이터는 이미 컴포넌트에 있으니 격자만 다시 그린다.
+	RefreshAllGrids();
 }
 
 void UInventoryWindow::OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper)

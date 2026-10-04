@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Server/WebSocketSubSystem.h" // FInventoryMapWrapper 정의 포함
+#include "Common/GameData.h" // FInventoryMapWrapper 정의 포함
 #include "InventoryWindow.generated.h"
 
 // 전방 선언 (Forward Declaration)

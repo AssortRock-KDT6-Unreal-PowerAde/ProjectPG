@@ -4,13 +4,10 @@
 #include "UI/MessagePopupWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
-#include "Server/WebSocketSubSystem.h"
-#include "Server/MatchmakingSubSystem.h"
 #include "Core/UIManagerSubSystem.h"
 void UMessagePopupWidget::NativeConstruct()
 {
 	UUIManagerSubSystem* subsystem = UUIManagerSubSystem::Get(GetWorld());
-	UWebSocketSubSystem* server = UWebSocketSubSystem::Get(GetWorld());
 	if (false == IsValid(subsystem)) return;
 
 	subsystem->OnMessagePopupEvent.RemoveDynamic(this, &UMessagePopupWidget::SetMessageText);
@@ -21,10 +18,7 @@ void UMessagePopupWidget::NativeConstruct()
 		OkButton->OnClicked.RemoveDynamic(this, &UMessagePopupWidget::OnClickeOkbutton);
 		OkButton->OnClicked.AddDynamic(this, &UMessagePopupWidget::OnClickeOkbutton);
 	}
-	UMatchmakingSubSystem* matchSubSystem = UMatchmakingSubSystem::Get(GetWorld());
-	if (!IsValid(matchSubSystem)) return;
-	matchSubSystem->OnMatchStatusChanged.RemoveDynamic(this,&UMessagePopupWidget::SetMessageWebsocket);
-	matchSubSystem->OnMatchStatusChanged.AddDynamic(this,&UMessagePopupWidget::SetMessageWebsocket);
+	// (예전: 서버 매칭 상태를 이 창에 띄움) 매칭은 이제 매칭 화면(WBP_Matching)이 맡는다.
 
 }
 
@@ -105,10 +99,7 @@ void UMessagePopupWidget::OnClickeOkbutton()
 		
 	case EMessageBoxType::ServerWating: 
 	{
-		UMatchmakingSubSystem* subsystem = UMatchmakingSubSystem::Get(GetWorld());
-		if (!IsValid(subsystem)) return;
-		subsystem->RequestCancleMatch();
-		UE_LOG(LogTemp, Warning, TEXT("Cancle Button"));
+		// (예전: 서버 매칭 취소) 매칭 취소는 이제 매칭 화면이 맡는다.
 
 		break;
 	}

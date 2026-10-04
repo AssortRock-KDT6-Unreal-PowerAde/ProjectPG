@@ -4,18 +4,17 @@
 #include "UI/InventoryWindow.h"
 #include "UI/InventoryGridWidget.h"
 #include "Core/UIManagerSubSystem.h"
-#include "Server/WebSocketSubSystem.h"
 #include "Components/Button.h"
 #include "Components/InventoryComponent.h"
 #include "Components/EquipComponent.h"
 
 #include "GameMode/CustomPlayerState.h"
-#include <Server/MatchmakingSubSystem.h>
+#include "Server/SessionSubSystem.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 void ULobbyWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-	UWebSocketSubSystem* subSystem = UWebSocketSubSystem::Get(GetWorld());
 
 	if (CharacterBtn)
 	{
@@ -45,6 +44,8 @@ void ULobbyWidget::OnClickedCharacterButton()
 	UUIManagerSubSystem* UISubsystem = UUIManagerSubSystem::Get(GetWorld());
 	if (!IsValid(UISubsystem)) return;
 
+	// 기획서: 캐릭터 화면은 메인 메뉴를 대신해 뜨고, "뒤로가기" 로 메인 메뉴에 돌아온다 → 메뉴를 닫고 연다.
+	UISubsystem->CloseUI(EUIType::Lobby);
 	UUserWidget* CharacterWidget = UISubsystem->OpenUI(EUIType::Character);
 	UInventoryWindow* Window = Cast<UInventoryWindow>(CharacterWidget);
 
@@ -78,17 +79,30 @@ void ULobbyWidget::OnClickedCharacterButton()
 	}
 }
 
-void ULobbyWidget::OnClickedGameStartButton() {
-
-
+// 게임 시작: 매칭 화면을 띄우고 매칭 담당에게 맡긴다(같은 네트워크의 방에 들어가거나, 없으면 내가 방장 = 리슨 서버).
+// (예전: 웹 서버 매칭 요청) 10/4 팀 합의로 리슨 서버.
+void ULobbyWidget::OnClickedGameStartButton()
+{
 	UUIManagerSubSystem* UISubsystem = UUIManagerSubSystem::Get(GetWorld());
 	if (!IsValid(UISubsystem)) return;
-	UISubsystem->OpenMessageBox("",1);
+	UISubsystem->OpenUI(EUIType::Matching);
 
-	UMatchmakingSubSystem* subSystem = UMatchmakingSubSystem::Get(GetWorld());
-	if (nullptr == subSystem) return;
-
-	subSystem->RequestGameStart();
+	if (USessionSubSystem* Session = USessionSubSystem::Get(this))
+	{
+		Session->StartMatching();
+	}
 }
-void ULobbyWidget::OnClickedOptionButton() {}
-void ULobbyWidget::OnClickedExitButton() {}
+
+void ULobbyWidget::OnClickedOptionButton()
+{
+	if (UUIManagerSubSystem* UISubsystem = UUIManagerSubSystem::Get(GetWorld()))
+	{
+		UISubsystem->OpenUI(EUIType::Option);
+	}
+}
+
+// 종료: 게임을 끈다.
+void ULobbyWidget::OnClickedExitButton()
+{
+	UKismetSystemLibrary::QuitGame(this, GetOwningPlayer(), EQuitPreference::Quit, false);
+}

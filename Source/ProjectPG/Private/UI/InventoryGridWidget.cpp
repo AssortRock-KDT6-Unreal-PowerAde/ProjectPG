@@ -16,7 +16,6 @@
 #include "Components/EquipComponent.h"
 #include "Components/OverlaySlot.h"
 
-#include "Server/WebSocketSubSystem.h"
 #include <Core/TableSubSystem.h>
 #include <UI/InventoryWindow.h>
 #include <UI/EquipSlot.h>
@@ -36,6 +35,9 @@ void UInventoryGridWidget::RefreshGrid(UInventoryComponent* InComp, const FGuid&
 
 	InventoryGUID = InvenGuid;
 	BindInventoryComponent(InComp);
+	// (10/4) 묶은 뒤 바로 한 번 그린다. 예전엔 곧이어 서버 인벤토리가 와서 "바뀜" 알림으로 그려졌지만,
+	//        이제 데이터가 이미 있는 상태에서 창이 열리므로 알림이 안 온다 → 안 그리면 빈 화면.
+	RefreshGridUI();
 }
 
 FIntPoint UInventoryGridWidget::CalculateDropTile(
@@ -700,9 +702,6 @@ bool UInventoryGridWidget::NativeOnDrop(
 			}
 		}
 
-		const FGuid SourceGuid =
-			ItemDragOp->DraggedItem.parent_inventory_guid;
-
 		TempInstance.parent_inventory_guid =
 			InventoryGUID;
 
@@ -713,22 +712,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 
 		if (bAdded)
 		{
-			if (UInventorySubSystem* Web =
-				UInventorySubSystem::Get(GetWorld()))
-			{
-				Web->RequestEquipItem(
-					TempInstance.GUID,
-					InventoryGUID,
-					false);
-
-				Web->RequestMoveItem(
-					SourceGuid,
-					InventoryGUID,
-					TempInstance.GUID,
-					TargetTile,
-					TempInstance.bIsRotated);
-			}
-
+			// (예전: 서버로 장착 해제·이동 패킷 전송) 10/4 웹 서버를 빼서 위 AddItemAt 이 곧 결과다.
 			UE_LOG(
 				LogTemp,
 				Warning,

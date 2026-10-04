@@ -1,7 +1,12 @@
 #include "Server/InventorySubSystem.h"
-#include "Server/WebSocketSubSystem.h"
-#include "Dom/JsonObject.h"
+
+#include "Components/InventoryComponent.h"
+#include "Components/EquipComponent.h"
 #include "Core/ItemSubSystem.h"
+#include "Core/TableSubSystem.h"
+#include "Common/TableData.h"
+#include "GameMode/CustomPlayerState.h"
+#include "GameFramework/PlayerController.h"
 
 UInventorySubSystem* UInventorySubSystem::Get(UWorld* World)
 {
@@ -13,215 +18,104 @@ UInventorySubSystem* UInventorySubSystem::Get(UWorld* World)
 	return nullptr;
 }
 
-void UInventorySubSystem::Initialize(FSubsystemCollectionBase& Collection)
+// 시작 짐 넣기.
+// ① 창고·주머니 GUID 와 크기, 장비 칸 GUID 9개를 만들어 칸 이벤트로 쏜다
+//    → 인벤토리 컴포넌트(SetServerInventoryData)·장비 컴포넌트(SetServerEquipData)가 칸을 만든다.
+// ② 시작 짐 표의 줄마다 아이템을 만들어 넣는다. 창고·주머니는 인벤토리 컴포넌트 AddItem(빈 자리를 왼쪽 위부터 찾음),
+//    장착은 장비 컴포넌트 Equip. 가방이면 가방 칸 크기도 등록한다(가방 표 BackpackTable).
+int32 UInventorySubSystem::LoadStarterInventory(APlayerController* PlayerController)
 {
-	Super::Initialize(Collection);
-}
-
-void UInventorySubSystem::Deinitialize()
-{
-	Super::Deinitialize();
-}
-
-void UInventorySubSystem::HandleInventoryMessage(const FString& MessageType, TSharedPtr<FJsonObject> PayloadObject)
-{
-	if (!PayloadObject.IsValid()) return;
-
-	if (MessageType == TEXT("INVENTORY_DATA"))
+	ACustomPlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<ACustomPlayerState>() : nullptr;
+	if (!PlayerState || !PlayerState->InvenComp || !PlayerState->EquipComp)
 	{
-		FInventoryMapWrapper InventoryMapWrapper;
-		FInventoryMapWrapper EquipMapWrapper;
-		FString TempGuidStr;
-
-		if (PayloadObject->TryGetStringField(TEXT("stashGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
-		{
-			FGuid::Parse(TempGuidStr, InventoryMapWrapper.StashGuid);
-		}
-		if (PayloadObject->TryGetStringField(TEXT("pocketGuid"), TempGuidStr) && !TempGuidStr.IsEmpty())
-		{
-			FGuid::Parse(TempGuidStr, InventoryMapWrapper.PocketGuid);
-		}
-
-		auto ParseEquipSlot = [&](const TCHAR* FieldName, FGuid& OutGuid) {
-			if (PayloadObject->TryGetStringField(FieldName, TempGuidStr) && !TempGuidStr.IsEmpty())
-			{
-				FGuid::Parse(TempGuidStr, OutGuid);
-			}
-			};
-		ParseEquipSlot(TEXT("MainWeaponGuid"), InventoryMapWrapper.MainWeapon);
-		ParseEquipSlot(TEXT("SubWeaponGuid"), InventoryMapWrapper.SubWeapon);
-		ParseEquipSlot(TEXT("HelMetGuid"), InventoryMapWrapper.HelMet);
-		ParseEquipSlot(TEXT("ClothGuid"), InventoryMapWrapper.Cloth);
-		ParseEquipSlot(TEXT("PantsGuid"), InventoryMapWrapper.Pants);
-		ParseEquipSlot(TEXT("ShoseGuid"), InventoryMapWrapper.Shose);
-		ParseEquipSlot(TEXT("BackPackGuid"), InventoryMapWrapper.BackPack);
-		ParseEquipSlot(TEXT("Accuracy1Guid"), InventoryMapWrapper.Accuracy1);
-		ParseEquipSlot(TEXT("Accuracy2Guid"), InventoryMapWrapper.Accuracy2);
-
-		EquipMapWrapper.MainWeapon = InventoryMapWrapper.MainWeapon;
-		EquipMapWrapper.SubWeapon = InventoryMapWrapper.SubWeapon;
-		EquipMapWrapper.HelMet = InventoryMapWrapper.HelMet;
-		EquipMapWrapper.Cloth = InventoryMapWrapper.Cloth;
-		EquipMapWrapper.Pants = InventoryMapWrapper.Pants;
-		EquipMapWrapper.Shose = InventoryMapWrapper.Shose;
-		EquipMapWrapper.BackPack = InventoryMapWrapper.BackPack;
-		EquipMapWrapper.Accuracy1 = InventoryMapWrapper.Accuracy1;
-		EquipMapWrapper.Accuracy2 = InventoryMapWrapper.Accuracy2;
-
-		TMap<FGuid, FItemArrayWrapper> InventoryItems;
-		TMap<FGuid, FItemArrayWrapper> EquipItems;
-
-		const TArray<TSharedPtr<FJsonValue>>* InventoriesArray;
-		if (PayloadObject->TryGetArrayField(TEXT("inventories"), InventoriesArray))
-		{
-			for (const TSharedPtr<FJsonValue>& InvenValue : *InventoriesArray)
-			{
-				TSharedPtr<FJsonObject> InvenObj = InvenValue->AsObject();
-				if (!InvenObj.IsValid()) continue;
-
-				FGuid InvenGuid;
-				FString GuidStr;
-				if (InvenObj->TryGetStringField(TEXT("inventory_id"), GuidStr) || InvenObj->TryGetStringField(TEXT("guid"), GuidStr))
-				{
-					if (FGuid::Parse(GuidStr, InvenGuid))
-					{
-						int32 Cols = 0, Rows = 0;
-						InvenObj->TryGetNumberField(TEXT("max_cols"), Cols);
-						if (Cols == 0) InvenObj->TryGetNumberField(TEXT("cols"), Cols);
-						InvenObj->TryGetNumberField(TEXT("max_rows"), Rows);
-						if (Rows == 0) InvenObj->TryGetNumberField(TEXT("rows"), Rows);
-
-						if (Cols > 0 && Rows > 0)
-						{
-							InventoryMapWrapper.InventorySizeMap.Add(InvenGuid, FIntPoint(Cols, Rows));
-						}
-						InventoryItems.FindOrAdd(InvenGuid);
-					}
-				}
-			}
-		}
-
-		const TArray<TSharedPtr<FJsonValue>>* ItemsArray;
-		if (PayloadObject->TryGetArrayField(TEXT("items"), ItemsArray))
-		{
-			for (const TSharedPtr<FJsonValue>& ItemValue : *ItemsArray)
-			{
-				TSharedPtr<FJsonObject> ItemObject = ItemValue->AsObject();
-				if (!ItemObject.IsValid()) continue;
-
-				FItemInstance Item;
-				FString ItemGuidStr;
-				if (ItemObject->TryGetStringField(TEXT("guid"), ItemGuidStr))
-				{
-					FGuid::Parse(ItemGuidStr, Item.GUID);
-				}
-
-				FString ParentGuidStr;
-				if (ItemObject->TryGetStringField(TEXT("parent_inventory_guid"), ParentGuidStr) && !ParentGuidStr.IsEmpty())
-				{
-					FGuid::Parse(ParentGuidStr, Item.parent_inventory_guid);
-				}
-
-				FString ItemIdStr;
-				if (ItemObject->TryGetStringField(TEXT("item_id"), ItemIdStr))
-				{
-					Item.ItemID = FName(*ItemIdStr);
-				}
-
-				ItemObject->TryGetNumberField(TEXT("stack_count"), Item.StackCount);
-				double TempDurability = 0.0;
-				if (ItemObject->TryGetNumberField(TEXT("current_durability"), TempDurability))
-				{
-					Item.Durability = TempDurability;
-				}
-
-				ItemObject->TryGetNumberField(TEXT("pos_x"), Item.Position.X);
-				ItemObject->TryGetNumberField(TEXT("pos_y"), Item.Position.Y);
-
-				int32 IsEquippedInt = 0;
-				if (ItemObject->TryGetNumberField(TEXT("is_equipped"), IsEquippedInt))
-				{
-					Item.bEquip = (IsEquippedInt == 1);
-				}
-				if (ItemObject->HasField(TEXT("bIsRotated")))
-				{
-					Item.bIsRotated = ItemObject->GetBoolField(TEXT("bIsRotated"));
-				}
-
-				if (UItemSubSystem* subSystem = UItemSubSystem::Get(GetWorld()))
-				{
-					const FItemTableRow* ItemInstance = subSystem->GetItem(Item.ItemID);
-					if (ItemInstance != nullptr)
-					{
-						Item.type = ItemInstance->ItemType;
-					}
-				}
-
-				if (!Item.bEquip && Item.parent_inventory_guid.IsValid())
-				{
-					InventoryItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);
-				}
-				else if (Item.bEquip)
-				{
-					EquipItems.FindOrAdd(Item.parent_inventory_guid).Items.Add(Item);
-				}
-			}
-		}
-
-		InventoryMapWrapper.InventoryMap = InventoryItems;
-		EquipMapWrapper.InventoryMap = EquipItems;
-
-		OnInventoryReceived.Broadcast(InventoryMapWrapper);
-		OnEquipReceived.Broadcast(EquipMapWrapper);
+		UE_LOG(LogTemp, Warning, TEXT("[InventorySubSystem] 플레이어 상태가 아직 없어 시작 짐을 못 넣었습니다."));
+		return -1;
 	}
-	else if (MessageType == TEXT("RES_MOVE_ITEM"))
+	UInventoryComponent* Inventory = PlayerState->InvenComp;
+	UEquipComponent* Equipment = PlayerState->EquipComp;
+	if (Inventory->GetStashInventoryID().IsValid())
+		return 0;
+
+	UItemSubSystem* Items = UItemSubSystem::Get(this);
+	UTableSubSystem* Tables = UTableSubSystem::Get(this);
+	if (!Items || !Tables)
+		return 0;
+
+	// ① 칸 만들기
+	FInventoryMapWrapper Containers;
+	Containers.StashGuid = FGuid::NewGuid();
+	Containers.PocketGuid = FGuid::NewGuid();
+	Containers.InventorySizeMap.Add(Containers.StashGuid, StashSize);
+	Containers.InventorySizeMap.Add(Containers.PocketGuid, PocketSize);
+	Containers.InventoryMap.Add(Containers.StashGuid);
+	Containers.InventoryMap.Add(Containers.PocketGuid);
+
+	FInventoryMapWrapper Slots;
+	for (FGuid* SlotGuid : { &Slots.MainWeapon, &Slots.SubWeapon, &Slots.HelMet, &Slots.Cloth, &Slots.Pants,
+		&Slots.Shose, &Slots.BackPack, &Slots.Accuracy1, &Slots.Accuracy2 })
 	{
-		bool bSuccess = PayloadObject->GetBoolField(TEXT("success"));
-		if (bSuccess)
+		*SlotGuid = FGuid::NewGuid();
+	}
+	OnInventoryReceived.Broadcast(Containers);
+	OnEquipReceived.Broadcast(Slots);
+
+	// ② 시작 짐 넣기
+	const UDataTable* StarterTable = Tables->FindTable(TEXT("StarterInventoryTable"));
+	if (!StarterTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[InventorySubSystem] TableLoader 에 StarterInventoryTable 이 없습니다 - 빈 인벤토리로 시작"));
+		return 0;
+	}
+	TArray<FStarterInventoryRow*> Rows;
+	StarterTable->GetAllRows<FStarterInventoryRow>(TEXT("LoadStarterInventory"), Rows);
+
+	int32 Placed = 0;
+	TArray<FString> Failed;
+	for (const FStarterInventoryRow* Row : Rows)
+	{
+		const FItemTableRow* ItemData = Row ? Items->GetItem(Row->ItemID) : nullptr;
+		if (!ItemData)
 		{
-			RequestGetInventory();
+			if (Row) Failed.Add(Row->ItemID.ToString());
+			continue;
+		}
+
+		FItemInstance Item;
+		Item.GUID = FGuid::NewGuid();
+		Item.ItemID = Row->ItemID;
+		Item.StackCount = FMath::Clamp(Row->Count, 1, FMath::Max(1, ItemData->MaxStack));
+		Item.type = ItemData->ItemType;
+		Item.Owner = PlayerState;
+
+		bool bOk = false;
+		if (Row->Container == EStarterContainer::Equip)
+		{
+			Item.bEquip = true;
+			// 장착 아이템의 부모 = 그 장비 칸의 GUID(서버 시절과 같은 약속).
+			const TMap<EEquipSlot, FGuid> SlotGuidByType = {
+				{ EEquipSlot::MainWeapon, Slots.MainWeapon }, { EEquipSlot::SubWeapon, Slots.SubWeapon },
+				{ EEquipSlot::HelMet, Slots.HelMet }, { EEquipSlot::Cloth, Slots.Cloth }, { EEquipSlot::Pants, Slots.Pants },
+				{ EEquipSlot::Shose, Slots.Shose }, { EEquipSlot::BackPack, Slots.BackPack },
+				{ EEquipSlot::Accuracy1, Slots.Accuracy1 }, { EEquipSlot::Accuracy2, Slots.Accuracy2 } };
+			Item.parent_inventory_guid = SlotGuidByType.FindRef(ItemData->EquipSlotType);
+			// 가방은 칸 크기를 먼저 등록한다. 장비 컴포넌트는 "폰의 플레이어 상태" 로 등록하는데 로비엔 폰이 없어서.
+			if (Item.type == EItemType::Bag)
+				if (const FItemBackpackTable* Bag = Tables->FindTableRow<FItemBackpackTable>(TEXT("BackpackTable"), Item.ItemID))
+					Inventory->RegisterContainer(Item.GUID, Bag->SlotSize);
+			bOk = Equipment->Equip(Item);
 		}
 		else
 		{
-			RequestGetInventory();
+			Item.parent_inventory_guid = Row->Container == EStarterContainer::Pocket ? Containers.PocketGuid : Containers.StashGuid;
+			bOk = Inventory->AddItem(Item);
 		}
+		if (bOk)
+			++Placed;
+		else
+			Failed.Add(Row->ItemID.ToString());
 	}
-}
 
-void UInventorySubSystem::RequestGetInventory()
-{
-	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
-	{
-		TSharedPtr<FJsonObject> Payload = MakeShared<FJsonObject>();
-		WS->SendJsonMessage(TEXT("GET_INVENTORY"), Payload);
-	}
-}
-
-void UInventorySubSystem::RequestMoveItem(const FGuid& FromInventoryGuid, const FGuid& ToInventoryGuid, const FGuid& ItemGuid, const FIntPoint& TargetPosition, bool bIsRotated)
-{
-	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
-	{
-		TSharedPtr<FJsonObject> PayloadObject = MakeShared<FJsonObject>();
-		PayloadObject->SetStringField(TEXT("FromInventoryGuid"), FromInventoryGuid.ToString(EGuidFormats::DigitsWithHyphens));
-		PayloadObject->SetStringField(TEXT("ToInventoryGuid"), ToInventoryGuid.ToString(EGuidFormats::DigitsWithHyphens));
-		PayloadObject->SetStringField(TEXT("ItemGuid"), ItemGuid.ToString(EGuidFormats::DigitsWithHyphens));
-		PayloadObject->SetNumberField(TEXT("TargetX"), TargetPosition.X);
-		PayloadObject->SetNumberField(TEXT("TargetY"), TargetPosition.Y);
-		PayloadObject->SetBoolField(TEXT("bIsRotated"), bIsRotated);
-
-		WS->SendJsonMessage(TEXT("REQ_MOVE_ITEM"), PayloadObject);
-	}
-}
-
-void UInventorySubSystem::RequestEquipItem(const FGuid& ItemGuid, const FGuid& TargetParentGuid, bool bIsEquipped)
-{
-	if (UWebSocketSubSystem* WS = UWebSocketSubSystem::Get(GetWorld()))
-	{
-		TSharedPtr<FJsonObject> PayloadObject = MakeShared<FJsonObject>();
-		PayloadObject->SetStringField(TEXT("ItemGuid"), ItemGuid.ToString(EGuidFormats::DigitsWithHyphens));
-		PayloadObject->SetStringField(TEXT("TargetParentGuid"), TargetParentGuid.ToString(EGuidFormats::DigitsWithHyphens));
-		PayloadObject->SetBoolField(TEXT("bIsEquipped"), bIsEquipped);
-
-		WS->SendJsonMessage(TEXT("REQ_EQUIP_ITEM"), PayloadObject);
-	}
+	UE_LOG(LogTemp, Display, TEXT("[InventorySubSystem] starter inventory: rows=%d placed=%d failed=[%s]"),
+		Rows.Num(), Placed, *FString::Join(Failed, TEXT(",")));
+	return Placed;
 }
