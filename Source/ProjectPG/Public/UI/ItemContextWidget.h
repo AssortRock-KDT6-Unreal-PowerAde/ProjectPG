@@ -38,6 +38,13 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UOverlay> MainOverlay;
+
+	// (10/4 기획서 1.2.1 우클릭 메뉴) 돌리기·나누기. WBP 에 없으면 그 버튼만 안 보인다.
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<class UButton> RotateButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<class UButton> SplitButton;
 private:
 	UPROPERTY()
 	TObjectPtr<class UInventoryComponent> InvenComp;
@@ -62,6 +69,12 @@ private:
 	UFUNCTION()	void OnCancledClicked();
 
 	UFUNCTION() void OnOpenClickBtn(); //가방열때만나옴
+
+	UFUNCTION() void OnRotateClicked();
+	UFUNCTION() void OnSplitClicked();
+
+	// 지금 플레이어의 인벤토리 컴포넌트(플레이어 상태에 붙어 있음).
+	class UInventoryComponent* FindInventory() const;
 
 	void InitButtonState();
 };

@@ -12,6 +12,7 @@
 #include "GameFrameWork/Actor.h"
 #include "UI/BagPopupWindow.h"
 #include "Core/TableSubSystem.h"
+#include "Common/TableData.h"
 
 void UItemContextWidget::NativeConstruct()
 {
@@ -43,6 +44,14 @@ void UItemContextWidget::NativeConstruct()
 
 		CancleButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnCancledClicked);
 	}
+	if (RotateButton) {
+		RotateButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnRotateClicked);
+		RotateButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnRotateClicked);
+	}
+	if (SplitButton) {
+		SplitButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnSplitClicked);
+		SplitButton->OnClicked.AddDynamic(this, &UItemContextWidget::OnSplitClicked);
+	}
 	if (OpenButton) {
 		OpenButton->OnClicked.RemoveDynamic(this, &UItemContextWidget::OnOpenClickBtn);
 
@@ -69,6 +78,19 @@ void UItemContextWidget::InitButtonState()
 	DropButton->SetVisibility(ESlateVisibility::Visible);
 	CancleButton->SetVisibility(ESlateVisibility::Visible);
 	OpenButton->SetVisibility(ESlateVisibility::Visible);
+	// 돌리기: 장착 중이 아니고 정사각형이 아닐 때만(정사각형은 돌려도 같다). 나누기: 2개 이상 쌓였을 때만.
+	if (RotateButton)
+	{
+		const bool bSquare = [this]()
+		{
+			const UInventoryComponent* Inventory = FindInventory();
+			const FItemTableRow* Row = Inventory ? Inventory->GetItemData(CurrentItem.ItemID) : nullptr;
+			return !Row || Row->GridSize.X == Row->GridSize.Y;
+		}();
+		RotateButton->SetVisibility(!CurrentItem.bEquip && !bSquare ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (SplitButton)
+		SplitButton->SetVisibility(!CurrentItem.bEquip && CurrentItem.StackCount > 1 ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 
 }
 
@@ -174,11 +196,39 @@ void UItemContextWidget::OnDropClicked()
 	// Null Check 추가 (크래시 방지)
 	if (EquipComp && EquipComp->IsEquipped(CurrentItem.GUID)) return;
 
-	if (InvenComp)
+	// (10/4) 버리기: 인벤토리에서 지운다. 예전엔 비어 있었다(서버 담당 예정이던 자리).
+	if (UInventoryComponent* Inventory = FindInventory())
 	{
-		// InvenComp->DropItem(CurrentItem);
+		Inventory->RemoveItem(CurrentItem.GUID);
 	}
 
+	SetVisibility(ESlateVisibility::Collapsed);
+}
+
+UInventoryComponent* UItemContextWidget::FindInventory() const
+{
+	if (InvenComp)
+		return InvenComp;
+	const APlayerController* PC = GetOwningPlayer();
+	const ACustomPlayerState* PS = PC ? PC->GetPlayerState<ACustomPlayerState>() : nullptr;
+	return PS ? PS->InvenComp.Get() : nullptr;
+}
+
+void UItemContextWidget::OnRotateClicked()
+{
+	if (UInventoryComponent* Inventory = FindInventory())
+	{
+		Inventory->RotateItem(CurrentItem.GUID);
+	}
+	SetVisibility(ESlateVisibility::Collapsed);
+}
+
+void UItemContextWidget::OnSplitClicked()
+{
+	if (UInventoryComponent* Inventory = FindInventory())
+	{
+		Inventory->SplitStack(CurrentItem.GUID);
+	}
 	SetVisibility(ESlateVisibility::Collapsed);
 }
 

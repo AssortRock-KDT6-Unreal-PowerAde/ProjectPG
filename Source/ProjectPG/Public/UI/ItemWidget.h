@@ -43,6 +43,18 @@ public:
 	virtual bool NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
 
+	// (10/4 기획서 1.2.1) 마우스를 1초 올려 두면 설명 창, 떼면 닫기.
+	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
+	virtual void NativeDestruct() override;
+
 	void RefreshWidget();
 	const FItemTableRow* GetCachedItemData() const { return &CachedItemData; }
+
+private:
+	// 설명 창을 띄우기까지 기다리는 시간(초). 기획서 1초.
+	static constexpr float TooltipDelaySeconds = 1.0f;
+	FTimerHandle TooltipTimer;
+	void ShowTooltip();
+	void HideTooltip();
 };

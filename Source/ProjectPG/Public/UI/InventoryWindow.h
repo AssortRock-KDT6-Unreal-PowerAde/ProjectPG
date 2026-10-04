@@ -38,6 +38,13 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> BackBtn;
 
+	// (10/4 기획서 1.2.1) 창고 위 검색 칸·종류 고르기. 창고 격자에만 적용.
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<class UEditableTextBox> SearchBox;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<class UComboBoxString> FilterCombo;
+
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UEquipmentWidget> EquipmentWidget;
@@ -75,6 +82,11 @@ private:
 	UFUNCTION()	void OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper);
 
 	UFUNCTION() void RefreshAllGrids();
+
+	UFUNCTION() void OnSearchChanged(const FText& Text);
+	UFUNCTION() void OnFilterChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	// 검색 칸·종류를 창고 격자에 넘긴다.
+	void ApplyFilter();
 
 
 };

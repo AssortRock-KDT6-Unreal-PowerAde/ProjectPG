@@ -17,6 +17,42 @@
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Core/UIManagerSubSystem.h"
 #include <Blueprint/SlateBlueprintLibrary.h>
+#include "UI/ItemTooltipWidget.h"
+#include "TimerManager.h"
+
+void UItemWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().SetTimer(TooltipTimer, this, &UItemWidget::ShowTooltip, TooltipDelaySeconds, false);
+}
+
+void UItemWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseLeave(InMouseEvent);
+	HideTooltip();
+}
+
+void UItemWidget::NativeDestruct()
+{
+	HideTooltip();
+	Super::NativeDestruct();
+}
+
+void UItemWidget::ShowTooltip()
+{
+	// 끌고 있는 중이면 띄우지 않는다.
+	if (UWidgetBlueprintLibrary::IsDragDropping())
+		return;
+	UItemTooltipWidget::ShowFor(this, ItemInstance, CachedItemData);
+}
+
+void UItemWidget::HideTooltip()
+{
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(TooltipTimer);
+	UItemTooltipWidget::Hide(this);
+}
 
 void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& InData, const FGuid& InInvenGUID, float InTileSize)
 {
@@ -164,6 +200,8 @@ void UItemWidget::NativeOnDragDetected(
 		InGeometry,
 		InMouseEvent,
 		OutOperation);
+
+	HideTooltip();
 
 	UItemDragDropOperation* DragOp =
 		NewObject<UItemDragDropOperation>();

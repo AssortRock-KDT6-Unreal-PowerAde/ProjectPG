@@ -343,6 +343,77 @@ bool UInventoryComponent::MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID,
 	return true;
 }
 
+bool UInventoryComponent::FindItem(const FGuid& ItemGUID, FGuid& OutContainer, int32& OutIndex) const
+{
+	for (const auto& Pair : ItemsMap)
+	{
+		for (int32 Index = 0; Index < Pair.Value.Items.Num(); ++Index)
+		{
+			if (Pair.Value.Items[Index].GUID == ItemGUID)
+			{
+				OutContainer = Pair.Key;
+				OutIndex = Index;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// 돌리기: ① 같은 자리에서 돌려 보고 ② 안 들어가면 왼쪽 위부터 돌린 채로 들어갈 빈 자리를 찾는다. 옮기기는 MoveItem 그대로.
+bool UInventoryComponent::RotateItem(FGuid ItemGUID)
+{
+	FGuid Container;
+	int32 Index = -1;
+	if (!FindItem(ItemGUID, Container, Index))
+		return false;
+	const FItemInstance Item = ItemsMap[Container].Items[Index];
+	const bool bRotated = !Item.bIsRotated;
+	if (CanPlaceItemByGuid(Container, Item.ItemID, Item.Position, bRotated, ItemGUID))
+		return MoveItem(Container, ItemGUID, Item.Position, bRotated);
+
+	const FIntPoint Size = GetInventorySizeByGuid(Container);
+	for (int32 Y = 0; Y < Size.Y; ++Y)
+		for (int32 X = 0; X < Size.X; ++X)
+			if (CanPlaceItemByGuid(Container, Item.ItemID, FIntPoint(X, Y), bRotated, ItemGUID))
+				return MoveItem(Container, ItemGUID, FIntPoint(X, Y), bRotated);
+	return false;
+}
+
+// 나누기: 2개 이상일 때만. 새 아이템은 AddItem 이 빈 자리를 찾는다(자리가 없으면 나누지 않는다).
+bool UInventoryComponent::SplitStack(FGuid ItemGUID)
+{
+	FGuid Container;
+	int32 Index = -1;
+	if (!FindItem(ItemGUID, Container, Index) || ItemsMap[Container].Items[Index].StackCount < 2)
+		return false;
+
+	FItemInstance NewStack = ItemsMap[Container].Items[Index];
+	const int32 Total = NewStack.StackCount;
+	NewStack.GUID = FGuid::NewGuid();
+	NewStack.StackCount = Total / 2;
+	NewStack.bIsRotated = false;
+	if (!AddItem(NewStack))
+		return false;
+	// AddItem 이 배열을 바꿨을 수 있으니 다시 찾는다.
+	if (FindItem(ItemGUID, Container, Index))
+		ItemsMap[Container].Items[Index].StackCount = Total - Total / 2;
+	OnInventoryUpdated.Broadcast();
+	return true;
+}
+
+bool UInventoryComponent::RemoveItem(FGuid ItemGUID)
+{
+	FGuid Container;
+	int32 Index = -1;
+	if (!FindItem(ItemGUID, Container, Index))
+		return false;
+	ItemsMap[Container].Items.RemoveAt(Index);
+	RebuildGridMapByGuid(Container);
+	OnInventoryUpdated.Broadcast();
+	return true;
+}
+
 void UInventoryComponent::SetServerInventoryData(const FInventoryMapWrapper InWrapper)
 {
 	if (InWrapper.InventorySizeMap.Num() == 0 && InWrapper.InventoryMap.Num() == 0)

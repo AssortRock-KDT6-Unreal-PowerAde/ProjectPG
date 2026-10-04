@@ -26,6 +26,8 @@ public class ProjectPG : ModuleRules
 				"GeometryScriptingCore",
 				"GeometryScriptingEditor",
 				"EditorScriptingUtilities",
+				"RenderCore",	// 아이템 아이콘 찍기(ItemIconTools)
+				"RHI",
 				"UnrealEd"
 			});
 		}

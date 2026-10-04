@@ -434,7 +434,24 @@ void UInventoryGridWidget::RenderItems()
 		CanvasSlot->SetPosition(PositionPixel);
 		CanvasSlot->SetSize(SizePixel);
 		CanvasSlot->SetZOrder(10);
+
+		// 검색·필터에 안 맞으면 흐리게.
+		ItemWidget->SetRenderOpacity(MatchesFilter(*ItemData) ? 1.0f : 0.25f);
 	}
+}
+
+void UInventoryGridWidget::SetFilter(const FString& Text, int32 TypeFilter)
+{
+	FilterText = Text.TrimStartAndEnd();
+	FilterType = TypeFilter;
+	RenderItems();
+}
+
+bool UInventoryGridWidget::MatchesFilter(const FItemTableRow& Data) const
+{
+	if (FilterType >= 0 && static_cast<int32>(Data.ItemType) != FilterType)
+		return false;
+	return FilterText.IsEmpty() || Data.DisPlayName.ToString().Contains(FilterText);
 }
 USlotWidget* UInventoryGridWidget::GetSlotWidgetAt(int32 TileX, int32 TileY)
 {

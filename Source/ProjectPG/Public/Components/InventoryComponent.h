@@ -104,6 +104,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool MoveItem(const FGuid& TargetInvenGuid, FGuid ItemGUID, FIntPoint NewPos, bool bNewRotated);
 
+	// (10/4 기획서 우클릭 메뉴) 돌리기: 같은 자리에서 90도 돌린다. 안 들어가면 같은 칸 묶음의 다른 빈 자리를 찾는다.
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool RotateItem(FGuid ItemGUID);
+
+	// 나누기: 쌓인 아이템을 반으로 나눠 같은 칸 묶음의 빈 자리에 새로 놓는다(원래 것 = 올림, 새것 = 내림).
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool SplitStack(FGuid ItemGUID);
+
+	// 버리기: 인벤토리에서 지운다(로비 = 없어짐).
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool RemoveItem(FGuid ItemGUID);
+
+	// 아이템이 어느 칸 묶음 몇 번째에 있나. 못 찾으면 false.
+	bool FindItem(const FGuid& ItemGUID, FGuid& OutContainer, int32& OutIndex) const;
+
 
 	UFUNCTION()	void SetServerInventoryData(const FInventoryMapWrapper InWrapper);
 

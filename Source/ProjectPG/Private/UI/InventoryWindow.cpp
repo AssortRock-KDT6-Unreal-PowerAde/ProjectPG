@@ -6,6 +6,8 @@
 #include "Components/Button.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
+#include "Components/EditableTextBox.h"
+#include "Components/ComboBoxString.h"
 #include "Components/InventoryComponent.h"
 #include "Components/EquipComponent.h"
 
@@ -29,6 +31,42 @@ void UInventoryWindow::NativeConstruct()
 		BackBtn->OnClicked.RemoveDynamic(this, &UInventoryWindow::OnClickedBackBtn);
 		BackBtn->OnClicked.AddDynamic(this, &UInventoryWindow::OnClickedBackBtn);
 	}
+
+	// 검색·필터. 목록 순서 = EItemType 순서(0 무기 … 5 기타), 맨 앞 "전체" = 모든 종류.
+	if (SearchBox)
+	{
+		SearchBox->OnTextChanged.RemoveDynamic(this, &UInventoryWindow::OnSearchChanged);
+		SearchBox->OnTextChanged.AddDynamic(this, &UInventoryWindow::OnSearchChanged);
+	}
+	if (FilterCombo)
+	{
+		FilterCombo->ClearOptions();
+		for (const TCHAR* Label : { TEXT("전체"), TEXT("무기"), TEXT("방어구"), TEXT("소비"), TEXT("퀘스트"), TEXT("가방"), TEXT("기타") })
+			FilterCombo->AddOption(Label);
+		FilterCombo->SetSelectedIndex(0);
+		FilterCombo->OnSelectionChanged.RemoveDynamic(this, &UInventoryWindow::OnFilterChanged);
+		FilterCombo->OnSelectionChanged.AddDynamic(this, &UInventoryWindow::OnFilterChanged);
+	}
+}
+
+void UInventoryWindow::OnSearchChanged(const FText& Text)
+{
+	ApplyFilter();
+}
+
+void UInventoryWindow::OnFilterChanged(FString SelectedItem, ESelectInfo::Type SelectionType)
+{
+	ApplyFilter();
+}
+
+void UInventoryWindow::ApplyFilter()
+{
+	const FString Text = SearchBox ? SearchBox->GetText().ToString() : FString();
+	const int32 Type = FilterCombo ? FilterCombo->GetSelectedIndex() - 1 : -1;
+	if (MainInventoryOverlay)
+		for (UWidget* Child : MainInventoryOverlay->GetAllChildren())
+			if (UInventoryGridWidget* Grid = Cast<UInventoryGridWidget>(Child))
+				Grid->SetFilter(Text, Type);
 }
 
 void UInventoryWindow::NativeDestruct()

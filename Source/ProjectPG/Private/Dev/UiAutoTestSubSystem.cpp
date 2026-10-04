@@ -1,6 +1,11 @@
 #include "Dev/UiAutoTestSubSystem.h"
 
 #include "UI/LobbyWidget.h"
+#include "UI/ItemWidget.h"
+#include "UI/ItemTooltipWidget.h"
+#include "UI/ItemContextWidget.h"
+#include "Core/UIManagerSubSystem.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Engine/Engine.h"
 #include "UnrealClient.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -65,8 +70,48 @@ bool UUiAutoTestSubSystem::Tick(float DeltaTime)
 }
 
 // 화면에 떠 있는 로비 위젯을 찾아 그 버튼 함수를 부른다(사람이 누른 것과 같은 길).
+// Tooltip / Context = 화면에 보이는 아이템 중 가장 큰 것에 설명 창 / 우클릭 메뉴(마우스가 없어서 같은 함수를 직접 부름).
 void UUiAutoTestSubSystem::Click(const FString& ButtonName)
 {
+	if (ButtonName == TEXT("Tooltip") || ButtonName == TEXT("Context"))
+	{
+		UItemWidget* Target = nullptr;
+		int32 BestArea = -1;
+		for (TObjectIterator<UItemWidget> It; It; ++It)
+		{
+			UItemWidget* Item = *It;
+			if (!IsValid(Item) || !Item->IsVisible() || !Item->GetCachedItemData() || Item->GetCachedGeometry().GetLocalSize().X <= 0)
+				continue;
+			const FIntPoint Size = Item->ItemInstance.GetCurrentGridSize(Item->GetCachedItemData());
+			if (Size.X * Size.Y > BestArea)
+			{
+				BestArea = Size.X * Size.Y;
+				Target = Item;
+			}
+		}
+		if (!Target)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[UiAutoTest] no item widget on screen - %s skipped"), *ButtonName);
+			return;
+		}
+		if (ButtonName == TEXT("Tooltip"))
+		{
+			UItemTooltipWidget::ShowFor(Target, Target->ItemInstance, *Target->GetCachedItemData());
+		}
+		else if (UUIManagerSubSystem* UI = UUIManagerSubSystem::Get(Target))
+		{
+			if (UItemContextWidget* Menu = Cast<UItemContextWidget>(UI->OpenUI(EUIType::ItemContext)))
+			{
+				Menu->SetItem(Target->ItemInstance);
+				Menu->UpdateButtonState(Target->ItemInstance.type);
+				Menu->SetVisibility(ESlateVisibility::Visible);
+				Menu->SetPositionInViewport(Target->GetCachedGeometry().GetAbsolutePosition(), true);
+			}
+		}
+		UE_LOG(LogTemp, Display, TEXT("[UiAutoTest] %s on item %s"), *ButtonName, *Target->ItemInstance.ItemID.ToString());
+		return;
+	}
+
 	for (TObjectIterator<ULobbyWidget> It; It; ++It)
 	{
 		ULobbyWidget* Lobby = *It;
