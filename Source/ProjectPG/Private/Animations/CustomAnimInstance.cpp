@@ -46,5 +46,6 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Aim.X = cameraRotation.Yaw;
 	Aim.Y = cameraRotation.Pitch;
 
-	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Blue, FString::Printf(TEXT("%f"), Speed));
+	// (10/4) 매 프레임 속도를 화면에 찍던 디버그 줄 — 타이틀·게임 화면 왼쪽을 파란 숫자로 덮어서 껐다. 필요하면 다시 켜기.
+	// GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Blue, FString::Printf(TEXT("%f"), Speed));
 }
