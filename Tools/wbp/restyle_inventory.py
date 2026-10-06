@@ -24,7 +24,9 @@ UI = "/Game/PG/Blueprint/UI/"
 def character_widget():
     b = W.Builder(UI + "WBP_CharacterWidget")
     root = b.root()  # MainCanvas
-    bg, bg_slot = b.panel("PlanBackground", root, W.PLAN_BLUE, unreal.Margin(0, 0, 0, 0), radius=0.0)
+    # (10/6) 파란 바탕 대신 뒤의 실제 맵·캐릭터가 보이게 옅게 어둡게만 한다(글자·칸이 잘 읽히게).
+    bg, bg_slot = b.panel("PlanBackground", root, W.srgb(0x08, 0x1C, 0x28, 0.35), unreal.Margin(0, 0, 0, 0), radius=0.0)
+    bg.set_brush_color(W.srgb(0x08, 0x1C, 0x28, 0.35))
     b.place(bg_slot, (0, 0, 1, 1), (0, 0), (0, 0))
     bg_slot.set_auto_size(False)
     bg_slot.set_offsets(unreal.Margin(0, 0, 0, 0))
@@ -43,6 +45,15 @@ def character_widget():
     combo, combo_slot = b.make(unreal.ComboBoxString, "FilterCombo", root)
     combo.set_editor_property("font", W.font(16, "Regular"))
     b.place(combo_slot, (0.6, 0, 0.6, 0), (0, 0), (576, 14), (188, 46))
+    b.finish()
+
+
+def equip_see_through():
+    # 장비 칸 사이 캐릭터 자리(CharacterView, 형님 WBP_Equip 의 연한 파랑 판)를 투명하게 → 뒤의 실제 캐릭터가 보인다(10/6).
+    b = W.Builder(UI + "WBP_Equip")
+    view = b.find("CharacterView")
+    if view is not None:
+        view.set_color_and_opacity(unreal.LinearColor(1, 1, 1, 0))
     b.finish()
 
 
@@ -178,7 +189,7 @@ def register_tooltip():
     W.log("ItemTooltip registered as %s" % new)
 
 
-for step in (character_widget, slot_colors, context_menu, lobby_buttons, character_and_menu_buttons, tooltip, register_tooltip):
+for step in (character_widget, equip_see_through, slot_colors, context_menu, lobby_buttons, character_and_menu_buttons, tooltip, register_tooltip):
     try:
         step()
         W.log("done " + step.__name__)

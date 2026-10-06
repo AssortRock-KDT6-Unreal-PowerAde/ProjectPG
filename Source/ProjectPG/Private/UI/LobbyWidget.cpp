@@ -10,6 +10,7 @@
 
 #include "GameMode/CustomPlayerState.h"
 #include "Server/SessionSubSystem.h"
+#include "UI/Controller/LobbyUIFlowController.h"
 #include "Kismet/KismetSystemLibrary.h"
 
 void ULobbyWidget::NativeConstruct()
@@ -46,6 +47,11 @@ void ULobbyWidget::OnClickedCharacterButton()
 
 	// 기획서: 캐릭터 화면은 메인 메뉴를 대신해 뜨고, "뒤로가기" 로 메인 메뉴에 돌아온다 → 메뉴를 닫고 연다.
 	UISubsystem->CloseUI(EUIType::Lobby);
+	// 카메라를 캐릭터 정면으로 — 장비 칸 사이에 지금 캐릭터가 보이게(파란 그림 대신 실제 맵·캐릭터).
+	if (ULobbyUIFlowController* Flow = ULobbyUIFlowController::Get(this))
+	{
+		Flow->FocusCamera(TEXT("LobbyCamera_Character"));
+	}
 	UUserWidget* CharacterWidget = UISubsystem->OpenUI(EUIType::Character);
 	UInventoryWindow* Window = Cast<UInventoryWindow>(CharacterWidget);
 

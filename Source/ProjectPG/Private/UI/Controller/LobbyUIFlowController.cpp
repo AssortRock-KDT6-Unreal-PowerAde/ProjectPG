@@ -5,6 +5,8 @@
 #include "Core/UIManagerSubSystem.h"
 #include "Server/InventorySubSystem.h"
 #include <Kismet/GameplayStatics.h>
+#include "Camera/CameraActor.h"
+#include "EngineUtils.h"
 
 ULobbyUIFlowController* ULobbyUIFlowController::Get(const UObject* worldContext)
 {
@@ -34,6 +36,22 @@ void ULobbyUIFlowController::BeginSetting()
 		InvSub->LoadStarterInventory(GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr);
 	}
 	ShowLobby();
+}
+
+void ULobbyUIFlowController::FocusCamera(FName CameraTag, float BlendSeconds)
+{
+	UWorld* World = GetWorld();
+	APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	if (!PC)
+		return;
+	for (TActorIterator<ACameraActor> It(World); It; ++It)
+	{
+		if (It->ActorHasTag(CameraTag))
+		{
+			PC->SetViewTargetWithBlend(*It, BlendSeconds, VTBlend_EaseInOut, 2.0f);
+			return;
+		}
+	}
 }
 
 void ULobbyUIFlowController::ShowLobby()

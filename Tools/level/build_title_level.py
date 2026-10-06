@@ -19,6 +19,13 @@ CHARACTER_YAW = -20.0          # 카메라 쪽(+x)을 조금 비껴 본다
 CAMERA_AT = unreal.Vector(430, -150, 150)
 CAMERA_ROT = unreal.Rotator(roll=0, pitch=-6, yaw=163)
 CAMERA_FOV = 60.0
+# 캐릭터 화면용 카메라: 캐릭터 정면 3.3m 에서, 캐릭터가 화면 왼쪽 장비 칸 가운데(가로 1/6쯤 = 카메라 방향에서 21도 왼쪽)에 오게.
+# 캐릭터 방향(-20도) 앞으로 3.3m → (370,-72). 거기서 캐릭터를 보는 방향은 160도 → 21도 왼쪽에 두려면 카메라 방향 181도.
+CHARACTER_CAMERA_AT = unreal.Vector(370, -72, 140)
+CHARACTER_CAMERA_ROT = unreal.Rotator(roll=0, pitch=-4, yaw=181)
+# 카메라 이름표: 로비 흐름(ULobbyUIFlowController::FocusCamera)이 이 이름으로 찾아 바꾼다.
+MENU_CAMERA_TAG = "LobbyCamera_Menu"
+CHARACTER_CAMERA_TAG = "LobbyCamera_Character"
 
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -77,6 +84,11 @@ spawn(unreal.VolumetricCloud, "Title_Clouds", unreal.Vector(0, 0, 0))
 camera = spawn(unreal.CameraActor, "Title_Camera", CAMERA_AT, CAMERA_ROT)
 camera.set_editor_property("auto_activate_for_player", unreal.AutoReceiveInput.PLAYER0)
 camera.get_component_by_class(unreal.CameraComponent).set_editor_property("field_of_view", CAMERA_FOV)
+camera.set_editor_property("tags", [MENU_CAMERA_TAG])
+# 캐릭터 화면 카메라: 처음엔 안 쓰고, 캐릭터 화면이 열릴 때 로비 흐름이 이쪽으로 옮겨 간다.
+character_camera = spawn(unreal.CameraActor, "Title_CharacterCamera", CHARACTER_CAMERA_AT, CHARACTER_CAMERA_ROT)
+character_camera.get_component_by_class(unreal.CameraComponent).set_editor_property("field_of_view", CAMERA_FOV)
+character_camera.set_editor_property("tags", [CHARACTER_CAMERA_TAG])
 
 # 캐릭터: 팀 캐릭터 BP 를 그대로 세운다(모습·서 있는 동작은 캐릭터 BP·애니 BP 그대로).
 character_class = unreal.load_class(None, CHARACTER)

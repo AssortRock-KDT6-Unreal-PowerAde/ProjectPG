@@ -26,7 +26,9 @@ def build():
     dim_slot.set_auto_size(False)
     dim_slot.set_offsets(unreal.Margin(0, 0, 0, 0))
 
-    panel, panel_slot = b.panel("Panel", root, W.PLAN_BLUE, unreal.Margin(48, 36, 48, 36), radius=0.0)
+    # (10/6) 판 색: 파랑 → 검정(사용자 요청).
+    panel, panel_slot = b.panel("Panel", root, W.srgb(0x10, 0x10, 0x12, 0.94), unreal.Margin(48, 36, 48, 36), radius=0.0)
+    panel.set_brush_color(W.srgb(0x10, 0x10, 0x12, 0.94))
     b.place(panel_slot, (0.5, 0.5, 0.5, 0.5), (0.5, 0.5), (0, 0), (760, 560))
 
     stack, _ = b.make(unreal.VerticalBox, "Stack", panel)

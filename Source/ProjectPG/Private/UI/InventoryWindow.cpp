@@ -12,6 +12,7 @@
 #include "Components/EquipComponent.h"
 
 #include "Core/UIManagerSubSystem.h"
+#include "UI/Controller/LobbyUIFlowController.h"
 #include <Core/TableSubSystem.h>
 #include <Server/InventorySubSystem.h>
 
@@ -235,8 +236,12 @@ void UInventoryWindow::OnClickedBackBtn()
 	if (!IsValid(subSystem)) return;
 
 	subSystem->CloseUI(EUIType::Character);
-	// 기획서: 뒤로가기 → 메인 메뉴.
+	// 기획서: 뒤로가기 → 메인 메뉴. 카메라도 메뉴 자리로.
 	subSystem->OpenUI(EUIType::Lobby);
+	if (ULobbyUIFlowController* Flow = ULobbyUIFlowController::Get(this))
+	{
+		Flow->FocusCamera(TEXT("LobbyCamera_Menu"));
+	}
 }
 
 void UInventoryWindow::UpdateState()
