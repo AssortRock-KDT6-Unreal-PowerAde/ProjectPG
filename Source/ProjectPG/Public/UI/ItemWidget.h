@@ -15,6 +15,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float TileSize = 64.0f;
 
+	// 마우스를 올려 두고 설명 창이 뜨기까지(초). 기획서 1초. WBP_ItemWidget 에서 고친다.
+	UPROPERTY(EditAnywhere, Category = "Tooltip", meta = (ClampMin = "0"))
+	float TooltipDelaySeconds = 1.0f;
+
 	UPROPERTY(BlueprintReadOnly)
 	FItemInstance ItemInstance;
 
@@ -52,8 +56,6 @@ public:
 	const FItemTableRow* GetCachedItemData() const { return &CachedItemData; }
 
 private:
-	// 설명 창을 띄우기까지 기다리는 시간(초). 기획서 1초.
-	static constexpr float TooltipDelaySeconds = 1.0f;
 	FTimerHandle TooltipTimer;
 	void ShowTooltip();
 	void HideTooltip();

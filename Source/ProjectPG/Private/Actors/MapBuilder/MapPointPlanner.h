@@ -79,6 +79,9 @@ private:
 	// 지점 지문 다시 계산. 같은 시드면 같은 값이어야 한다(검사 기준).
 	void RebuildHash();
 
+	// 사람 한 명이 이 바닥에 설 수 있나(벽·소품에 막혔나). 지점 찍기·끼임 정리가 같이 쓴다.
+	bool IsSpotBlocked(const FVector& Location) const;
+
 	// 시설 지점 표(DT_FacilityPoints). 없으면 시설 안 지점은 0개가 된다(에러 로그).
 	const UDataTable* LoadFacilityPointTable() const;
 

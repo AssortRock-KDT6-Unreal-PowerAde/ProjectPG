@@ -436,7 +436,7 @@ void UInventoryGridWidget::RenderItems()
 		CanvasSlot->SetZOrder(10);
 
 		// 검색·필터에 안 맞으면 흐리게.
-		ItemWidget->SetRenderOpacity(MatchesFilter(*ItemData) ? 1.0f : 0.25f);
+		ItemWidget->SetRenderOpacity(MatchesFilter(*ItemData) ? 1.0f : FilteredOutOpacity);
 	}
 }
 

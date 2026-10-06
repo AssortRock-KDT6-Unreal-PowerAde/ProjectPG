@@ -29,6 +29,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Inventory")
 	TSubclassOf<class UItemWidget> ItemWidgetClass;
 
+	// 검색·종류에 안 맞는 아이템의 불투명도(0 = 안 보임, 1 = 그대로).
+	UPROPERTY(EditAnywhere, Category = "Inventory|Filter", meta = (ClampMin = "0", ClampMax = "1"))
+	float FilteredOutOpacity = 0.25f;
+
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UUniformGridPanel> BackGroundGrid;
 

@@ -35,4 +35,26 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> StatNameText;
 	// 오른쪽 "+10" 자리 — 지금은 크기·개수.
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> StatValueText;
+
+	// ---- 글자·숫자(WBP_ItemTooltip 에서 고친다) ----
+	UPROPERTY(EditAnywhere, Category = "Tooltip")
+	TMap<EItemType, FText> TypeNames = {
+		{ EItemType::Weapon, INVTEXT("무기") }, { EItemType::Armor, INVTEXT("방어구") }, { EItemType::Consumable, INVTEXT("소비") },
+		{ EItemType::Quest, INVTEXT("퀘스트") }, { EItemType::Bag, INVTEXT("가방") }, { EItemType::ETC, INVTEXT("기타") } };
+
+	UPROPERTY(EditAnywhere, Category = "Tooltip")
+	TMap<EEquipSlot, FText> SlotNames = {
+		{ EEquipSlot::MainWeapon, INVTEXT("주무기") }, { EEquipSlot::SubWeapon, INVTEXT("보조 무기") }, { EEquipSlot::HelMet, INVTEXT("머리") },
+		{ EEquipSlot::Cloth, INVTEXT("상의") }, { EEquipSlot::Pants, INVTEXT("하의") }, { EEquipSlot::Shose, INVTEXT("신발") },
+		{ EEquipSlot::BackPack, INVTEXT("가방") }, { EEquipSlot::Accuracy1, INVTEXT("보조 칸 1") }, { EEquipSlot::Accuracy2, INVTEXT("보조 칸 2") } };
+
+	// 표에 설명이 없을 때 쓰는 문장. {Type} = 종류, {Slot} = 장비 칸.
+	UPROPERTY(EditAnywhere, Category = "Tooltip")
+	FText EquipDescriptionFormat = INVTEXT("{Type} · {Slot} 칸에 장착한다.");
+	UPROPERTY(EditAnywhere, Category = "Tooltip")
+	FText PlainDescriptionFormat = INVTEXT("{Type} 아이템.");
+
+	// 마우스에서 얼마나 떨어져 띄울지(화면 픽셀).
+	UPROPERTY(EditAnywhere, Category = "Tooltip")
+	FVector2D MouseOffset = FVector2D(18.0f, 18.0f);
 };

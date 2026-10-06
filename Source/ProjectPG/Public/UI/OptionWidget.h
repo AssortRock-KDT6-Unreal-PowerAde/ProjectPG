@@ -30,6 +30,17 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UButton> ApplyButton;
 	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UButton> BackButton;
 
+	// 목록 글자·값. WBP_Option 에서 고친다. 화면 모드 순서 = EWindowMode(전체 화면, 테두리 없는 창, 창 모드),
+	// 품질 순서 = 언리얼 확장성 단계 0~4, 프레임 제한 0 = 제한 없음.
+	UPROPERTY(EditAnywhere, Category = "Option")
+	TArray<FText> WindowModeLabels = { INVTEXT("전체 화면"), INVTEXT("테두리 없는 창"), INVTEXT("창 모드") };
+	UPROPERTY(EditAnywhere, Category = "Option")
+	TArray<FText> QualityLabels = { INVTEXT("낮음"), INVTEXT("보통"), INVTEXT("높음"), INVTEXT("최고"), INVTEXT("시네마틱") };
+	UPROPERTY(EditAnywhere, Category = "Option")
+	TArray<int32> FrameLimits = { 30, 60, 120, 144, 0 };
+	UPROPERTY(EditAnywhere, Category = "Option")
+	FText NoFrameLimitLabel = INVTEXT("제한 없음");
+
 private:
 	// 지금 저장된 값으로 목록을 채우고 고른다(창을 열 때마다).
 	void LoadFromSettings();

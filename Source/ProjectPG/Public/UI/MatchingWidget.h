@@ -33,9 +33,24 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UProgressBar> MatchProgress;
 
+	// 상태마다 띄울 글자. WBP_Matching 에서 고친다(문구를 바꿔도 빌드 필요 없음).
+	UPROPERTY(EditAnywhere, Category = "Matching")
+	TMap<EMatchingState, FText> StateTexts = {
+		{ EMatchingState::Searching,   INVTEXT("매칭중...") },
+		{ EMatchingState::Joining,     INVTEXT("방에 들어가는 중...") },
+		{ EMatchingState::Hosting,     INVTEXT("방을 여는 중...") },
+		{ EMatchingState::Cancelled,   INVTEXT("매칭을 취소했습니다") },
+		{ EMatchingState::JoinFailed,  INVTEXT("방에 들어가지 못했습니다") },
+		{ EMatchingState::HostFailed,  INVTEXT("방을 열지 못했습니다") },
+		{ EMatchingState::Unavailable, INVTEXT("온라인 기능을 쓸 수 없습니다") } };
+
+	// 취소·실패 글자를 보여 준 뒤 창을 닫기까지(초).
+	UPROPERTY(EditAnywhere, Category = "Matching", meta = (ClampMin = "0"))
+	float CloseDelaySeconds = 1.0f;
+
 private:
 	UFUNCTION()
-	void HandleStateChanged(EMatchingState State, const FText& Message);
+	void HandleStateChanged(EMatchingState State);
 
 	UFUNCTION()
 	void HandleCancelClicked();

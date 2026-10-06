@@ -15,9 +15,10 @@
 #include "Materials/MaterialInterface.h"
 #include "Engine/Texture.h"
 #include "RenderingThread.h"
+#include "ThumbnailRendering/SceneThumbnailInfo.h"
 #endif
 
-UTexture2D* UItemIconTools::RenderMeshIcon(UStaticMesh* Mesh, const FString& PackagePath, int32 Size)
+UTexture2D* UItemIconTools::RenderMeshIcon(UStaticMesh* Mesh, const FString& PackagePath, int32 Size, float OrbitPitch, float OrbitYaw)
 {
 #if WITH_EDITOR
 	if (!Mesh || PackagePath.IsEmpty())
@@ -44,6 +45,15 @@ UTexture2D* UItemIconTools::RenderMeshIcon(UStaticMesh* Mesh, const FString& Pac
 		}
 	}
 	FlushRenderingCommands();
+
+	// 찍는 각도: 메시의 썸네일 각도를 잠깐 바꿔 찍고 돌려놓는다(메시 에셋은 저장하지 않음).
+	UThumbnailInfo* OriginalView = Mesh->ThumbnailInfo;
+	USceneThumbnailInfo* IconView = NewObject<USceneThumbnailInfo>(GetTransientPackage());
+	IconView->OrbitPitch = OrbitPitch;
+	IconView->OrbitYaw = OrbitYaw;
+	IconView->OrbitZoom = 0.0f;
+	Mesh->ThumbnailInfo = IconView;
+	ON_SCOPE_EXIT { Mesh->ThumbnailInfo = OriginalView; };
 
 	// ① 에디터 썸네일 그리기로 찍는다(콘텐츠 브라우저 썸네일과 같은 그림). 첫 장은 버리고 두 번 찍는다(빛·그림자 준비).
 	{

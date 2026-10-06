@@ -40,12 +40,11 @@ float USessionSubSystem::GetProgress() const
 	}
 }
 
-void USessionSubSystem::SetState(EMatchingState NewState, const FText& Message)
+void USessionSubSystem::SetState(EMatchingState NewState)
 {
 	State = NewState;
-	UE_LOG(LogTemp, Display, TEXT("[Session] state=%s %s"),
-		*StaticEnum<EMatchingState>()->GetNameStringByValue(static_cast<int64>(NewState)), *Message.ToString());
-	OnMatchingStateChanged.Broadcast(NewState, Message);
+	UE_LOG(LogTemp, Display, TEXT("[Session] state=%s"), *StaticEnum<EMatchingState>()->GetNameStringByValue(static_cast<int64>(NewState)));
+	OnMatchingStateChanged.Broadcast(NewState);
 }
 
 // 게임 시작.
@@ -58,12 +57,12 @@ void USessionSubSystem::StartMatching()
 	const IOnlineSessionPtr Sessions = GetSessionInterface();
 	if (!Sessions.IsValid())
 	{
-		SetState(EMatchingState::Failed, NSLOCTEXT("PG", "NoOnline", "온라인 기능을 쓸 수 없습니다"));
+		SetState(EMatchingState::Unavailable);
 		return;
 	}
 
 	SearchStartSeconds = FPlatformTime::Seconds();
-	SetState(EMatchingState::Searching, NSLOCTEXT("PG", "Searching", "매칭중..."));
+	SetState(EMatchingState::Searching);
 	if (Sessions->GetNamedSession(NAME_GameSession))
 	{
 		bSearchAfterDestroy = true;
@@ -130,7 +129,7 @@ void USessionSubSystem::HandleFindComplete(bool bWasSuccessful)
 		BeginHost();
 		return;
 	}
-	SetState(EMatchingState::Joining, NSLOCTEXT("PG", "Joining", "방에 들어가는 중..."));
+	SetState(EMatchingState::Joining);
 	JoinHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(
 		FOnJoinSessionCompleteDelegate::CreateUObject(this, &USessionSubSystem::HandleJoinComplete));
 	if (!Sessions->JoinSession(0, NAME_GameSession, *Found))
@@ -149,7 +148,7 @@ void USessionSubSystem::HandleJoinComplete(FName SessionName, EOnJoinSessionComp
 	if (Result != EOnJoinSessionCompleteResult::Success || !Sessions.IsValid()
 		|| !Sessions->GetResolvedConnectString(SessionName, Address) || !PlayerController)
 	{
-		SetState(EMatchingState::Failed, NSLOCTEXT("PG", "JoinFailed", "방에 들어가지 못했습니다"));
+		SetState(EMatchingState::JoinFailed);
 		return;
 	}
 	UE_LOG(LogTemp, Display, TEXT("[Session] joining %s"), *Address);
@@ -160,7 +159,7 @@ void USessionSubSystem::HandleJoinComplete(FName SessionName, EOnJoinSessionComp
 void USessionSubSystem::BeginHost()
 {
 	const IOnlineSessionPtr Sessions = GetSessionInterface();
-	SetState(EMatchingState::Hosting, NSLOCTEXT("PG", "Hosting", "방을 여는 중..."));
+	SetState(EMatchingState::Hosting);
 
 	FOnlineSessionSettings Settings;
 	Settings.bIsLANMatch = true;
@@ -182,7 +181,7 @@ void USessionSubSystem::HandleCreateComplete(FName SessionName, bool bWasSuccess
 		Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateHandle);
 	if (!bWasSuccessful)
 	{
-		SetState(EMatchingState::Failed, NSLOCTEXT("PG", "HostFailed", "방을 열지 못했습니다"));
+		SetState(EMatchingState::HostFailed);
 		return;
 	}
 	UE_LOG(LogTemp, Display, TEXT("[Session] hosting listen server map=%s"), *GameMapPath);
@@ -201,5 +200,5 @@ void USessionSubSystem::CancelMatching()
 		Sessions->CancelFindSessions();
 	}
 	bSearchAfterDestroy = false;
-	SetState(EMatchingState::Idle, NSLOCTEXT("PG", "Cancelled", "매칭을 취소했습니다"));
+	SetState(EMatchingState::Cancelled);
 }

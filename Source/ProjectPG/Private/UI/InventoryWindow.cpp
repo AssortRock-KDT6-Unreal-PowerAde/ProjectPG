@@ -42,8 +42,8 @@ void UInventoryWindow::NativeConstruct()
 	if (FilterCombo)
 	{
 		FilterCombo->ClearOptions();
-		for (const TCHAR* Label : { TEXT("전체"), TEXT("무기"), TEXT("방어구"), TEXT("소비"), TEXT("퀘스트"), TEXT("가방"), TEXT("기타") })
-			FilterCombo->AddOption(Label);
+		for (const FText& Label : FilterLabels)
+			FilterCombo->AddOption(Label.ToString());
 		FilterCombo->SetSelectedIndex(0);
 		FilterCombo->OnSelectionChanged.RemoveDynamic(this, &UInventoryWindow::OnFilterChanged);
 		FilterCombo->OnSelectionChanged.AddDynamic(this, &UInventoryWindow::OnFilterChanged);
@@ -240,7 +240,7 @@ void UInventoryWindow::OnClickedBackBtn()
 	subSystem->OpenUI(EUIType::Lobby);
 	if (ULobbyUIFlowController* Flow = ULobbyUIFlowController::Get(this))
 	{
-		Flow->FocusCamera(TEXT("LobbyCamera_Menu"));
+		Flow->FocusCamera(MenuCameraTag, CameraBlendSeconds);
 	}
 }
 

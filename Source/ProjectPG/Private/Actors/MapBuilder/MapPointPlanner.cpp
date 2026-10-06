@@ -116,31 +116,10 @@ void UMapPointPlanner::BuildPoints()
 			FVector(320, 0, 0), FVector(-320, 0, 0), FVector(0, 320, 0), FVector(0, -320, 0),
 			FVector(320, 320, 0), FVector(-320, 320, 0), FVector(320, -320, 0), FVector(-320, -320, 0)
 		};
-		FCollisionQueryParams PointQuery(SCENE_QUERY_STAT(LevelDesignPointPlacement), false);
-		const FCollisionShape PointCapsule = FCollisionShape::MakeCapsule(55.0f, 95.0f);
 		for (const FVector& CandidateOffset : CandidateOffsets)
 		{
 			const FVector Candidate = Point.WorldLocation + CandidateOffset;
-			TArray<FOverlapResult> Overlaps;
-			const bool bOverlap = GetWorld()->OverlapMultiByChannel(
-				Overlaps,
-				Candidate + FVector(0, 0, 95.0f),
-				FQuat::Identity,
-				ECC_Pawn,
-				PointCapsule,
-				PointQuery);
-			const bool bBlocked = bOverlap && Overlaps.ContainsByPredicate(
-				[this](const FOverlapResult& Result)
-				{
-					const AActor* HitActor = Result.GetActor();
-					const UPrimitiveComponent* HitComponent = Result.GetComponent();
-					return IsValid(HitActor) && HitActor != Map
-						&& !HitActor->IsA<APawn>() // 사람·몬스터는 맵이 아니다(리슨 서버에서 들어온 사람 쪽엔 이미 캐릭터가 서 있어 자리가 달라졌음)
-						&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
-						&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
-						&& IsValid(HitComponent)
-						&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
-				});
+			const bool bBlocked = IsSpotBlocked(Candidate);
 			const bool bTooCloseToSpawn = Type == ELevelDesignPointType::Spawn
 				&& Map->LevelDesignPoints.ContainsByPredicate(
 					[&Point, &Candidate](const FLevelDesignPoint& Existing)
@@ -371,6 +350,28 @@ void UMapPointPlanner::BuildPoints()
 		Map->GameplayPointHash);
 }
 
+// 사람 한 명(캡슐 반지름 55·반높이 95)이 Location 바닥에 설 수 있나. 맵 바닥·지점 표시·사람은 막힘으로 안 친다.
+// 지점 찍기와 끼임 정리가 같은 기준을 써야 해서 한 곳에 둔다(예전엔 두 군데에 같은 코드가 있었다).
+bool UMapPointPlanner::IsSpotBlocked(const FVector& Location) const
+{
+	TArray<FOverlapResult> Overlaps;
+	const FCollisionQueryParams Query(SCENE_QUERY_STAT(MapPointSpot), false);
+	const bool bOverlap = GetWorld()->OverlapMultiByChannel(
+		Overlaps, Location + FVector(0, 0, 95.0f), FQuat::Identity, ECC_Pawn,
+		FCollisionShape::MakeCapsule(55.0f, 95.0f), Query);
+	return bOverlap && Overlaps.ContainsByPredicate([this](const FOverlapResult& Result)
+	{
+		const AActor* HitActor = Result.GetActor();
+		const UPrimitiveComponent* HitComponent = Result.GetComponent();
+		return IsValid(HitActor) && HitActor != Map
+			&& !HitActor->IsA<APawn>() // 사람·몬스터는 맵이 아니다(리슨 서버에서 들어온 사람 쪽엔 이미 캐릭터가 서 있어 자리가 달라졌음)
+			&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
+			&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
+			&& IsValid(HitComponent)
+			&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
+	});
+}
+
 void UMapPointPlanner::RebuildHash()
 {
 	uint32 Hash = 0;
@@ -412,30 +413,6 @@ void UMapPointPlanner::ResolveSafety()
 		return !FMath::IsNearlyEqual(A.X, B.X) ? A.X < B.X : A.Y < B.Y;
 	});
 
-	auto IsBlocked = [this](const FVector& Location)
-	{
-		TArray<FOverlapResult> Overlaps;
-		FCollisionQueryParams Query(SCENE_QUERY_STAT(ResolveGameplayPointSafety), false);
-		const bool bOverlap = GetWorld()->OverlapMultiByChannel(
-			Overlaps,
-			Location + FVector(0, 0, 95.0f),
-			FQuat::Identity,
-			ECC_Pawn,
-			FCollisionShape::MakeCapsule(55.0f, 95.0f),
-			Query);
-		return bOverlap && Overlaps.ContainsByPredicate(
-			[this](const FOverlapResult& Result)
-			{
-				const AActor* HitActor = Result.GetActor();
-				const UPrimitiveComponent* HitComponent = Result.GetComponent();
-				return IsValid(HitActor) && HitActor != Map
-					&& !HitActor->IsA<APawn>()
-					&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
-					&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
-					&& IsValid(HitComponent)
-					&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
-			});
-	};
 
 	int32 RelocatedCount = 0;
 	int32 UnresolvedCount = 0;
@@ -449,7 +426,7 @@ void UMapPointPlanner::ResolveSafety()
 				{
 					return FVector::DistSquared2D(Existing, Point.WorldLocation) < FMath::Square(250.0f);
 				});
-		if (!IsBlocked(Point.WorldLocation) && !bSpawnTooClose)
+		if (!IsSpotBlocked(Point.WorldLocation) && !bSpawnTooClose)
 		{
 			if (Point.Type == ELevelDesignPointType::Spawn)
 				ResolvedSpawnLocations.Add(Point.WorldLocation);
@@ -464,7 +441,7 @@ void UMapPointPlanner::ResolveSafety()
 		for (const FVector& Offset : CandidateOffsets)
 		{
 			const FVector Candidate = CellCenter + Offset;
-			if (IsBlocked(Candidate))
+			if (IsSpotBlocked(Candidate))
 				continue;
 			if (Point.Type == ELevelDesignPointType::Spawn
 				&& ResolvedSpawnLocations.ContainsByPredicate(

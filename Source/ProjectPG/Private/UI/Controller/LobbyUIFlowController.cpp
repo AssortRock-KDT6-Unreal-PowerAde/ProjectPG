@@ -7,6 +7,8 @@
 #include <Kismet/GameplayStatics.h>
 #include "Camera/CameraActor.h"
 #include "EngineUtils.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/Pawn.h"
 
 ULobbyUIFlowController* ULobbyUIFlowController::Get(const UObject* worldContext)
 {
@@ -35,7 +37,41 @@ void ULobbyUIFlowController::BeginSetting()
 	{
 		InvSub->LoadStarterInventory(GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr);
 	}
+	SpawnLobbyCharacter();
 	ShowLobby();
+}
+
+void ULobbyUIFlowController::SpawnLobbyCharacter()
+{
+	UWorld* World = GetWorld();
+	if (!World || LobbyCharacter.IsValid())
+		return;
+	AActor* Spot = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (It->ActorHasTag(CharacterSpotTag))
+		{
+			Spot = *It;
+			break;
+		}
+	}
+	const UClass* GameModeClass = CharacterSourceGameMode.TryLoadClass<AGameModeBase>();
+	const AGameModeBase* GameModeDefaults = GameModeClass ? GameModeClass->GetDefaultObject<AGameModeBase>() : nullptr;
+	UClass* PawnClass = GameModeDefaults ? GameModeDefaults->DefaultPawnClass.Get() : nullptr;
+	if (!Spot || !PawnClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Lobby] no lobby character: spot=%d pawn=%s"), Spot ? 1 : 0, PawnClass ? *PawnClass->GetName() : TEXT("none"));
+		return;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	APawn* Pawn = World->SpawnActor<APawn>(PawnClass, Spot->GetActorTransform(), Params);
+	if (!Pawn)
+		return;
+	// 조종하는 사람은 없지만 AI 조종기를 붙여야 이동 부품이 돌아 바닥에 내려서고 서 있는 동작이 나온다(레벨에 놓았을 때와 같게).
+	Pawn->SpawnDefaultController();
+	LobbyCharacter = Pawn;
+	UE_LOG(LogTemp, Display, TEXT("[Lobby] lobby character %s at %s"), *PawnClass->GetName(), *Spot->GetActorLocation().ToCompactString());
 }
 
 void ULobbyUIFlowController::FocusCamera(FName CameraTag, float BlendSeconds)

@@ -22,6 +22,8 @@ class UItemIconTools : public UBlueprintFunctionLibrary
 public:
 	// Mesh 를 Size×Size 로 찍어 PackagePath(예: /Game/PG/UI/ItemIcons/T_Icon_1001) 에 텍스처로 저장한다.
 	// 배경(썸네일 바탕색)은 투명으로 바꾼다 — 인벤토리 칸 색이 비쳐 보이게.
+	// OrbitPitch: 카메라 내려다보는 각도(-90 = 바로 위). 바닥 아이템 메시는 바닥에 눕혀 만든 것이라 비스듬히 찍으면
+	//             구겨진 덩어리로 보였다(10/6 방탄조끼) → 바로 위에서 찍으면 모양이 알아보기 쉽다.
 	UFUNCTION(BlueprintCallable, Category = "PG|Editor")
-	static UTexture2D* RenderMeshIcon(UStaticMesh* Mesh, const FString& PackagePath, int32 Size = 128);
+	static UTexture2D* RenderMeshIcon(UStaticMesh* Mesh, const FString& PackagePath, int32 Size = 128, float OrbitPitch = -89.0f, float OrbitYaw = 0.0f);
 };

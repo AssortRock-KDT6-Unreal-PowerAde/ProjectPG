@@ -13,14 +13,18 @@ class FOnlineSessionSearch;
 UENUM(BlueprintType)
 enum class EMatchingState : uint8
 {
-	Idle,       // 안 하는 중
-	Searching,  // 같은 네트워크의 방을 찾는 중
-	Joining,    // 찾은 방에 들어가는 중
-	Hosting,    // 방이 없어서 내가 방을 만드는 중(리슨 서버)
-	Failed      // 실패(취소 포함)
+	Idle,        // 안 하는 중
+	Searching,   // 같은 네트워크의 방을 찾는 중
+	Joining,     // 찾은 방에 들어가는 중
+	Hosting,     // 방이 없어서 내가 방을 만드는 중(리슨 서버)
+	Cancelled,   // 사용자가 취소함
+	JoinFailed,  // 찾은 방에 못 들어감
+	HostFailed,  // 방을 못 만듦
+	Unavailable  // 온라인 기능이 없음(설정 문제)
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMatchingStateChanged, EMatchingState, State, const FText&, Message);
+// 상태만 알린다. 화면에 어떤 글자를 띄울지는 매칭 화면(WBP_Matching 의 StateTexts)이 정한다.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMatchingStateChanged, EMatchingState, State);
 
 // 매칭 담당 (리슨 서버).
 // 게임에서: 로비의 "게임 시작" → 같은 네트워크(LAN)에 열린 방이 있으면 들어가고, 몇 초 안에 못 찾으면
@@ -56,7 +60,7 @@ public:
 
 private:
 	IOnlineSessionPtr GetSessionInterface() const;
-	void SetState(EMatchingState NewState, const FText& Message);
+	void SetState(EMatchingState NewState);
 
 	void BeginSearch();
 	void HandleFindComplete(bool bWasSuccessful);

@@ -8,16 +8,6 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Algo/Reverse.h"
 
-namespace PGOption
-{
-	// 목록 순서 = 값. 화면 모드는 EWindowMode 순서(전체화면, 창 전체화면, 창).
-	const TCHAR* WindowModes[] = { TEXT("전체 화면"), TEXT("테두리 없는 창"), TEXT("창 모드") };
-	// 그래픽 품질 0~4 (언리얼 확장성 단계).
-	const TCHAR* Qualities[] = { TEXT("낮음"), TEXT("보통"), TEXT("높음"), TEXT("최고"), TEXT("시네마틱") };
-	// 프레임 제한. 0 = 제한 없음.
-	const int32 FrameLimits[] = { 30, 60, 120, 144, 0 };
-}
-
 void UOptionWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -43,8 +33,8 @@ void UOptionWidget::LoadFromSettings()
 	if (WindowModeCombo)
 	{
 		WindowModeCombo->ClearOptions();
-		for (const TCHAR* Label : PGOption::WindowModes)
-			WindowModeCombo->AddOption(Label);
+		for (const FText& Label : WindowModeLabels)
+			WindowModeCombo->AddOption(Label.ToString());
 		WindowModeCombo->SetSelectedIndex(static_cast<int32>(Settings->GetFullscreenMode()));
 	}
 
@@ -69,19 +59,19 @@ void UOptionWidget::LoadFromSettings()
 	if (QualityCombo)
 	{
 		QualityCombo->ClearOptions();
-		for (const TCHAR* Label : PGOption::Qualities)
-			QualityCombo->AddOption(Label);
-		QualityCombo->SetSelectedIndex(FMath::Clamp(Settings->GetOverallScalabilityLevel(), 0, 4));
+		for (const FText& Label : QualityLabels)
+			QualityCombo->AddOption(Label.ToString());
+		QualityCombo->SetSelectedIndex(FMath::Clamp(Settings->GetOverallScalabilityLevel(), 0, QualityLabels.Num() - 1));
 	}
 
 	if (FrameLimitCombo)
 	{
 		FrameLimitCombo->ClearOptions();
-		int32 Selected = UE_ARRAY_COUNT(PGOption::FrameLimits) - 1;
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(PGOption::FrameLimits); ++Index)
+		int32 Selected = FrameLimits.Num() - 1;
+		for (int32 Index = 0; Index < FrameLimits.Num(); ++Index)
 		{
-			const int32 Limit = PGOption::FrameLimits[Index];
-			FrameLimitCombo->AddOption(Limit > 0 ? FString::Printf(TEXT("%d"), Limit) : FString(TEXT("제한 없음")));
+			const int32 Limit = FrameLimits[Index];
+			FrameLimitCombo->AddOption(Limit > 0 ? FString::Printf(TEXT("%d"), Limit) : NoFrameLimitLabel.ToString());
 			if (FMath::IsNearlyEqual(Settings->GetFrameRateLimit(), static_cast<float>(Limit)))
 				Selected = Index;
 		}
@@ -105,8 +95,8 @@ void UOptionWidget::HandleApply()
 		Settings->SetScreenResolution(Resolutions[ResolutionCombo->GetSelectedIndex()]);
 	if (QualityCombo && QualityCombo->GetSelectedIndex() >= 0)
 		Settings->SetOverallScalabilityLevel(QualityCombo->GetSelectedIndex());
-	if (FrameLimitCombo && FrameLimitCombo->GetSelectedIndex() >= 0)
-		Settings->SetFrameRateLimit(static_cast<float>(PGOption::FrameLimits[FrameLimitCombo->GetSelectedIndex()]));
+	if (FrameLimitCombo && FrameLimits.IsValidIndex(FrameLimitCombo->GetSelectedIndex()))
+		Settings->SetFrameRateLimit(static_cast<float>(FrameLimits[FrameLimitCombo->GetSelectedIndex()]));
 	if (VSyncCheck)
 		Settings->SetVSyncEnabled(VSyncCheck->IsChecked());
 

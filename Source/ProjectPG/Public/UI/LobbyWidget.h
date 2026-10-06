@@ -25,6 +25,11 @@ private:
 	TObjectPtr<class UButton> OptionBtn;
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UButton> ExitBtn;
+	// 캐릭터 화면을 열 때 옮겨 갈 로비 카메라 이름표(L_Title 의 카메라 태그)와 옮겨 가는 시간.
+	UPROPERTY(EditAnywhere, Category = "Lobby Camera")
+	FName CharacterCameraTag = TEXT("LobbyCamera_Character");
+	UPROPERTY(EditAnywhere, Category = "Lobby Camera", meta = (ClampMin = "0"))
+	float CameraBlendSeconds = 0.6f;
 public:
 	virtual void NativeConstruct() override;
 

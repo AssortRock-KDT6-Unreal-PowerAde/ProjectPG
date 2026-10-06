@@ -21,7 +21,7 @@ void UMatchingWidget::NativeConstruct()
 		CancelButton->SetIsEnabled(true);
 	}
 	if (StatusText)
-		StatusText->SetText(NSLOCTEXT("PG", "Searching", "매칭중..."));
+		StatusText->SetText(StateTexts.FindRef(EMatchingState::Searching));
 	if (MatchProgress)
 		MatchProgress->SetPercent(0.0f);
 }
@@ -44,14 +44,14 @@ void UMatchingWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 			MatchProgress->SetPercent(Session->GetProgress());
 }
 
-void UMatchingWidget::HandleStateChanged(EMatchingState State, const FText& Message)
+void UMatchingWidget::HandleStateChanged(EMatchingState State)
 {
 	if (StatusText)
-		StatusText->SetText(Message);
+		StatusText->SetText(StateTexts.FindRef(State));
 	// 들어가거나 방을 여는 중에는 취소할 수 없다(이미 이동이 시작됨).
 	if (CancelButton)
 		CancelButton->SetIsEnabled(State == EMatchingState::Searching);
-	if (State == EMatchingState::Idle || State == EMatchingState::Failed)
+	if (State != EMatchingState::Searching && State != EMatchingState::Joining && State != EMatchingState::Hosting)
 		CloseSoon();
 }
 
@@ -72,6 +72,6 @@ void UMatchingWidget::CloseSoon()
 				return;
 			if (UUIManagerSubSystem* UI = UUIManagerSubSystem::Get(WeakThis.Get()))
 				UI->CloseUI(EUIType::Matching);
-		}), 1.0f, false);
+		}), FMath::Max(0.01f, CloseDelaySeconds), false);
 	}
 }

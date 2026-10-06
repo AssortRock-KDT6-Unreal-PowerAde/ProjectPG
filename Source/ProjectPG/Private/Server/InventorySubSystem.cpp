@@ -58,6 +58,12 @@ int32 UInventorySubSystem::LoadStarterInventory(APlayerController* PlayerControl
 	}
 	OnInventoryReceived.Broadcast(Containers);
 	OnEquipReceived.Broadcast(Slots);
+	// 장착 아이템의 부모 = 그 장비 칸의 GUID(서버 시절과 같은 약속).
+	const TMap<EEquipSlot, FGuid> SlotGuidByType = {
+		{ EEquipSlot::MainWeapon, Slots.MainWeapon }, { EEquipSlot::SubWeapon, Slots.SubWeapon },
+		{ EEquipSlot::HelMet, Slots.HelMet }, { EEquipSlot::Cloth, Slots.Cloth }, { EEquipSlot::Pants, Slots.Pants },
+		{ EEquipSlot::Shose, Slots.Shose }, { EEquipSlot::BackPack, Slots.BackPack },
+		{ EEquipSlot::Accuracy1, Slots.Accuracy1 }, { EEquipSlot::Accuracy2, Slots.Accuracy2 } };
 
 	// ② 시작 짐 넣기
 	const UDataTable* StarterTable = Tables->FindTable(TEXT("StarterInventoryTable"));
@@ -91,12 +97,6 @@ int32 UInventorySubSystem::LoadStarterInventory(APlayerController* PlayerControl
 		if (Row->Container == EStarterContainer::Equip)
 		{
 			Item.bEquip = true;
-			// 장착 아이템의 부모 = 그 장비 칸의 GUID(서버 시절과 같은 약속).
-			const TMap<EEquipSlot, FGuid> SlotGuidByType = {
-				{ EEquipSlot::MainWeapon, Slots.MainWeapon }, { EEquipSlot::SubWeapon, Slots.SubWeapon },
-				{ EEquipSlot::HelMet, Slots.HelMet }, { EEquipSlot::Cloth, Slots.Cloth }, { EEquipSlot::Pants, Slots.Pants },
-				{ EEquipSlot::Shose, Slots.Shose }, { EEquipSlot::BackPack, Slots.BackPack },
-				{ EEquipSlot::Accuracy1, Slots.Accuracy1 }, { EEquipSlot::Accuracy2, Slots.Accuracy2 } };
 			Item.parent_inventory_guid = SlotGuidByType.FindRef(ItemData->EquipSlotType);
 			// 가방은 칸 크기를 먼저 등록한다. 장비 컴포넌트는 "폰의 플레이어 상태" 로 등록하는데 로비엔 폰이 없어서.
 			if (Item.type == EItemType::Bag)

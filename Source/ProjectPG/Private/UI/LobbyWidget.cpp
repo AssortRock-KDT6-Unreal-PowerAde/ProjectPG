@@ -50,7 +50,7 @@ void ULobbyWidget::OnClickedCharacterButton()
 	// 카메라를 캐릭터 정면으로 — 장비 칸 사이에 지금 캐릭터가 보이게(파란 그림 대신 실제 맵·캐릭터).
 	if (ULobbyUIFlowController* Flow = ULobbyUIFlowController::Get(this))
 	{
-		Flow->FocusCamera(TEXT("LobbyCamera_Character"));
+		Flow->FocusCamera(CharacterCameraTag, CameraBlendSeconds);
 	}
 	UUserWidget* CharacterWidget = UISubsystem->OpenUI(EUIType::Character);
 	UInventoryWindow* Window = Cast<UInventoryWindow>(CharacterWidget);

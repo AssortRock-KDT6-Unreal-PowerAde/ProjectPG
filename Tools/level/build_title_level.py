@@ -9,7 +9,6 @@ import unreal
 LEVEL = "/Game/PG/Level/L_Title"
 BACKDROP = "/Game/PG/LevelDesign/Facilities/LD_Facility_RuralDiorama_2x2"
 GAME_MODE = "/Game/PG/Blueprint/GM_InLobby.GM_InLobby_C"
-CHARACTER = "/Game/PG/Blueprint/Characters/BP_CustomPlayerCharacter.BP_CustomPlayerCharacter_C"
 
 # 자리(cm). 흙길(x≈50) 위에 캐릭터, 그 앞(+x)에 카메라.
 # 화면 왼쪽/오른쪽: 카메라 방향(yaw)보다 각도가 작은 쪽이 화면 왼쪽. 캐릭터가 카메라 방향에서 10도쯤 왼쪽에 오게 yaw 를 정한다
@@ -90,9 +89,10 @@ character_camera = spawn(unreal.CameraActor, "Title_CharacterCamera", CHARACTER_
 character_camera.get_component_by_class(unreal.CameraComponent).set_editor_property("field_of_view", CAMERA_FOV)
 character_camera.set_editor_property("tags", [CHARACTER_CAMERA_TAG])
 
-# 캐릭터: 팀 캐릭터 BP 를 그대로 세운다(모습·서 있는 동작은 캐릭터 BP·애니 BP 그대로).
-character_class = unreal.load_class(None, CHARACTER)
-spawn(character_class, "Title_Character", CHARACTER_AT, unreal.Rotator(roll=0, pitch=0, yaw=CHARACTER_YAW))
+# 캐릭터 자리 표시만 놓는다(10/6). 판 시작 때 로비 흐름이 게임 맵 게임모드의 캐릭터 클래스를 여기에 세운다
+# → 캐릭터 담당이 게임 캐릭터를 바꾸면 타이틀 캐릭터도 따라 바뀐다(ULobbyUIFlowController::SpawnLobbyCharacter).
+spot = spawn(unreal.TargetPoint, "Title_CharacterSpot", CHARACTER_AT, unreal.Rotator(roll=0, pitch=0, yaw=CHARACTER_YAW))
+spot.set_editor_property("tags", ["LobbyCharacterSpot"])
 
 # 플레이어 시작 자리: 카메라 뒤(화면 밖).
 spawn(unreal.PlayerStart, "Title_PlayerStart", unreal.Vector(900, -150, 200))

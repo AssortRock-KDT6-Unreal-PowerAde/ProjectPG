@@ -45,6 +45,16 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<class UComboBoxString> FilterCombo;
 
+	// 종류 고르기 목록 글자. 0번 = 전체, 1번부터 EItemType 순서(무기·방어구·소비·퀘스트·가방·기타). WBP 에서 고친다.
+	UPROPERTY(EditAnywhere, Category = "Filter")
+	TArray<FText> FilterLabels = { INVTEXT("전체"), INVTEXT("무기"), INVTEXT("방어구"), INVTEXT("소비"), INVTEXT("퀘스트"), INVTEXT("가방"), INVTEXT("기타") };
+
+	// 뒤로가기를 누르면 돌아갈 로비 카메라 이름표(L_Title 의 카메라 태그)와 옮겨 가는 시간.
+	UPROPERTY(EditAnywhere, Category = "Lobby Camera")
+	FName MenuCameraTag = TEXT("LobbyCamera_Menu");
+	UPROPERTY(EditAnywhere, Category = "Lobby Camera", meta = (ClampMin = "0"))
+	float CameraBlendSeconds = 0.6f;
+
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UEquipmentWidget> EquipmentWidget;

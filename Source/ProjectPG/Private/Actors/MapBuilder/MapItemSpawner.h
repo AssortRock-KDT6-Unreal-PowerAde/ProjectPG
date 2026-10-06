@@ -53,6 +53,9 @@ public:
 	void SpawnLootOnce();
 
 private:
+	// 무게대로 한 줄 뽑기(주사위 한 번).
+	static const FLootSpawnRow* PickWeighted(const TArray<const FLootSpawnRow*>& Pool, int32 TotalWeight, FRandomStream& Stream);
+
 	bool bSpawned = false;
 
 	// 이번 판에 놓은 아이템. 바닥 찾기 선이 이미 놓은 아이템 위에 걸리지 않게 빼는 데도 쓴다.

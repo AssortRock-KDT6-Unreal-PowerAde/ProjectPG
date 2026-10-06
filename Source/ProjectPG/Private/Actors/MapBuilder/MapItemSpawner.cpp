@@ -8,6 +8,20 @@
 #include "TimerManager.h"
 #include "Components/PrimitiveComponent.h"
 
+// 무게대로 한 줄 뽑기: 0 ~ 무게합-1 사이 숫자를 굴려, 줄 무게를 빼 가다 음수가 되는 줄.
+// 예: 붕대 5·권총 3·소총 2 → 0~9 를 굴려 0~4 붕대, 5~7 권총, 8~9 소총.
+const FLootSpawnRow* UMapItemSpawner::PickWeighted(const TArray<const FLootSpawnRow*>& Pool, int32 TotalWeight, FRandomStream& Stream)
+{
+	int32 Roll = Stream.RandRange(0, TotalWeight - 1);
+	for (const FLootSpawnRow* Row : Pool)
+	{
+		Roll -= Row->Weight;
+		if (Roll < 0)
+			return Row;
+	}
+	return Pool.Last();
+}
+
 void UMapItemSpawner::Init(AMapBuilder* InMap)
 {
 	Map = InMap;
@@ -113,18 +127,7 @@ void UMapItemSpawner::SpawnLootOnce()
 		const int32 ItemCount = FMath::Clamp<int32>(Point.Tier, 1, 3);
 		for (int32 ItemIndex = 0; ItemIndex < ItemCount; ++ItemIndex)
 		{
-			// 무게대로 한 줄 뽑기: 0 ~ 무게합-1 사이 숫자를 굴려, 줄 무게를 빼 가다 음수가 되는 줄.
-			int32 Roll = Stream.RandRange(0, TotalWeight - 1);
-			const FLootSpawnRow* Picked = Pool.Last();
-			for (const FLootSpawnRow* Row : Pool)
-			{
-				Roll -= Row->Weight;
-				if (Roll < 0)
-				{
-					Picked = Row;
-					break;
-				}
-			}
+			const FLootSpawnRow* Picked = PickWeighted(Pool, TotalWeight, Stream);
 			const int32 Quantity = Stream.RandRange(Picked->MinQuantity, FMath::Max(Picked->MinQuantity, Picked->MaxQuantity));
 
 			// ③ 여러 개면 자리 둘레 45cm 원 위에 고르게 벌린다(한 점에 겹쳐 쌓이지 않게).
