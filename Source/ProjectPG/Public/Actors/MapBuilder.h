@@ -1,10 +1,11 @@
-// Visual layer for the procedural map: turns the logical AMapTile grid into tiles, facilities and the border lake.
+﻿// Visual layer for the procedural map: turns the logical AMapTile grid into tiles, facilities and the border lake.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "WarZoneFootprintPreview.generated.h"
+// 처음엔 시설 자리 미리보기로 만들어짐
+#include "MapBuilder.generated.h"
 
 class AMapTile;
 class ANavigationData;
@@ -209,12 +210,12 @@ struct FFacilityPlacement
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLevelDesignPointsBuilt, const TArray<FLevelDesignPoint>&);
 
 UCLASS()
-class PROJECTPG_API AWarZoneFootprintPreview : public AActor
+class PROJECTPG_API AMapBuilder : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	AWarZoneFootprintPreview();
+	AMapBuilder();
 
 	// 데이터 전용 계약. 스폰·루팅 시스템이 읽기만 한다.
 	const TArray<FLevelDesignPoint>& GetLevelDesignPoints() const { return LevelDesignPoints; }
@@ -222,15 +223,20 @@ public:
 
 	FOnLevelDesignPointsBuilt OnLevelDesignPointsBuilt;
 
+	// 판 시드. 서버는 게임모드(형님 생성기)의 시드, 들어온 사람은 맵 설계도(AMapManifestActor)로 받은 시드.
+	// 맵 계산(언덕·호수·시설 씨앗·흙길·산)은 전부 이걸 쓴다 — 예전엔 게임모드에서 직접 읽어서 클라에서는 0 이었다.
+	int64 GetRaidSeed() const;
+	// 형님 생성기의 시작 구역 상자 크기. 같은 이유로 서버는 생성기에서, 클라는 설계도에서.
+	int32 GetStartRangeSize() const;
+	// 들어온 사람: 맵 설계도가 도착하면 시드·상자 크기를 넣는다(칸 쪽지를 만들기 전에).
+	void ApplyReplicatedManifest(int64 InSeed, int32 InStartRange);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
 	void TryReserveFootprint();
-	void BuildTileDesignPlacements(const TMap<FIntPoint, AMapTile*>& TileByCell);
-	void SpawnRuntimeBlueprintTiles();
-	void BuildElevatedFacilityTerrain();
 	// Entrance cell / outward cardinal direction for every ramp-and-stair approach a
 	// facility owns. Shared by the terrain builder and VerifyTraversableElevation.
 	void GetFacilityAccessEdges(
@@ -242,85 +248,100 @@ private:
 	void BuildShoreTransitionMap(
 		const TSet<FIntPoint>& LakeCells,
 		TMap<FIntPoint, TPair<int32, int32>>& OutShoreTileByCell) const;
-	void BuildLightweightWorldVisuals();
-	void BuildGameplayPointMarkers();
-	void ResolveGameplayPointSafety();
-	void RebuildGameplayPointHash();
-	void BuildPCGDressingGraph();
-	void VerifyPCGDressing();
-	void VerifyLocalPerformance(float DeltaSeconds);
-	void VerifyWorldCollision();
-	void VerifyNavigation();
-	void VerifyTacticalLayoutQuality();
-	void VerifyTravelCoverDensity();
-	void VerifyGameplayPointDistribution();
-	void VerifyCriticalRoutes();
-	void VerifyTraversableElevation();
-	void VerifyCoplanarSurfaces();
-	void RefreshNavigationBlockerRegion(
-		UTacticalTileNavModifierComponent* Modifier,
-		const FVector& WorldCenter,
-		float RadiusCm);
-	void DrawReservation() const;
-	void ConfigureProxyMesh(
-		UStaticMeshComponent* Component,
-		const FVector& RelativeLocation,
-		const FVector& Size);
-	void ShowWarehouseProxy(const FVector& FootprintCenter);
-	void ShowYardProxy(const FVector& FootprintCenter);
-	void LoadFacilityDesignLevel(const FFacilityPlacement& Placement, int32 PlacementIndex);
-	void BuildBorderMountains();
 	bool AreAllFacilityLevelsLoaded() const;
-	void VerifyDesignLevelSeparation();
-	void ReserveFacility(
-		EFacilityVisualSet VisualSet,
-		const FIntPoint& Anchor,
-		const FIntPoint& Footprint,
-		int32 RotationQuarterTurns,
-		const TArray<FIntPoint>& OccupiedCells,
-		const TMap<FIntPoint, AMapTile*>& TileByCell);
-	FVector GetFootprintCenter(const FFacilityPlacement& Placement) const;
 	FVector GetDesignFootprintCenter(const FFacilityPlacement& Placement) const;
-	void DrawDesignScalePreview() const;
 
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
+	// 협력객체 : 맵 자체 검사
+	// friend class : 검사기가 private볼 수 있게.
+	friend class UMapVerifier;
+	// Transient : 레벨에 저장하지 않음(판마다 새로 만들어서) 
+	UPROPERTY(Transient)
+	// 검사기 주소를 담는 칸. 검사기쪽 Map과 서로 반대 방향
+	// (맵->검사기,검사기-> 맵)
+	TObjectPtr<class UMapVerifier> Verifier;
+
+	// 보이는 것 목록(데이터 에셋 DA_MapAssets). 타일 BP·머티리얼·산·풀·시설 레벨을 여기서 고른다.
+	// 비어 있거나 못 찾으면 MapAssetSet.h 의 C++ 기본값(예전 경로)을 쓴다.
+	UPROPERTY(EditAnywhere, Category = "Map Assets")
+	TSoftObjectPtr<class UMapAssetSet> MapAssets;
+	// 한 번 불러온 목록을 들고 있는 칸(판마다 새로).
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapAssetSet> LoadedMapAssets;
+	// 목록 읽기. 일꾼들도 Map->GetMapAssets() 로 읽는다.
+	const UMapAssetSet& GetMapAssets();
+	// 판 시작 때 맵에 붙은 그릇(땅판·산·돌·풀 HISM)에 메시·머티리얼을 끼운다.
+	void ApplyMapAssets();
+
+	// 협력객체 : 건물 자리 담당. 고른 결과는 맵의 FacilityPlacements 에 넣는다.
+	friend class UMapFacilityPlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapFacilityPlanner> FacilityPlanner;
+
+	// 협력객체 : 칸 모양 담당(칸마다 어떤 타일, 몇 도). 결과는 TileDesignPlacements·LayoutHash.
+	friend class UMapTilePlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapTilePlanner> TilePlanner;
+
+	// 협력객체 : 흙길 담당(시설·시작점·출구를 도로·워존에 잇는 흙길). 칸 모양 담당이 부른다.
+	friend class UMapRoadPlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapRoadPlanner> RoadPlanner;
+
+	// 협력객체 : 공사 담당.
+	friend class UMapTileSpawner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapTileSpawner> TileSpawner;
+
+	// 협력객체 : 바닥 담당.
+	friend class UMapGroundBuilder;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapGroundBuilder> GroundBuilder;
+
+	// 협력객체 : 시작 구역 담당(멀티 최대 4명 — 가장자리에 시작 대기소를 더 고른다).
+	friend class UMapSpawnRegionPlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapSpawnRegionPlanner> SpawnRegionPlanner;
+
+	// 협력객체 : 지점 담당(시작·상자·몬스터·출구·퀘스트 자리 찍기 + 끼임 정리). 결과는 LevelDesignPoints.
+	friend class UMapPointPlanner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapPointPlanner> PointPlanner;
+
+	// 협력객체 : 아이템 담당(상자 자리마다 바닥 아이템 놓기).
+	friend class UMapItemSpawner;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapItemSpawner> ItemSpawner;
+
+	// ---- 기획 숫자(에디터에서 맵 액터를 골라 바꾼다) ----
+	// 워존에 놓는 2×2 마당 시설 수.
+	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "1", ClampMax = "8"))
+	int32 WarZoneYardCount = 3;
+	// 들판에 놓는 언덕(땅 모양) 최대 수.
+	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 MaxTerrainFeatureCount = 28;
+	// 몬스터 길찾기 막힘을 갱신하는 반경(cm). 플레이어 주변·맵 가운데 둘 다 이 값.
+	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "1000"))
+	float NavigationBlockerRadiusCm = 6000.0f;
+
+	// ---- 시작 구역(멀티) ---- 고르는 규칙은 MapSpawnRegionPlanner.cpp 주석.
+	// 시작 구역 최대 수. 1번은 형님 생성기가 준 시작 칸, 나머지는 가장자리 빈 땅에서 더 고른다. 1 이면 예전처럼 한 곳.
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "1", ClampMax = "8"))
+	int32 SpawnRegionCount = 4;
+	// 시작 구역끼리 최소 거리(칸, 1칸 = 20m). 가까우면 나오자마자 마주친다.
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "2"))
+	int32 MinSpawnRegionSpacingCells = 10;
+	// 시작 구역과 출구 사이 최소 거리(칸). 나오자마자 탈출하는 걸 막는다.
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "0"))
+	int32 MinSpawnToExitCells = 5;
+	// 맵 가장자리에서 이 칸 수 안쪽만 후보(출발은 바깥, 워존은 가운데).
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "1"))
+	int32 SpawnRegionEdgeBandCells = 5;
+	// 이번 판 시작 구역 칸(0번 = 형님 시작 칸).
+	UPROPERTY(VisibleInstanceOnly, Category = "Spawn Regions")
+	TArray<FIntPoint> SpawnRegionCells;
+	
+	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<USceneComponent> SceneRoot;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> FloorProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> BackWallProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> LeftWallProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> RightWallProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> FrontWallLeftProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> FrontWallRightProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Warehouse Proxy")
-	TObjectPtr<UStaticMeshComponent> RoofProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardFloorProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardCoverNorthProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardCoverSouthProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardCoverWestProxy;
-
-	UPROPERTY(VisibleAnywhere, Category = "Yard Proxy")
-	TObjectPtr<UStaticMeshComponent> YardCoverEastProxy;
 
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> GroundHISM;
@@ -512,25 +533,21 @@ private:
 	TObjectPtr<UPCGGraph> RuntimeDressingGraph;
 
 	TSet<int32> LoggedFacilityDesignLevelIndices;
+	// 길찾기 검사 끝남
 	bool bLoggedAllFacilityDesignLevelsLoaded = false;
-	bool bLoggedDesignLevelSeparation = false;
-	bool bLoggedWorldCollision = false;
-	bool bLoggedNavigation = false;
-	bool bLoggedTacticalLayoutQuality = false;
-	bool bLoggedTravelCoverDensity = false;
-	bool bLoggedGameplayPointDistribution = false;
 	bool bResolvedGameplayPointSafety = false;
-	bool bLoggedCriticalRoutes = false;
-	bool bLoggedMissingWarZoneFootprint = false;
-	bool bLoggedTraversableElevation = false;
-	bool bLoggedCoplanarSurfaces = false;
-	bool bLoggedPCGDressing = false;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
-	int32 PerformanceSampleCount = 0;
-	double PerformanceDeltaSecondsTotal = 0.0;
 	double NavigationValidationStartTimeSeconds = 0.0;
 	FIntPoint LastPlayerNavigationBlockerCell = FIntPoint(MAX_int32, MAX_int32);
 	TArray<double> FacilityLoadRequestTimeSeconds;
 
 	FTimerHandle RetryTimer;
+
+	// 들어온 사람이 설계도로 받은 값(서버에서는 안 씀).
+	bool bHasReplicatedManifest = false;
+	int64 ReplicatedRaidSeed = 0;
+	int32 ReplicatedStartRange = 4;
+	// 서버: 설계도를 이미 만들었나(쪽지를 읽는 재시도 때 두 번 만들지 않게).
+	UPROPERTY(Transient)
+	TObjectPtr<class AMapManifestActor> Manifest;
 };
