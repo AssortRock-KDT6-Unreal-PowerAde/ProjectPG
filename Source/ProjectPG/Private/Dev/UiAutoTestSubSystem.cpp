@@ -3,6 +3,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Components/Button.h"
 #include "Components/ComboBoxString.h"
+#include "Components/EquipComponent.h"
 #include "Components/InventoryComponent.h"
 #include "Core/UIManagerSubSystem.h"
 #include "Dom/JsonObject.h"
@@ -150,9 +151,19 @@ void UUiAutoTestSubSystem::RunStep(const FString& Step)
 		Step.Mid(6).Split(TEXT("="), &Name, &Index);
 		PickCombo(Name, FCString::Atoi(*Index));
 	}
-	else if (Step == TEXT("Tooltip") || Step == TEXT("Context"))
+	else if (Step == TEXT("Count"))
 	{
-		UFitIconItemWidget* Target = FindBiggestItem();
+		LogInventoryState(TEXT("count"));
+	}
+	else if (Step == TEXT("EquipVest") || Step.StartsWith(TEXT("Equip:")))
+	{
+		// 우클릭 메뉴 "장착" 과 같은 부름(UItemContextWidget::OnEquipClickedBtn 과 같은 컴포넌트·같은 함수)을 하고 앞뒤 개수를 남긴다.
+		EquipFromStash(Step == TEXT("EquipVest") ? FString(TEXT("2003")) : Step.Mid(6));
+	}
+	else if (Step == TEXT("Tooltip") || Step == TEXT("Context") || Step.StartsWith(TEXT("Context:")))
+	{
+		// Context:2003 = 그 번호 아이템에 우클릭(없으면 가장 큰 아이템)
+		UFitIconItemWidget* Target = Step.StartsWith(TEXT("Context:")) ? FindItemOnScreen(FName(*Step.Mid(8))) : FindBiggestItem();
 		if (!Target)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[UiAutoTest] no item on screen - %s skipped"), *Step);
@@ -245,6 +256,17 @@ void UUiAutoTestSubSystem::FakeItems()
 		Inventory->RegisterContainer(Pocket, FIntPoint(5, 4));
 		Inventory->SetPocketInventoryID(Pocket);
 	}
+	// 장비 칸도 만든다. 웹 서버가 있으면 장비 칸 번호(GUID)를 보내 주고(형님 SetServerEquipData) 그걸로 장착할 칸을 찾는데,
+	// 서버 없이 창고만 만들면 칸 번호가 하나도 없어 "장착" 을 눌러도 형님 Equip 이 칸을 못 찾고 실패한다(10/8 조끼가 창고에 남던 원인).
+	// 그래서 서버가 주는 것처럼 칸마다 번호를 하나씩 만들어 형님 공개 함수(RegisterGuid)로 등록만 한다.
+	if (UEquipComponent* Equip = PC->PlayerState->FindComponentByClass<UEquipComponent>())
+	{
+		for (int32 Slot = 0; Slot < static_cast<int32>(EEquipSlot::MAX); ++Slot)
+		{
+			if (!Inventory->GetEquipSlotIDs().Contains(static_cast<EEquipSlot>(Slot)))
+				Equip->RegisterGuid(static_cast<EEquipSlot>(Slot), FGuid::NewGuid());
+		}
+	}
 	struct FFake { const TCHAR* Id; int32 Count; bool bPocket; };
 	const FFake Fakes[] = {
 		{ TEXT("1010"), 1, false }, { TEXT("1007"), 1, false }, { TEXT("1001"), 1, false }, { TEXT("2003"), 1, false },
@@ -258,6 +280,84 @@ void UUiAutoTestSubSystem::FakeItems()
 		Added += Inventory->AddItemByID(FName(Fake.Id), Target, Fake.Count) ? 1 : 0;
 	}
 	UE_LOG(LogTemp, Display, TEXT("[UiAutoTest] FakeItems added %d/%d"), Added, static_cast<int32>(UE_ARRAY_COUNT(Fakes)));
+}
+
+UFitIconItemWidget* UUiAutoTestSubSystem::FindItemOnScreen(FName ItemID) const
+{
+	for (TObjectIterator<UFitIconItemWidget> It; It; ++It)
+	{
+		UFitIconItemWidget* Item = *It;
+		if (IsValid(Item) && Item->IsVisible() && Item->GetCachedGeometry().GetLocalSize().X > 0 && Item->ItemInstance.ItemID == ItemID)
+			return Item;
+	}
+	return nullptr;
+}
+
+// 짐 데이터(인벤토리 컴포넌트 안)와 화면(떠 있는 아이템 칸)을 칸별로 따로 센다.
+// 데이터에서는 빠졌는데 화면에 남아 있으면 "화면이 안 고쳐짐", 데이터에도 남아 있으면 "옮기기 실패".
+void UUiAutoTestSubSystem::LogInventoryState(const TCHAR* Label) const
+{
+	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	UInventoryComponent* Inventory = PC && PC->PlayerState ? PC->PlayerState->FindComponentByClass<UInventoryComponent>() : nullptr;
+	UEquipComponent* Equip = PC && PC->PlayerState ? PC->PlayerState->FindComponentByClass<UEquipComponent>() : nullptr;
+	if (!Inventory)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UiAutoTest] %s: no inventory"), Label);
+		return;
+	}
+	auto NameOf = [Inventory](const FGuid& Guid) -> FString
+	{
+		if (Guid == Inventory->GetStashInventoryID()) return TEXT("Stash");
+		if (Guid == Inventory->GetPocketInventoryID()) return TEXT("Pocket");
+		for (const auto& Slot : Inventory->GetEquipSlotIDs())
+			if (Slot.Value == Guid) return FString::Printf(TEXT("Slot%d"), static_cast<int32>(Slot.Key));
+		return Guid.ToString().Left(8);
+	};
+	for (const auto& Pair : Inventory->GetItemsMap())
+	{
+		FString Ids;
+		for (const FItemInstance& Item : Pair.Value.Items)
+			Ids += Item.ItemID.ToString() + TEXT(" ");
+		UE_LOG(LogTemp, Display, TEXT("[UiAutoTest] %s data %s n=%d : %s"), Label, *NameOf(Pair.Key), Pair.Value.Items.Num(), *Ids);
+	}
+	TMap<FString, FString> Screen;
+	for (TObjectIterator<UFitIconItemWidget> It; It; ++It)
+	{
+		const UFitIconItemWidget* Item = *It;
+		if (IsValid(Item) && Item->IsVisible() && Item->GetWorld() == World && Item->GetCachedGeometry().GetLocalSize().X > 0)
+			Screen.FindOrAdd(NameOf(Item->OwnerInventoryGUID)) += Item->ItemInstance.ItemID.ToString() + TEXT(" ");
+	}
+	for (const auto& Pair : Screen)
+		UE_LOG(LogTemp, Display, TEXT("[UiAutoTest] %s screen %s : %s"), Label, *Pair.Key, *Pair.Value);
+	FString Worn;
+	for (int32 Slot = 0; Equip && Slot < static_cast<int32>(EEquipSlot::MAX); ++Slot)
+		if (const FItemInstance* Item = Equip->GetEquipment(static_cast<EEquipSlot>(Slot)))
+			Worn += FString::Printf(TEXT("Slot%d=%s "), Slot, *Item->ItemID.ToString());
+	UE_LOG(LogTemp, Display, TEXT("[UiAutoTest] %s equip(%s) slots_registered=%d : %s"), Label, Equip ? TEXT("ok") : TEXT("none"),
+		Inventory->GetEquipSlotIDs().Num(), *Worn);
+}
+
+void UUiAutoTestSubSystem::EquipFromStash(const FString& ItemID)
+{
+	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	UInventoryComponent* Inventory = PC && PC->PlayerState ? PC->PlayerState->FindComponentByClass<UInventoryComponent>() : nullptr;
+	UEquipComponent* Equip = PC && PC->PlayerState ? PC->PlayerState->FindComponentByClass<UEquipComponent>() : nullptr;
+	const FItemInstance* Found = nullptr;
+	if (Inventory)
+		for (const FItemInstance& Item : Inventory->GetItems(Inventory->GetStashInventoryID()))
+			if (Item.ItemID == FName(*ItemID)) { Found = &Item; break; }
+	if (!Equip || !Found)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UiAutoTest] Equip %s: equip=%d item_in_stash=%d"), *ItemID, Equip ? 1 : 0, Found ? 1 : 0);
+		return;
+	}
+	const FItemInstance Item = *Found;
+	LogInventoryState(TEXT("before-equip"));
+	const bool bOk = Equip->Equip(Item);
+	UE_LOG(LogTemp, Display, TEXT("[UiAutoTest] Equip %s -> %s"), *ItemID, bOk ? TEXT("true") : TEXT("false"));
+	LogInventoryState(TEXT("after-equip"));
 }
 
 UFitIconItemWidget* UUiAutoTestSubSystem::FindBiggestItem() const
