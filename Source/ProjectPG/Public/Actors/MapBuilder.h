@@ -322,6 +322,10 @@ private:
 	// 몬스터 길찾기 막힘을 갱신하는 반경(cm). 플레이어 주변·맵 가운데 둘 다 이 값.
 	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "1000"))
 	float NavigationBlockerRadiusCm = 6000.0f;
+	// 상자 자리 하나가 "상자 하나(뽑힌 아이템 전부 안에)" 가 될 확률. 나머지는 자리 둘레 바닥에 아이템을 흩어 놓는다.
+	// 예: 0.6 = 상자 자리 10곳 중 6곳쯤은 상자. 같은 시드면 같은 자리가 같은 쪽으로 정해진다(자리 씨앗 주사위).
+	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float LootCrateChance = 0.6f;
 
 	// ---- 시작 구역(멀티) ---- 고르는 규칙은 MapSpawnRegionPlanner.cpp 주석.
 	// 시작 구역 최대 수. 1번은 형님 생성기가 준 시작 칸, 나머지는 가장자리 빈 땅에서 더 고른다. 1 이면 예전처럼 한 곳.

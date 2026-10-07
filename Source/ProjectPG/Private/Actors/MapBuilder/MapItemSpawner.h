@@ -6,7 +6,7 @@
 #include "Actors/MapBuilder.h"
 #include "MapItemSpawner.generated.h"
 
-class AWorldItemActor;
+class AActor;
 
 // 상자 자리에 나오는 아이템 한 줄 (데이터 테이블 DT_LootSpawn 의 한 줄).
 // 게임에서: "붕대는 흔하게(무게 5), 1~3개씩, 아무 자리에서나" / "에픽 소총은 드물게(무게 1), 좋은 자리(3)에서만".
@@ -36,7 +36,9 @@ struct FLootSpawnRow : public FTableRowBase
 };
 
 // 아이템 담당.
-// 게임에서: 판이 시작되고 맵이 다 지어지면, 상자 자리(Loot 지점)마다 바닥에 아이템을 놓는다.
+// 게임에서: 판이 시작되고 맵이 다 지어지면, 상자 자리(Loot 지점)마다 아이템을 놓는다.
+//           자리마다 주사위로 "상자 하나(뽑힌 것 전부 안에)" 또는 "자리 둘레 바닥에 흩어 놓기" 를 고른다(LootCrateChance).
+//           둘 다 팀 방식의 E 로 여는 상자다(바닥 물건 = 그 아이템 모양의 작은 상자).
 //           좋은 자리(등급 3)일수록 더 많이(등급 = 개수) 그리고 더 좋은 것이 나올 수 있다.
 // 같은 시드 = 같은 자리에 같은 아이템. 자리마다 정해진 씨앗(PointSeed)으로만 주사위를 굴린다.
 // 서버만 한다(아이템은 서버가 정하는 것). 지금 기획은 혼자 하는 판이라 서버 = 내 화면.
@@ -58,9 +60,9 @@ private:
 
 	bool bSpawned = false;
 
-	// 이번 판에 놓은 아이템. 바닥 찾기 선이 이미 놓은 아이템 위에 걸리지 않게 빼는 데도 쓴다.
+	// 이번 판에 놓은 상자·바닥 물건. 바닥 찾기 선이 이미 놓은 것 위에 걸리지 않게 빼는 데도 쓴다.
 	UPROPERTY()
-	TArray<TObjectPtr<AWorldItemActor>> SpawnedItems;
+	TArray<TObjectPtr<AActor>> SpawnedItems;
 
 	UPROPERTY()
 	TObjectPtr<AMapBuilder> Map;

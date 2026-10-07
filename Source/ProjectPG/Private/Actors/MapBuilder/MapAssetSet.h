@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Actors/WorldItemActor.h"
+#include "Actors/LootCrateActor.h"
 #include "MapAssetSet.generated.h"
 
 class UDataTable;
@@ -136,6 +137,9 @@ public:
 	// 바닥 아이템 BP(부모 AWorldItemActor). 비면 C++ 기본 클래스(대신 모양 없음)를 쓴다.
 	UPROPERTY(EditAnywhere, Category = "아이템")
 	TSoftClassPtr<AWorldItemActor> WorldItemClass = TSoftClassPtr<AWorldItemActor>(FSoftObjectPath(TEXT("/Game/PG/Blueprint/Item/BP_WorldItem.BP_WorldItem_C")));
+	// 아이템 상자 BP(부모 ALootCrateActor). 상자 메시는 BP 에서 고른다. 비면 C++ 기본 클래스(메시 없음 — 안 보임)를 쓴다.
+	UPROPERTY(EditAnywhere, Category = "아이템")
+	TSoftClassPtr<ALootCrateActor> LootCrateClass = TSoftClassPtr<ALootCrateActor>(FSoftObjectPath(TEXT("/Game/PG/Blueprint/Item/BP_LootCrate.BP_LootCrate_C")));
 
 	// ---------- 바닥 머티리얼 (바닥 담당) ----------
 	// 들판 땅. 언덕·호숫가 비탈·타일 바닥판도 이 색으로 맞춘다(이음매가 안 보이게).
