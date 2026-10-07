@@ -275,19 +275,27 @@ void UItemWidget::RefreshWidget()
 	RootSizeBox->SetWidthOverride(GridSize.X * TileSize);
 	RootSizeBox->SetHeightOverride(GridSize.Y * TileSize);
 
-	// 아이콘 자리 = 돌리기 전 칸 크기(여백 뺌). 돌린 아이템은 그 자리를 가운데 기준 90° 돌려 칸에 맞춘다.
-	// (ScaleBox 가 그림 비율을 지켜 자리 안에 맞춰 줄이므로 긴 총이 정사각형 칸에서도 찌그러지지 않는다.)
+	// 아이콘 자리: 평소엔 아이템 칸 전체(여백 IconPadding)를 채운다 → ScaleBox 가 그림 비율대로 꽉 맞춘다.
+	// 돌린 아이템은 돌리기 전 칸 크기의 자리를 가운데 기준 90° 돌려 칸에 맞춘다(긴 총이 세로 칸에서도 크게 보이게).
 	if (IconScale)
 	{
 		if (UCanvasPanelSlot* IconSlot = Cast<UCanvasPanelSlot>(IconScale->Slot))
 		{
-			const FIntPoint BaseSize = CachedItemData.GridSize;
-			IconSlot->SetAnchors(FAnchors(0.5f, 0.5f));
-			IconSlot->SetAlignment(FVector2D(0.5f, 0.5f));
-			IconSlot->SetPosition(FVector2D::ZeroVector);
-			IconSlot->SetSize(FVector2D(
-				FMath::Max(1.0f, BaseSize.X * TileSize - 2.0f * IconPadding),
-				FMath::Max(1.0f, BaseSize.Y * TileSize - 2.0f * IconPadding)));
+			if (ItemInstance.bIsRotated)
+			{
+				const FIntPoint BaseSize = CachedItemData.GridSize;
+				IconSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+				IconSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+				IconSlot->SetOffsets(FMargin(0.0f, 0.0f,
+					FMath::Max(1.0f, BaseSize.X * TileSize - 2.0f * IconPadding),
+					FMath::Max(1.0f, BaseSize.Y * TileSize - 2.0f * IconPadding)));
+			}
+			else
+			{
+				IconSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+				IconSlot->SetAlignment(FVector2D::ZeroVector);
+				IconSlot->SetOffsets(FMargin(IconPadding));
+			}
 		}
 		IconScale->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
 		IconScale->SetRenderTransformAngle(ItemInstance.bIsRotated ? 90.0f : 0.0f);

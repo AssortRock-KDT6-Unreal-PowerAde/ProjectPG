@@ -11,6 +11,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/CommandLine.h"
 #include "UObject/UObjectIterator.h"
+#include "Framework/Application/SlateApplication.h"
 
 void UUiAutoTestSubSystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -73,7 +74,7 @@ bool UUiAutoTestSubSystem::Tick(float DeltaTime)
 // Tooltip / Context = 화면에 보이는 아이템 중 가장 큰 것에 설명 창 / 우클릭 메뉴(마우스가 없어서 같은 함수를 직접 부름).
 void UUiAutoTestSubSystem::Click(const FString& ButtonName)
 {
-	if (ButtonName == TEXT("Tooltip") || ButtonName == TEXT("Context"))
+	if (ButtonName == TEXT("Tooltip") || ButtonName == TEXT("Context") || ButtonName == TEXT("Drag"))
 	{
 		UItemWidget* Target = nullptr;
 		int32 BestArea = -1;
@@ -92,6 +93,11 @@ void UUiAutoTestSubSystem::Click(const FString& ButtonName)
 		if (!Target)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[UiAutoTest] no item widget on screen - %s skipped"), *ButtonName);
+			return;
+		}
+		if (ButtonName == TEXT("Drag"))
+		{
+			DragItem(Target);
 			return;
 		}
 		if (ButtonName == TEXT("Tooltip"))
@@ -124,4 +130,57 @@ void UUiAutoTestSubSystem::Click(const FString& ButtonName)
 		return;
 	}
 	UE_LOG(LogTemp, Warning, TEXT("[UiAutoTest] lobby widget not on screen - %s skipped"), *ButtonName);
+}
+
+// Drag = 화면에 보이는 가장 큰 아이템을 진짜 마우스 입력(Slate)으로 잡아 아래로 3칸 끌어 놓는다.
+// 함수를 직접 부르지 않고 마우스 누름·이동·뗌을 보내므로, 마우스가 위젯에 안 닿는 문제(10/7 아이콘 틀)까지 잡힌다.
+// 결과: 로그 "[UiAutoTest] Drag ... moved=1" 이면 옮겨졌다.
+void UUiAutoTestSubSystem::DragItem(UItemWidget* Target)
+{
+	FSlateApplication& Slate = FSlateApplication::Get();
+	const FGeometry Geometry = Target->GetCachedGeometry();
+	const FVector2D TopLeft = Geometry.GetAbsolutePosition();
+	const FVector2D Size = Geometry.GetAbsoluteSize();
+	const FIntPoint Cells = Target->ItemInstance.GetCurrentGridSize(Target->GetCachedItemData());
+	const float Cell = Size.Y / FMath::Max(1, Cells.Y);
+	const FVector2D From = TopLeft + Size * 0.5f;
+	const FVector2D To = From + FVector2D(0.0f, Cell * (Cells.Y + 2));
+	const FGuid Guid = Target->ItemInstance.GUID;
+	const uint32 User = Slate.GetUserIndexForMouse();
+	const FModifierKeysState Keys;
+	FVector2D Last = From;
+
+	Slate.SetCursorPos(From);
+	Slate.ProcessMouseMoveEvent(FPointerEvent(User, FSlateApplication::CursorPointerIndex, From, From, TSet<FKey>(), EKeys::Invalid, 0, Keys));
+	Slate.ProcessMouseButtonDownEvent(nullptr, FPointerEvent(User, FSlateApplication::CursorPointerIndex, From, From,
+		TSet<FKey>({ EKeys::LeftMouseButton }), EKeys::LeftMouseButton, 0, Keys));
+	for (int32 Step = 1; Step <= 12; ++Step)
+	{
+		const FVector2D Now = FMath::Lerp(From, To, Step / 12.0f);
+		Slate.SetCursorPos(Now);
+		Slate.ProcessMouseMoveEvent(FPointerEvent(User, FSlateApplication::CursorPointerIndex, Now, Last,
+			TSet<FKey>({ EKeys::LeftMouseButton }), EKeys::Invalid, 0, Keys));
+		Last = Now;
+	}
+	const bool bDragging = Slate.IsDragDropping();
+	Slate.ProcessMouseButtonUpEvent(FPointerEvent(User, FSlateApplication::CursorPointerIndex, To, To,
+		TSet<FKey>(), EKeys::LeftMouseButton, 0, Keys));
+
+	// 놓은 뒤 같은 아이템(GUID)의 위젯 자리를 다시 찾는다(격자가 위젯을 새로 만들 수 있어서). 다음 그리기 뒤에 확인.
+	TWeakObjectPtr<UUiAutoTestSubSystem> WeakThis(this);
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakThis, Guid, TopLeft, bDragging](float) -> bool
+	{
+		for (TObjectIterator<UItemWidget> It; It; ++It)
+		{
+			if (!IsValid(*It) || !It->IsVisible() || It->ItemInstance.GUID != Guid || It->GetCachedGeometry().GetLocalSize().X <= 0)
+				continue;
+			const FVector2D NewTopLeft = It->GetCachedGeometry().GetAbsolutePosition();
+			UE_LOG(LogTemp, Display, TEXT("[UiAutoTest] Drag item %s dragStarted=%d moved=%d (%.0f,%.0f)->(%.0f,%.0f)"),
+				*It->ItemInstance.ItemID.ToString(), bDragging ? 1 : 0, NewTopLeft.Equals(TopLeft, 2.0) ? 0 : 1,
+				TopLeft.X, TopLeft.Y, NewTopLeft.X, NewTopLeft.Y);
+			return false;
+		}
+		UE_LOG(LogTemp, Warning, TEXT("[UiAutoTest] Drag: item not found after drop dragStarted=%d"), bDragging ? 1 : 0);
+		return false;
+	}), 0.5f);
 }

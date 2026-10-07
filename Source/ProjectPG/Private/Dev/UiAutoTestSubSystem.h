@@ -26,6 +26,7 @@ public:
 private:
 	bool Tick(float DeltaTime);
 	void Click(const FString& ButtonName);
+	void DragItem(class UItemWidget* Target);
 
 	struct FStep
 	{

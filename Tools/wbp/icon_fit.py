@@ -48,9 +48,15 @@ def item_widget():
     fit_scale_box(b.find("IconScale"))
     canvas = b.find("IconCanvas")
     fill_overlay_slot(canvas)
-    canvas.set_editor_property("visibility", unreal.SlateVisibility.HIT_TEST_INVISIBLE)
-    # 디자이너에서 보기 좋게 기본 자리(실제 크기는 코드가 정함).
-    W.Builder.place(b.find("IconScale").get_editor_property("slot"), (0.5, 0.5, 0.5, 0.5), (0.5, 0.5), (0, 0), (58, 58))
+    # 캔버스가 칸 전체에서 마우스를 받는다 → 아이템 잡기(끌기)·우클릭·설명 창이 칸 어디서나 된다.
+    # (10/7 첫 버전은 여기를 "마우스 통과" 로 해서, 마우스 받는 위젯이 하나도 없어 끌기가 안 됐다.)
+    canvas.set_editor_property("visibility", unreal.SlateVisibility.VISIBLE)
+    # 기본 자리 = 아이템 칸 전체(여백 3). 코드가 없어도(빌드 전) 아이콘이 칸에 꽉 맞는다.
+    # (10/7 첫 버전은 가운데 58×58 이라 빌드 안 한 PC 에서 4칸짜리 총도 칸 하나 크기로 작게 보였다.)
+    icon_slot = b.find("IconScale").get_editor_property("slot")
+    icon_slot.set_anchors(unreal.Anchors(minimum=unreal.Vector2D(0, 0), maximum=unreal.Vector2D(1, 1)))
+    icon_slot.set_alignment(unreal.Vector2D(0, 0))
+    icon_slot.set_offsets(unreal.Margin(3, 3, 3, 3))
     b.finish()
 
 
