@@ -26,6 +26,8 @@ OVERRIDES = {
     "1001": {"flip_x": True}, "1002": {"flip_x": True}, "1003": {"flip_x": True},
     "1004": {"flip_x": True}, "1005": {"flip_x": True}, "1006": {"flip_x": True},
     "1007": {"flip_x": True}, "1008": {"flip_x": True}, "1009": {"flip_x": True},
+    # AK: 위아래가 거꾸로 찍혀 탄창이 위를 향했다(10/8) → 위아래만 뒤집는다
+    "1010": {"flip_y": True}, "1011": {"flip_y": True}, "1012": {"flip_y": True},
     # 가방: 자동으로는 등판 쪽(은색 패드)이 찍혀서 앞(주머니 쪽)에서 찍는다
     "5001": {"axis": -2},
 }
