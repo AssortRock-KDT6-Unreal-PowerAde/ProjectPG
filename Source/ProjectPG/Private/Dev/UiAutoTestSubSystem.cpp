@@ -224,7 +224,7 @@ void UUiAutoTestSubSystem::FakeItems()
 	const FFake Fakes[] = {
 		{ TEXT("1010"), 1, false }, { TEXT("1007"), 1, false }, { TEXT("1001"), 1, false }, { TEXT("2003"), 1, false },
 		{ TEXT("2001"), 1, false }, { TEXT("3011"), 1, false }, { TEXT("3002"), 60, false }, { TEXT("3001"), 45, false },
-		{ TEXT("3007"), 5, false }, { TEXT("3005"), 1, false }, { TEXT("1017"), 1, false },
+		{ TEXT("3007"), 5, false }, { TEXT("3005"), 1, true }, { TEXT("1017"), 1, false },
 		{ TEXT("3012"), 1, true }, { TEXT("3008"), 4, true } };
 	int32 Added = 0;
 	for (const FFake& Fake : Fakes)
@@ -245,8 +245,11 @@ UFitIconItemWidget* UUiAutoTestSubSystem::FindBiggestItem() const
 		if (!IsValid(Item) || !Item->IsVisible() || !Item->GetCachedItemData() || Item->GetCachedGeometry().GetLocalSize().X <= 0)
 			continue;
 		const FIntPoint Size = Item->ItemInstance.GetCurrentGridSize(Item->GetCachedItemData());
-		// 돌릴 수 있는(정사각형이 아닌) 아이템을 먼저 고른다(돌리기 시험용).
-		const int32 Area = Size.X * Size.Y + (Size.X != Size.Y ? 100 : 0);
+		// 그 자리에서 돌릴 수 있는(정사각형이 아니고 돌린 모양이 들어갈 자리가 있는) 아이템을 먼저 고른다(돌리기 시험용).
+		const UInventoryComponent* Owner = Item->OwnerInventoryComp.Get();
+		const bool bRotatable = Size.X != Size.Y && Owner && const_cast<UInventoryComponent*>(Owner)->CanPlaceItemByGuid(
+			Item->OwnerInventoryGUID, Item->ItemInstance.ItemID, Item->ItemInstance.Position, !Item->ItemInstance.bIsRotated, Item->ItemInstance.GUID);
+		const int32 Area = Size.X * Size.Y + (Size.X != Size.Y ? 100 : 0) + (bRotatable ? 1000 : 0);
 		if (Area > BestArea)
 		{
 			BestArea = Area;

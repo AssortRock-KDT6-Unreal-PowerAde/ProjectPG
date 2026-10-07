@@ -74,7 +74,77 @@ def option():
     set_default("WBP_Lobby", "option_screen_class", unreal.load_class(None, cls_path("WBP_Option")))
 
 
-STEPS = {"tooltip": tooltip, "option": option}
+# ---------------- 3) 캐릭터·인벤토리 창 모양 ----------------
+def inventory():
+    # 부모를 우리 자식(검색·종류 고르기 / 돌리기 버튼)으로. 형님 동작은 부모가 그대로 한다.
+    reparent("WBP_CharacterWidget", "/Script/ProjectPG.PlanInventoryWindow")
+    reparent("WBP_ItemContextWidget", "/Script/ProjectPG.PlanItemContextWidget")
+
+    # 캐릭터 창: 뒤의 실제 장면(타이틀이면 마을·캐릭터)이 비치게 옅게 어둡게, 창고를 70px 내리고 그 위에 검색 줄.
+    b = W.Builder(UI + "WBP_CharacterWidget")
+    root = b.root()  # MainCanvas
+    bg, bg_slot = b.panel("PlanBackground", root, W.srgb(0x08, 0x1C, 0x28, 0.35), unreal.Margin(0, 0, 0, 0), radius=0.0)
+    bg.set_brush_color(W.srgb(0x08, 0x1C, 0x28, 0.35))
+    bg.set_visibility(unreal.SlateVisibility.HIT_TEST_INVISIBLE)
+    b.place(bg_slot, (0, 0, 1, 1), (0, 0), (0, 0))
+    bg_slot.set_auto_size(False)
+    bg_slot.set_offsets(unreal.Margin(0, 0, 0, 0))
+    bg_slot.set_z_order(-10)
+    stash_slot = b.find("MainInventoryOverlay").get_editor_property("slot")
+    off = stash_slot.get_offsets()
+    if off.top < 70:
+        stash_slot.set_offsets(unreal.Margin(off.left, 70, off.right, off.bottom))
+    search, search_slot = b.make(unreal.EditableTextBox, "SearchBox", root)
+    search.set_hint_text(unreal.Text("아이템 이름 검색"))
+    b.place(search_slot, (0.6, 0, 0.6, 0), (0, 0), (0, 14), (560, 46))
+    combo, combo_slot = b.make(unreal.ComboBoxString, "FilterCombo", root)
+    combo.set_editor_property("font", W.font(16, "Regular"))
+    b.place(combo_slot, (0.6, 0, 0.6, 0), (0, 0), (576, 14), (188, 46))
+    b.finish()
+
+    # 장비 칸 사이 캐릭터 자리(CharacterView, 연한 판)를 투명하게 -> 뒤의 실제 캐릭터가 보인다.
+    b = W.Builder(UI + "WBP_Equip")
+    view = b.find("CharacterView")
+    if view is not None:
+        view.set_color_and_opacity(unreal.LinearColor(1, 1, 1, 0))
+    b.finish()
+
+    # 칸 색(기획서 연한 파랑), 칸 사이 선(진한 파랑).
+    for name in ("WBP_Slot", "WBP_EquipSlot"):
+        b = W.Builder(UI + name)
+        border = b.find("SlotBorder")
+        border.set_brush_color(W.PLAN_BLUE_DEEP)
+        border.set_padding(unreal.Margin(1, 1, 1, 1))
+        b.find("BackGround").set_color_and_opacity(W.PLAN_LIGHT)
+        b.finish()
+    set_default("WBP_Slot", "default_slot_color", W.PLAN_LIGHT)
+
+    # 우클릭 메뉴: "돌리기" 버튼(취소 바로 위). "나누기"는 형님 쪽 쪼개기 요청이 없어 넣지 않는다.
+    b = W.Builder(UI + "WBP_ItemContextWidget")
+    box = b.find("VerticalBox_0")
+    sample_font = b.find("TextBlock_324").get_editor_property("font")
+    size, _ = b.make(unreal.SizeBox, "RotateSize", box)
+    size.set_width_override(200)
+    size.set_height_override(50)
+    btn, _ = b.make(unreal.Button, "RotateButton", size)
+    text, _ = b.make(unreal.TextBlock, "RotateLabel", btn)
+    text.set_text(unreal.Text("돌리기"))
+    text.set_font(sample_font)
+    cancel = b.find("SizeBox_3")
+    if cancel is not None and box.get_child_index(cancel) != box.get_children_count() - 1:
+        box.remove_child(cancel)
+        box.add_child(cancel)
+    b.finish()
+
+    # 아래 탭·뒤로가기, 우클릭 메뉴 버튼을 기획서처럼 흰 판·검은 글자로.
+    white_buttons("WBP_CharacterWidget", (("InventoryBtn", "TextBlock_59"), ("QuestBtn", "TextBlock"), ("MailBtn", "TextBlock_1"),
+                                          ("StatisticsBtn", "TextBlock_2"), ("BackBtn", "TextBlock_3")))
+    white_buttons("WBP_ItemContextWidget", (("OpenButton", "TextBlock_324"), ("EquipButton", "TextBlock"), ("UnEquipButton", "TextBlock_262"),
+                                            ("DropButton", "TextBlock_141"), ("UseButton", "TextBlock_202"), ("CancleButton", "TextBlock_70"),
+                                            ("RotateButton", "RotateLabel")))
+
+
+STEPS = {"tooltip": tooltip, "option": option, "inventory": inventory}
 
 wanted = [s.strip() for s in os.environ.get("PG_PLAN_STEPS", "").split(",") if s.strip()] or list(STEPS.keys())
 for name in wanted:

@@ -5,8 +5,10 @@
 #include "Components/ScaleBox.h"
 #include "Engine/Texture2D.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Core/UIManagerSubSystem.h"
 #include "TimerManager.h"
 #include "UI/Plan/ItemTooltipWidget.h"
+#include "UI/Plan/PlanItemContextWidget.h"
 
 void UFitIconItemWidget::RefreshWidget()
 {
@@ -77,6 +79,13 @@ void UFitIconItemWidget::ShowTooltip()
 	// 끌고 있는 중이면 띄우지 않는다(끄는 아이템을 가린다).
 	if (UWidgetBlueprintLibrary::IsDragDropping() || !TooltipClass)
 		return;
+	// 우클릭 메뉴가 떠 있으면 띄우지 않는다(메뉴를 가린다).
+	if (const UUIManagerSubSystem* UI = UUIManagerSubSystem::Get(GetWorld()))
+	{
+		const UUserWidget* Menu = UI->GetUI(EUIType::ItemContext);
+		if (Menu && Menu->IsInViewport() && Menu->IsVisible())
+			return;
+	}
 	UItemTooltipWidget::ShowFor(this, TooltipClass, ItemInstance, CachedItemData);
 }
 
@@ -88,11 +97,20 @@ void UFitIconItemWidget::HideTooltip()
 		UItemTooltipWidget::Hide(this, TooltipClass);
 }
 
-// 누르면(왼쪽 = 끌기 시작, 오른쪽 = 메뉴) 설명 창은 치운다.
+// 누르면(왼쪽 = 끌기 시작, 오른쪽 = 메뉴) 설명 창은 치운다. 오른쪽이면 부모가 연 메뉴에 돌리기 정보를 넘긴다.
 FReply UFitIconItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
 	HideTooltip();
-	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+	const FReply Reply = Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+	if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		if (UUIManagerSubSystem* UI = UUIManagerSubSystem::Get(GetWorld()))
+		{
+			if (UPlanItemContextWidget* Menu = Cast<UPlanItemContextWidget>(UI->GetUI(EUIType::ItemContext)))
+				Menu->SetRotateTarget(OwnerInventoryComp.Get(), OwnerInventoryGUID, ItemInstance, CachedItemData);
+		}
+	}
+	return Reply;
 }
 
 void UFitIconItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)

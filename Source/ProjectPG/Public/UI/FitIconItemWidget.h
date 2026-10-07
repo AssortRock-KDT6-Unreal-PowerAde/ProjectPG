@@ -14,6 +14,8 @@ class UItemTooltipWidget;
 //   WBP_InventoryGrid 의 Item Widget Class 로 고른다.
 // 10/8 덧붙임(기획서 화면):
 //   - 마우스를 1초 올려 두면 아이템 설명 창(WBP_ItemTooltip)을 띄운다. 부모에 없는 동작이라 여기서 더한다.
+//   - 우클릭 메뉴가 우리 자식 메뉴(UPlanItemContextWidget)면 "돌리기"에 필요한 정보(어느 인벤토리·어느 칸)를 넘긴다.
+//     부모 메뉴는 아이템만 받아서 어느 인벤토리인지 모르기 때문.
 UCLASS()
 class PROJECTPG_API UFitIconItemWidget : public UItemWidget
 {
