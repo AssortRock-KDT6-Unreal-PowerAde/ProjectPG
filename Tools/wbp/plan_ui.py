@@ -144,7 +144,17 @@ def inventory():
                                             ("RotateButton", "RotateLabel")))
 
 
-STEPS = {"tooltip": tooltip, "option": option, "inventory": inventory}
+# ---------------- 4) 타이틀(로비 메뉴 버튼) ----------------
+def title():
+    # 로비 메뉴 버튼 4개를 기획서처럼 흰 판·검은 글자로(배치는 형님 그대로: 오른쪽 가운데 아래).
+    white_buttons("WBP_Lobby", (("CharacterBtn", "CharterText"), ("GameStartBtn", "GameStartText"),
+                                ("OptionBtn", "OptionText"), ("ExitBtn", "ExitText")))
+    # 타이틀 레벨은 형님 로비 게임모드(GM_InLobby)로 연다 -> 로그인·로비 흐름은 형님 것 그대로.
+    world = unreal.load_asset("/Game/PG/Level/L_Title")
+    W.log("L_Title loaded=%s" % (world is not None))
+
+
+STEPS = {"tooltip": tooltip, "option": option, "inventory": inventory, "title": title}
 
 wanted = [s.strip() for s in os.environ.get("PG_PLAN_STEPS", "").split(",") if s.strip()] or list(STEPS.keys())
 for name in wanted:
