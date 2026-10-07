@@ -33,7 +33,11 @@ bool UTableSubSystem::LoadTable()
 {
 	_tablePath = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *FString("/Game/PG/Table/TableLoader")));
 
-	if (false == IsValid(_tablePath)) return false;
+	if (false == IsValid(_tablePath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[TableData] Failed to load /Game/PG/Table/TableLoader. Include /Game/PG/Table in the cooked package and rebuild the server package."));
+		return false;
+	}
 
 	bool result = true;
 
@@ -46,9 +50,11 @@ bool UTableSubSystem::LoadTable()
 			if (loadTable)
 			{
 				_tables.Add(Key, loadTable);
+				UE_LOG(LogTemp, Log, TEXT("[TableData] Loaded %s: Path=%s Rows=%d"), *Key.ToString(), *Value.Path, loadTable->GetRowMap().Num());
 			}
 			else 
 			{
+				UE_LOG(LogTemp, Error, TEXT("[TableData] Failed to load table %s: Path=%s. Verify the table is included in the cooked package."), *Key.ToString(), *Value.Path);
 				result = false;
 			}
 		}

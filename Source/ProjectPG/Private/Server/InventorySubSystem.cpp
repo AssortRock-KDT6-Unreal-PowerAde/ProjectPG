@@ -3,6 +3,7 @@
 #include "Dom/JsonObject.h"
 #include "Json.h"
 #include "Core/ItemSubSystem.h"
+#include "Components/InventoryComponent.h"
 
 UInventorySubSystem* UInventorySubSystem::Get(UWorld* World)
 {
@@ -21,7 +22,18 @@ void UInventorySubSystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UInventorySubSystem::Deinitialize()
 {
+	ClearTravelInventory();
 	Super::Deinitialize();
+}
+
+bool UInventorySubSystem::CaptureTravelInventory(const UInventoryComponent* Inventory)
+{
+	if (!IsValid(Inventory) || !Inventory->HasInitialInventory()) return false;
+	TravelInventory = Inventory->MakeSnapshot();
+	int32 ItemCount = 0;
+	for (const FInventoryContainerSnapshot& Container : TravelInventory.Containers) ItemCount += Container.Items.Num();
+	UE_LOG(LogTemp, Log, TEXT("[InventoryTravel] Captured lobby state: Containers=%d Items=%d Pocket=%s Stash=%s"), TravelInventory.Containers.Num(), ItemCount, *TravelInventory.PocketGuid.ToString(), *TravelInventory.StashGuid.ToString());
+	return true;
 }
 
 void UInventorySubSystem::HandleInventoryMessage(const FString& MessageType, TSharedPtr<FJsonObject> PayloadObject)
@@ -181,16 +193,16 @@ void UInventorySubSystem::HandleInventoryMessage(const FString& MessageType, TSh
 		CachedEquip = EquipMapWrapper;
 		bHasCachedEquip = true;
 
-		// Broadcast equip first so EquipComponents can register containers (backpacks) before inventory UI rebuild
-		OnEquipReceived.Broadcast(EquipMapWrapper);
-		OnInventoryReceived.Broadcast(CachedInventory);
-
 		// Initial inventory applied, stop waiting flag
 		if (bWaitingForInitialInventory)
 		{
 			bWaitingForInitialInventory = false;
 			UE_LOG(LogTemp, Log, TEXT("InventorySubSystem: Received initial INVENTORY_DATA, bWaitingForInitialInventory=false"));
 		}
+
+		// 응답 수신을 완료한 뒤 장비 컨테이너와 인벤토리 UI를 갱신한다.
+		OnEquipReceived.Broadcast(EquipMapWrapper);
+		OnInventoryReceived.Broadcast(CachedInventory);
 	}
 	else if (MessageType == TEXT("RES_MOVE_ITEM"))
 	{

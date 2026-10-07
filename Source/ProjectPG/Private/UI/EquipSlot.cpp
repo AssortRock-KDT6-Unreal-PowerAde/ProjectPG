@@ -39,8 +39,7 @@ void UEquipSlot::SetItem(const FItemInstance* InItem)
 {
 	if (!InItem)
 	{
-		bHasItem = false;
-		Clear();
+		ForceClear();
 		return;
 	}
 
@@ -188,11 +187,15 @@ bool UEquipSlot::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 		if (ItemOp->WidgetReference)
 			ItemOp->WidgetReference->SetRenderOpacity(1.0f);
 
+		if (const UInventoryComponent* Inventory = EquipComp->GetOwnerInventoryComponent())
+		{
+			if (Inventory->IsServerManaged()) return bResult;
+		}
+
 		if (bResult)
 		{
 			// 드래그 비주얼 제거
 			SafeRemoveWidget(ItemOp->DefaultDragVisual);
-			ItemOp->SourceInventoryComp->RemoveItemByGUID(ItemOp->DraggedItem.GUID, ItemOp->DraggedItem);
 			// 원본 위젯 제거 또는 강제 갱신
 			if (ItemOp->WidgetReference)
 			{

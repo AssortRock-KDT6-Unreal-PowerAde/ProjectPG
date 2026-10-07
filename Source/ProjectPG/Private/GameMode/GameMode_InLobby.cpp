@@ -7,13 +7,14 @@
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include <UI/Controller/LobbyUIFlowController.h>
 #include "GameMode/PlayerController_InLobby.h"
-#include "GameMode/PlayerController_InGame.h"
+#include "GameMode/CustomPlayerState.h"
 #include <Server/InventorySubSystem.h>
 #include <Server/WebSocketSubSystem.h>
 
 AGameMode_InLobby::AGameMode_InLobby()
 {
 	PlayerControllerClass = APlayerController_InLobby::StaticClass();
+	PlayerStateClass = ACustomPlayerState::StaticClass();
 }
 
 void AGameMode_InLobby::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)

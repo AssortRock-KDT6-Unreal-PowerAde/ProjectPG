@@ -8,14 +8,6 @@
 #include "InventoryComponent.generated.h"
 
 // 인벤토리별 GridMap(1D 배열)을 TMap Value로 등록하기 위한 Wrapper 구조체
-USTRUCT(BlueprintType)
-struct FIntArrayWrapper
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TArray<int32> Grid;
-};
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryUpdated);
 
@@ -59,6 +51,13 @@ private:
 	bool bHasReceivedInitialSync = false;
 public:
 	UInventoryComponent();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	bool IsServerManaged() const;
+	bool HasInitialInventory() const { return bHasReceivedInitialSync; }
+	const FItemInstance* FindItemByGuid(const FGuid& ItemGuid) const;
+	const TMap<EEquipSlot, FGuid>& GetEquipSlotIDs() const { return EquipSlotID; }
+	bool InitializeFromSnapshot(const FInventorySnapshot& Snapshot, FString* OutError = nullptr);
+	FInventorySnapshot MakeSnapshot() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -69,10 +68,10 @@ public:
 	// ============================================================================
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void SetInventorySizeByGuid(const FGuid& InvenGuid, FIntPoint Size) { InventorySizeMap.FindOrAdd(InvenGuid) = Size; }
+	void SetInventorySizeByGuid(const FGuid& InvenGuid, FIntPoint Size) { RegisterContainer(InvenGuid, Size); }
 
 
-	const FItemTableRow* GetItemData(FName ItemID) const;
+	virtual const FItemTableRow* GetItemData(FName ItemID) const;
 	const FItemInstance* GetItemInstance(FName ItemID) const;
 
 	int32 GetColumns(const FGuid& InvenGuid) const;
@@ -84,8 +83,8 @@ public:
 	FORCEINLINE FGuid GetPocketInventoryID() const { return PocketInventoryID; }
 	FORCEINLINE FGuid GetStashInventoryID() const { return StashInventoryID; }
 
-	FORCEINLINE void SetPocketInventoryID(const FGuid& InGuid) { PocketInventoryID = InGuid; }
-	FORCEINLINE void SetStashInventoryID(const FGuid& InGuid) { StashInventoryID = InGuid; }
+	void SetPocketInventoryID(const FGuid& InGuid);
+	void SetStashInventoryID(const FGuid& InGuid);
 
 	// ============================================================================
 	// 2. 배치 검사 및 조작 (Placement & Item Operations)
@@ -129,6 +128,8 @@ public:
 	int32 GetGridIndex(const FGuid& InvenGuid, int32 X, int32 Y) const;
 
 	void RegisterContainer(const FGuid& ContainerGUID, FIntPoint ContainerSize);
+	void RegisterEquipSlot(EEquipSlot Slot, const FGuid& ContainerGuid);
+	bool IsEquipContainer(const FGuid& ContainerGuid) const;
 
 	// 동적 컨테이너(가방 등) 해제
 	void UnregisterContainer(const FGuid& ContainerGUID);
@@ -140,7 +141,26 @@ public:
 
 	void PurgeDuplicateGuidEverywhere(const FGuid& ItemGUID);
 
+	
+
 private:
+	UPROPERTY(ReplicatedUsing = OnRep_InventoryState)
+	FInventorySnapshot PrivateInventoryState;
+
+	UPROPERTY(ReplicatedUsing = OnRep_InventoryState)
+	FInventorySnapshot SharedInventoryState;
+
+	UFUNCTION()
+	void OnRep_InventoryState();
+
+	UFUNCTION()
+	void PublishInventoryState();
+
+	void ApplySnapshot(const FInventorySnapshot& Snapshot);
+	bool CanMutateInventory() const;
+	bool RequestServerMove(UInventoryComponent* Source, const FGuid& ItemGuid, const FGuid& TargetGuid, FIntPoint Position, bool bRotated);
+	bool IsDescendantContainer(const FGuid& ItemGuid, const FGuid& ContainerGuid) const;
+
 	void RebuildGridMapByGuid(const FGuid& InvenGuid);
 
 	// ★ 방어 로직: 실제로 아이템을 컨테이너에 삽입하기 직전, 목표 영역(TargetPos~Size)과

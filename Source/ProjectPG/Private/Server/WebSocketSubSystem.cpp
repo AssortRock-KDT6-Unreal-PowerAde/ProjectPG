@@ -7,8 +7,6 @@
 #include "Server/AuthSubSystem.h"
 #include "Server/MatchmakingSubSystem.h"
 #include "Server/InventorySubSystem.h"
-// Include InGame player controller to call client RPC
-#include "GameMode/PlayerController_InGame.h"
 
 UWebSocketSubSystem* UWebSocketSubSystem::Get(const UObject* worldContext)
 {
@@ -130,32 +128,6 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 			InvSub->HandleInventoryMessage(UpperType, PayloadObject);
 		}
 
-		// Additionally, if running as dedicated server, forward the message to owning player's client(s)
-		if (IsRunningDedicatedServer())
-		{
-			// Serialize payload back to JSON string
-			FString PayloadJson;
-			TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&PayloadJson);
-			if (FJsonSerializer::Serialize(PayloadObject.ToSharedRef(), Writer))
-			{
-				// Iterate all player controllers and call client RPC
-				UWorld* World = GetWorld();
-				if (World)
-				{
-					for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-					{
-						if (APlayerController* PC = It->Get())
-						{
-							// Only forward to InGame player controllers
-							if (APlayerController_InGame* InGamePC = Cast<APlayerController_InGame>(PC))
-							{
-								InGamePC->Client_ReceiveInventoryJson(UpperType, PayloadJson);
-							}
-						}
-					}
-				}
-			}
-		}
 		return;
 	}
 }

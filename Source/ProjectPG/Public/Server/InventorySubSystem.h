@@ -22,6 +22,9 @@ public:
 	virtual void Deinitialize() override;
 
 	void HandleInventoryMessage(const FString& MessageType, TSharedPtr<FJsonObject> PayloadObject);
+	bool CaptureTravelInventory(const class UInventoryComponent* Inventory);
+	const FInventorySnapshot* GetTravelInventory() const { return TravelInventory.bInitialized ? &TravelInventory : nullptr; }
+	void ClearTravelInventory() { TravelInventory = FInventorySnapshot(); }
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void RequestGetInventory();
@@ -88,4 +91,8 @@ public:
 	// RequestMoveItem/RequestEquipItem을 그대로 호출하면 된다 (분기는 내부에서 처리).
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool IsLocalOnly() const { return bForceLocalMoves || !bUseWebSocket || bWaitingForInitialInventory; }
+
+private:
+	UPROPERTY()
+	FInventorySnapshot TravelInventory;
 };

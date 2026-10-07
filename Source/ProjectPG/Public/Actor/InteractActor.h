@@ -14,7 +14,8 @@ class PROJECTPG_API AInteractActor : public AActor,public IInteractable
 	GENERATED_BODY()
 
 public:
-	FGuid ActorGuid;
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
+	FGuid MyActorGuid;
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components")
 	class UStaticMeshComponent* MeshComp;
@@ -22,6 +23,8 @@ public:
 
 public:
 	AInteractActor();
+	virtual void PostInitializeComponents() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	UFUNCTION(BlueprintCallable, Category = "Interact")
 	virtual void Interact_Implementation(AActor* actor) override;
 

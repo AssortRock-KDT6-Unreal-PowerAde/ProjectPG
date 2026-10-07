@@ -37,9 +37,9 @@ public:
 	bool Equip(const FItemInstance& Item);
 	bool Equip(const FItemInstance& Item, UInventoryComponent* SourceInventory);
 	bool UnEquip(const FItemInstance Item);
-	// bRestoreToInventory: 드래그로 인한 해제 시에는 false로 전달하여
-	// UI 쪽에서 직접 목표 인벤토리에 배치하도록 할 수 있습니다.
+	// 특정 위치로 해제할 때는 원본을 먼저 삭제하지 않고 UnEquipTo를 사용한다.
 	bool UnEquip(EEquipSlot slot, bool bRestoreToInventory = true);
+	bool UnEquipTo(EEquipSlot Slot, UInventoryComponent* TargetInventory, const FGuid& TargetGuid, FIntPoint Position, bool bRotated);
 
 	bool Swap(EEquipSlot slot1, EEquipSlot slot2);
 
@@ -50,9 +50,12 @@ public:
 	const FItemInstance* GetEquipment(EEquipSlot slot) const;
 	
 	void CopyFrom(UEquipComponent* Other);
-	void RegisterGuid(EEquipSlot slottype, FGuid guid) { if(!EquipSlotGuids.Contains(guid))EquipSlotGuids.Add(guid,slottype); }
+	void RegisterGuid(EEquipSlot slottype, FGuid guid);
 	class UInventoryComponent* GetOwnerInventoryComponent() const;
 private:
+	UFUNCTION()
+	void RefreshFromInventory();
+
 	void SpawnEquipActor(EEquipSlot Slot, class UStaticMesh* Mesh);
 
 

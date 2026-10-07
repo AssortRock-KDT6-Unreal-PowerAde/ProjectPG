@@ -37,6 +37,10 @@ void UDataComponent::FlushAndSendToServer()
 void UDataComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	if (const UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>())
+	{
+		if (Inventory->IsServerManaged()) return;
+	}
 
 	
 		// [Client / Standalone] 로비 세션일 때는 기존처럼 WebSocketSubSystem 델리게이트 바인딩
@@ -49,6 +53,10 @@ void UDataComponent::BeginPlay()
 }
 void UDataComponent::LoadInventoryData(const FInventoryMapWrapper& ItemsWrapper)
 {
+	if (const UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>())
+	{
+		if (Inventory->IsServerManaged()) return;
+	}
 	ItemData = ItemsWrapper.InventoryMap;
 
 	if (UInventoryComponent* InvenComp = GetOwner() ? GetOwner()->FindComponentByClass<UInventoryComponent>() : nullptr)

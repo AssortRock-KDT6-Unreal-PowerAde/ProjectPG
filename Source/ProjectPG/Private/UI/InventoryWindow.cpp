@@ -14,7 +14,6 @@
 #include <Server/InventorySubSystem.h>
 #include <GameMode/CustomPlayerState.h>
 #include <functional>
-
 namespace
 {
 	void SafeRemoveWidget(UWidget* Widget)
@@ -437,14 +436,7 @@ void UInventoryWindow::UpdateState()
 
 void UInventoryWindow::OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper)
 {
-	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
-	{
-		if (InvenSub->IsLocalOnly())
-		{
-			UE_LOG(LogTemp, Log, TEXT("[InventoryWindow] OnInventoryDataReceived ignored while LocalOnly."));
-			return;
-		}
-	}
+	if (InvenComp && InvenComp->IsServerManaged()) return;
 
 	if (InvenComp)
 	{

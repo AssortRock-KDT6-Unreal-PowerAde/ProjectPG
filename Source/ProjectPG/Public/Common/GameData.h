@@ -44,6 +44,7 @@ struct FItemInstance
 	FGuid GUID;
 
 
+	UPROPERTY()
 	FGuid inventory_guid;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName ItemID = TEXT(""); //아이템 
@@ -64,13 +65,60 @@ struct FItemInstance
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 inventory_id = 0; //어느 인벤토리로 들어갈지(가방,창고 등)
 
+	UPROPERTY()
 	bool bIsRotated = false; //0~4 회전량 (90도 회전)
+	UPROPERTY()
 	bool bEquip = false; //장착여부
 
 	// 회전 상태를 반영한 현재 격자 크기 반환 함수
 	FIntPoint GetCurrentGridSize(const FItemTableRow* ItemData) const;
 
+	UPROPERTY()
 	EItemType type = EItemType::ETC;
+};
+USTRUCT()
+struct FInventoryContainerSnapshot
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FGuid Guid;
+
+	UPROPERTY()
+	FIntPoint Size = FIntPoint::ZeroValue;
+
+	UPROPERTY()
+	EEquipSlot EquipSlot = EEquipSlot::MAX;
+
+	UPROPERTY()
+	TArray<FItemInstance> Items;
+};
+
+USTRUCT()
+struct FInventorySnapshot
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool bInitialized = false;
+
+	UPROPERTY()
+	FGuid PocketGuid;
+
+	UPROPERTY()
+	FGuid StashGuid;
+
+	UPROPERTY()
+	TArray<FInventoryContainerSnapshot> Containers;
+};
+
+USTRUCT(BlueprintType)
+struct FIntArrayWrapper
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<int32> Grid;
 };
 
 USTRUCT(BlueprintType)

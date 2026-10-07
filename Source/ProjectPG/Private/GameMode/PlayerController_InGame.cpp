@@ -6,7 +6,10 @@
 #include "GameMode/CustomPlayerState.h"
 #include "Components/InventoryComponent.h"
 #include "Components/EquipComponent.h"
-#include "Components/EquipComponent.h"
+#include "Server/WebSocketSubSystem.h"
+#include "Core/TableSubSystem.h"
+#include "Common/TableData.h"
+#include "TimerManager.h"
 #include <Actor/InteractActor.h>
 // For forwarding inventory messages
 #include "Server/InventorySubSystem.h"
@@ -28,8 +31,201 @@ void APlayerController_InGame::BeginPlay()
 			InvSub->SetUseWebSocket(false);
 			InvSub->SetForceLocalMoves(true);
 			UE_LOG(LogTemp, Log, TEXT("APlayerController_InGame::BeginPlay - Client InventorySubSystem forced to local-only mode."));
+			InvSub->OnInventoryReceived.AddDynamic(this, &APlayerController_InGame::HandleInitialInventory);
+		}
+		GetWorldTimerManager().SetTimer(InitialInventoryTimer, this, &APlayerController_InGame::TryInitializeInventory, 0.2f, true);
+		TryInitializeInventory();
+	}
+}
+
+void APlayerController_InGame::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	GetWorldTimerManager().ClearTimer(InitialInventoryTimer);
+	if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld()))
+	{
+		Subsystem->OnInventoryReceived.RemoveDynamic(this, &APlayerController_InGame::HandleInitialInventory);
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
+void APlayerController_InGame::TryInitializeInventory()
+{
+	if (!IsLocalController() || !PlayerState || bInitialInventorySubmitted) return;
+	UInventoryComponent* Inventory = PlayerState->FindComponentByClass<UInventoryComponent>();
+	if (!Inventory) return;
+	if (Inventory->HasInitialInventory())
+	{
+		GetWorldTimerManager().ClearTimer(InitialInventoryTimer);
+		return;
+	}
+	UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld());
+	if (!Subsystem) return;
+	if (const FInventorySnapshot* Saved = Subsystem->GetTravelInventory())
+	{
+		SubmitInitialInventory(*Saved);
+		return;
+	}
+	if (Subsystem->bHasCachedInventory)
+	{
+		HandleInitialInventory(Subsystem->CachedInventory);
+		return;
+	}
+	UWebSocketSubSystem* WebSocket = UWebSocketSubSystem::Get(this);
+	if (!bInitialInventoryRequested && WebSocket && WebSocket->IsConnected())
+	{
+		bInitialInventoryRequested = true;
+		Subsystem->SetUseWebSocket(true);
+		Subsystem->RequestGetInventory();
+	}
+}
+
+void APlayerController_InGame::HandleInitialInventory(const FInventoryMapWrapper& Inventory)
+{
+	if (!IsLocalController() || !PlayerState || bInitialInventorySubmitted) return;
+	UInventoryComponent* Component = PlayerState->FindComponentByClass<UInventoryComponent>();
+	UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld());
+	if (!Component || !Subsystem || Component->HasInitialInventory()) return;
+	if (const FInventorySnapshot* Saved = Subsystem->GetTravelInventory())
+	{
+		SubmitInitialInventory(*Saved);
+		return;
+	}
+
+	FInventorySnapshot Snapshot;
+	Snapshot.bInitialized = true;
+	Snapshot.PocketGuid = Inventory.PocketGuid;
+	Snapshot.StashGuid = Inventory.StashGuid;
+	auto FindContainer = [&Snapshot](const FGuid& Guid) -> FInventoryContainerSnapshot&
+	{
+		for (FInventoryContainerSnapshot& Container : Snapshot.Containers)
+		{
+			if (Container.Guid == Guid) return Container;
+		}
+		FInventoryContainerSnapshot& Container = Snapshot.Containers.AddDefaulted_GetRef();
+		Container.Guid = Guid;
+		return Container;
+	};
+	for (const auto& Pair : Inventory.InventorySizeMap) FindContainer(Pair.Key).Size = Pair.Value;
+	for (const auto& Pair : Inventory.InventoryMap) FindContainer(Pair.Key).Items = Pair.Value.Items;
+	const FGuid SlotGuids[] = { Inventory.MainWeapon, Inventory.SubWeapon, Inventory.HelMet, Inventory.Cloth, Inventory.Pants, Inventory.Shose, Inventory.BackPack, Inventory.Accuracy1, Inventory.Accuracy2 };
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(SlotGuids); ++Index)
+	{
+		if (!SlotGuids[Index].IsValid()) continue;
+		FInventoryContainerSnapshot& Container = FindContainer(SlotGuids[Index]);
+		Container.EquipSlot = static_cast<EEquipSlot>(Index);
+		Container.Size = FIntPoint(1, 1);
+		if (Subsystem->bHasCachedEquip)
+		{
+			if (const FItemArrayWrapper* Equipment = Subsystem->CachedEquip.InventoryMap.Find(Container.Guid)) Container.Items = Equipment->Items;
 		}
 	}
+	TArray<FItemInstance> AllItems;
+	for (const FInventoryContainerSnapshot& Container : Snapshot.Containers) AllItems.Append(Container.Items);
+	if (UTableSubSystem* Tables = UTableSubSystem::Get(GetWorld()))
+	{
+		for (const FItemInstance& Item : AllItems)
+		{
+			const FItemTableRow* Data = Component->GetItemData(Item.ItemID);
+			if (!Data || Data->ItemType != EItemType::Bag) continue;
+			if (const FItemBackpackTable* Bag = Tables->FindTableRow<FItemBackpackTable>(TEXT("BackpackTable"), Item.ItemID))
+			{
+				FindContainer(Item.GUID).Size = Bag->SlotSize;
+			}
+		}
+	}
+	SubmitInitialInventory(Snapshot);
+}
+
+void APlayerController_InGame::SubmitInitialInventory(const FInventorySnapshot& Snapshot)
+{
+	UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld());
+	if (!IsLocalController() || !PlayerState || !Subsystem || bInitialInventorySubmitted) return;
+	const FInventorySnapshot SnapshotToSend = Snapshot;
+	bInitialInventorySubmitted = true;
+	GetWorldTimerManager().ClearTimer(InitialInventoryTimer);
+	Subsystem->SetUseWebSocket(false);
+	Subsystem->SetForceLocalMoves(true);
+	Subsystem->OnInventoryReceived.RemoveDynamic(this, &APlayerController_InGame::HandleInitialInventory);
+	int32 ItemCount = 0;
+	for (const FInventoryContainerSnapshot& Container : SnapshotToSend.Containers) ItemCount += Container.Items.Num();
+	UE_LOG(LogTemp, Log, TEXT("[InventoryTravel] Submitting initial state: Source=%s Containers=%d Items=%d"), Subsystem->GetTravelInventory() ? TEXT("LobbySnapshot") : TEXT("WebSocketCache"), SnapshotToSend.Containers.Num(), ItemCount);
+	Server_InitializeInventory(SnapshotToSend);
+}
+
+void APlayerController_InGame::Server_InitializeInventory_Implementation(const FInventorySnapshot& Snapshot)
+{
+	UInventoryComponent* Inventory = PlayerState ? PlayerState->FindComponentByClass<UInventoryComponent>() : nullptr;
+	FString Reason;
+	bool bSuccess = false;
+	if (Inventory)
+	{
+		bSuccess = Inventory->HasInitialInventory() || Inventory->InitializeFromSnapshot(Snapshot, &Reason);
+	}
+	else
+	{
+		Reason = FString::Printf(TEXT("PlayerState has no InventoryComponent: %s"), *GetNameSafe(PlayerState));
+	}
+	if (bSuccess)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[InventoryTravel] Server initialized inventory for %s: Containers=%d"), *GetName(), Snapshot.Containers.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[InventoryTravel] Server rejected initial state for %s: %s"), *GetName(), *Reason);
+	}
+	Client_InitialInventoryResult(bSuccess, Reason);
+}
+
+void APlayerController_InGame::Client_InitialInventoryResult_Implementation(bool bSuccess, const FString& Reason)
+{
+	if (bSuccess)
+	{
+		if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld())) Subsystem->ClearTravelInventory();
+		UE_LOG(LogTemp, Log, TEXT("[InventoryTravel] Server accepted lobby state; inventory is now server-managed."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[InventoryTravel] Initial inventory rejected: %s. Lobby snapshot retained; check server build and item tables."), *Reason);
+	}
+}
+
+bool APlayerController_InGame::CanAccessInventory(const UInventoryComponent* Inventory) const
+{
+	if (!IsValid(Inventory) || Inventory->GetWorld() != GetWorld() || !Inventory->HasInitialInventory()) return false;
+	if (PlayerState && Inventory == PlayerState->FindComponentByClass<UInventoryComponent>()) return true;
+	const AInteractActor* Container = Cast<AInteractActor>(Inventory->GetOwner());
+	if (!Container || Container->InventoryComp != Inventory || !GetPawn()) return false;
+	const FVector Location = Container->GetComponentsBoundingBox().GetClosestPointTo(GetPawn()->GetActorLocation());
+	if (FVector::DistSquared(Location, GetPawn()->GetActorLocation()) > FMath::Square(InventoryInteractionDistance)) return false;
+	FVector Eyes;
+	FRotator Rotation;
+	GetPawn()->GetActorEyesViewPoint(Eyes, Rotation);
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(GetPawn());
+	return !GetWorld()->LineTraceSingleByChannel(Hit, Eyes, Location, ECC_Visibility, Params) || Hit.GetActor() == Container;
+}
+
+void APlayerController_InGame::Server_MoveInventoryItem_Implementation(UInventoryComponent* Source, UInventoryComponent* Target, FGuid ItemGuid, FGuid SourceGuid, FGuid TargetGuid, FIntPoint Position, bool bRotated)
+{
+	UInventoryComponent* PlayerInventory = PlayerState ? PlayerState->FindComponentByClass<UInventoryComponent>() : nullptr;
+	if (!PlayerInventory || !PlayerInventory->HasInitialInventory() || !CanAccessInventory(Source) || !CanAccessInventory(Target))
+	{
+		Client_InventoryRequestResult(false);
+		return;
+	}
+	const FItemInstance* Item = Source->FindItemByGuid(ItemGuid);
+	if (!Item || Item->parent_inventory_guid != SourceGuid)
+	{
+		Client_InventoryRequestResult(false);
+		return;
+	}
+	Client_InventoryRequestResult(Target->TransferItemFrom(Source, ItemGuid, TargetGuid, Position, bRotated));
+}
+
+void APlayerController_InGame::Client_InventoryRequestResult_Implementation(bool bSuccess)
+{
+	if (!bSuccess) UE_LOG(LogTemp, Warning, TEXT("Inventory request rejected by server; authoritative inventory retained."));
 }
 
 void APlayerController_InGame::Client_ReceiveInventoryJson_Implementation(const FString& MessageType, const FString& PayloadJson)
@@ -77,7 +273,7 @@ void APlayerController_InGame::InteractPressed()
 	{
 		if (IInteractable* IA = Cast<IInteractable>(Hit.GetActor()))
 		{
-			IA->Interact_Implementation(Hit.GetActor());
+			IA->Interact_Implementation(this);
 		}
 	}
 }

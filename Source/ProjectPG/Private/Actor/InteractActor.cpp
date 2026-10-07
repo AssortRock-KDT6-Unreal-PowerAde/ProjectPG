@@ -6,24 +6,39 @@
 #include "UI/InventoryWindow.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/ActorChannel.h"
+#include "Net/UnrealNetwork.h"
 AInteractActor::AInteractActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	ActorGuid = FGuid::NewGuid();
+	bReplicates = true;
 	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
 	RootComponent = MeshComp;
 
 	InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComp"));
 
-	if (InventoryComp) {
-		InventoryComp->RegisterContainer(ActorGuid, FIntPoint(10, 10));
+}
+
+void AInteractActor::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	if (HasAuthority() && GetWorld()->IsGameWorld())
+	{
+		MyActorGuid = FGuid::NewGuid();
+		InventoryComp->RegisterContainer(MyActorGuid, FIntPoint(10, 10));
 	}
-	
+}
+
+void AInteractActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AInteractActor, MyActorGuid);
 }
 
 void AInteractActor::Interact_Implementation(AActor* InteractingController)
 {
 	if (!InteractingController) return;
+	if (!InventoryComp || !MyActorGuid.IsValid()) return;
+	if (InventoryComp->IsServerManaged() && !InventoryComp->HasInitialInventory()) return;
 
 	if (UUIManagerSubSystem* UISub = UUIManagerSubSystem::Get(InteractingController))
 	{
@@ -54,22 +69,14 @@ void AInteractActor::Interact_Implementation(AActor* InteractingController)
 			else
 			{
 				UE_LOG(LogTemp, Warning, TEXT("InteractActor::Interact_Implementation - InitForContainer called"));
-				// Ensure the actor's own registered container has the intended size before UI binding.
-				// This forces the local InventoryComponent to report the correct size (10x10) even
-				// if other data sources may have populated different sizes earlier.
-				if (InventoryComp && ActorGuid.IsValid())
-				{
-					UE_LOG(LogTemp, Warning, TEXT("InteractActor::Interact_Implementation - Ensuring ActorGuid container size set to (10,10) for GUID=%s"), *ActorGuid.ToString());
-					InventoryComp->RegisterContainer(ActorGuid, FIntPoint(10, 10));
-				}
-				// Prefer the actor's own registered container GUID (ActorGuid) if present.
+				// Prefer the actor's own registered container GUID (MyActorGuid) if present.
 				FGuid PreferredGuid;
 				if (InventoryComp)
 				{
-					if (ActorGuid.IsValid() && InventoryComp->GetItemsMap().Contains(ActorGuid))
+					if (MyActorGuid.IsValid() && InventoryComp->GetItemsMap().Contains(MyActorGuid))
 					{
-						PreferredGuid = ActorGuid;
-						UE_LOG(LogTemp, Warning, TEXT("InteractActor: PreferredGuid set to ActorGuid=%s"), *PreferredGuid.ToString());
+						PreferredGuid = MyActorGuid;
+						UE_LOG(LogTemp, Warning, TEXT("InteractActor: PreferredGuid set to MyActorGuid=%s"), *PreferredGuid.ToString());
 					}
 					else
 					{
