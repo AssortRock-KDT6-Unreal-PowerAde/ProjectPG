@@ -4,6 +4,9 @@
 #include "Components/Image.h"
 #include "Components/ScaleBox.h"
 #include "Engine/Texture2D.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "TimerManager.h"
+#include "UI/Plan/ItemTooltipWidget.h"
 
 void UFitIconItemWidget::RefreshWidget()
 {
@@ -45,4 +48,55 @@ void UFitIconItemWidget::RefreshWidget()
 	}
 	IconScale->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
 	IconScale->SetRenderTransformAngle(ItemInstance.bIsRotated ? 90.0f : 0.0f);
+}
+
+
+// ---- 설명 창(마우스 1초) ----
+
+void UFitIconItemWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().SetTimer(TooltipTimer, this, &UFitIconItemWidget::ShowTooltip, FMath::Max(0.01f, TooltipDelaySeconds), false);
+}
+
+void UFitIconItemWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseLeave(InMouseEvent);
+	HideTooltip();
+}
+
+void UFitIconItemWidget::NativeDestruct()
+{
+	HideTooltip();
+	Super::NativeDestruct();
+}
+
+void UFitIconItemWidget::ShowTooltip()
+{
+	// 끌고 있는 중이면 띄우지 않는다(끄는 아이템을 가린다).
+	if (UWidgetBlueprintLibrary::IsDragDropping() || !TooltipClass)
+		return;
+	UItemTooltipWidget::ShowFor(this, TooltipClass, ItemInstance, CachedItemData);
+}
+
+void UFitIconItemWidget::HideTooltip()
+{
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(TooltipTimer);
+	if (TooltipClass)
+		UItemTooltipWidget::Hide(this, TooltipClass);
+}
+
+// 누르면(왼쪽 = 끌기 시작, 오른쪽 = 메뉴) 설명 창은 치운다.
+FReply UFitIconItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	HideTooltip();
+	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
+
+void UFitIconItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
+{
+	HideTooltip();
+	Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
 }
