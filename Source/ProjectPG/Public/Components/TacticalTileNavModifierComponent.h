@@ -1,4 +1,4 @@
-// Stable low-cost navigation blockers for runtime tactical tile instances.
+// 런타임 전술 타일 인스턴스에 쓰는, 안정적이고 가벼운 길찾기 막는 부품.
 
 #pragma once
 

@@ -13,17 +13,16 @@
 
 namespace MapBuild
 {
-// Sculpted ground features. Each mesh was generated with Geometry Script over an
-// exact multiple of the 20 m cell and is flat around its entire perimeter, curving
-// only inside, so it needs no edge matching with its neighbours - a dropped-in
-// feature always meets the surrounding flat slabs at the shared surface.
+// 손으로 깎은 땅 모양. 메시마다 Geometry Script 로 20 m 칸의 딱 배수 크기에 맞춰 만들었고,
+// 둘레 전체는 평평하고 안쪽만 휜다. 그래서 이웃과 가장자리를 맞출 필요가 없다
+// - 어디에 놓아도 주변 평판과 공통 높이에서 만난다.
 struct FTerrainFeatureMesh
 {
 	const TCHAR* ShapeName;
 	const TCHAR* AssetPath;
 	FIntPoint Footprint;
-	// Amplitude and profile must match the values the mesh was generated with, so the
-	// dressing sampler below lands props exactly on the authored surface.
+	// 높이 폭과 모양은 메시를 만들 때 쓴 값과 같아야 한다.
+	// 그래야 아래 꾸미기 배치가 소품을 손작업 표면 위에 정확히 올린다.
 	float Amplitude;
 	bool bRidgeProfile;
 };
@@ -39,10 +38,9 @@ inline const TArray<FTerrainFeatureMesh>& GetTerrainFeatureMeshes()
 	return Meshes;
 }
 
-// The exact height field the Geometry Script generator used: sin^2 falls to zero
-// value AND zero slope at both ends, which is what makes the perimeter blend into
-// the surrounding flat slabs. Reproducing it here rather than tracing the collision
-// keeps dressing placement deterministic and free of per-instance line traces.
+// Geometry Script 생성기가 쓴 높이 공식 그대로다: sin^2 은 양 끝에서 값도 0, 기울기도 0 이 되므로
+// 둘레가 주변 평판에 자연스럽게 이어진다. 충돌을 트레이스하지 않고 여기서 똑같이 계산하면
+// 꾸미기 배치가 매번 똑같이 나오고, 인스턴스마다 라인 트레이스를 쏠 필요도 없다.
 inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, float U, float V)
 {
 	auto Bump = [](float T)
@@ -67,23 +65,22 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 	const FName FactoryConstructionTag(TEXT("Facility_FactoryConstruction_2x2"));
 	const FName RuralHideoutTag(TEXT("Facility_RuralHideout_2x2"));
 
-	// The WarZone core's cell footprint. 3x5 because the harvested factory compound
-	// is four attached hall rows spanning 100 m north-south: a 3x3 window held only
-	// the middle two and cut the outer rows in half, the same mistake the downtown
-	// district went through before it grew to 6x6. Every identity check, the
-	// reservation search and the centre math read this one constant.
+	// WarZone 중심 시설이 차지하는 칸. 3x5 인 이유: 가져온 공장 구역은 남북으로 100 m 에 걸친
+	// 붙어 있는 건물 줄 네 개라, 3x3 로 자르면 가운데 두 줄만 들어가고 바깥 줄이 반으로 잘렸다
+	// - 시내 구역이 6x6 로 커지기 전에 겪은 것과 같은 실수다.
+	// 모든 시설 구분 검사, 자리 찾기, 중심 계산이 이 상수 하나를 읽는다.
 	// 시설 레벨·공장 단지 BP 경로는 MapAssetSet.h(데이터 에셋 DA_MapAssets)로 옮겼다 — 에디터에서 고른다.
 	const FIntPoint WarZoneCoreFootprint(3, 5);
 	const FIntPoint WarZoneCoreCentreOffset(
 		(WarZoneCoreFootprint.X - 1) / 2, (WarZoneCoreFootprint.Y - 1) / 2);
 
-	// Facility visual sets whose geometry comes from an authored level instead of
-	// AProceduralFacilityActor. Kept in one place so the reservation, the ground
-	// pad and the runtime spawn loop cannot disagree about which is which.
+	// 모양을 AProceduralFacilityActor 가 아니라 손으로 만든 레벨에서 가져오는 시설 종류.
+	// 한곳에 모아 둬서 자리 예약, 땅 바닥판, 런타임 생성 반복문이
+	// 서로 다르게 판단하는 일이 없게 한다.
 	inline bool FacilityUsesAuthoredLevel(EFacilityVisualSet VisualSet, const FIntPoint& Footprint)
 	{
-		// Warehouse is footprint-gated: the 3x3 is the WarZone core with its own
-		// harvested level, while 2x2 warehouses stay procedural satellites.
+		// Warehouse 는 차지 칸 수로 나뉜다: 3x3 은 자체 레벨이 있는 WarZone 중심이고,
+		// 2x2 창고는 코드로 만드는 주변 거점으로 남는다.
 		return VisualSet == EFacilityVisualSet::Checkpoint
 			|| VisualSet == EFacilityVisualSet::RuralHideout
 			|| VisualSet == EFacilityVisualSet::FactoryConstruction
@@ -91,14 +88,12 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 			|| (VisualSet == EFacilityVisualSet::Warehouse && Footprint == WarZoneCoreFootprint);
 	}
 
-	// Authored levels that bring their own sculpted ground, for which the generator
-	// must not draw its flat terrain pad.
+	// 자기 깎은 땅을 들고 오는 손작업 레벨. 이런 레벨 밑에는 생성기가 평평한 바닥판을 그리면 안 된다.
 	//
-	// Nothing qualifies now, and that is deliberate. The rural diorama used to: it
-	// arrived with its own island and water table, which never lined up with the flat
-	// cells around it, and suppressing the pad underneath left open seams at the
-	// boundary. Harvested levels now have their ground deleted instead, so the shared
-	// tile terrain runs straight through and the facility reads as part of the map.
+	// 지금은 해당하는 게 없고, 일부러 그렇다. 예전엔 시골 디오라마가 해당했다:
+	// 자기 섬과 수면을 들고 왔는데 주변 평평한 칸과 높이가 맞지 않았고,
+	// 밑 바닥판을 빼면 경계에 틈이 벌어졌다. 이제는 가져온 레벨의 땅을 지워서
+	// 공통 타일 지형이 그대로 지나가게 하고, 시설이 맵의 일부로 보이게 한다.
 	inline bool FacilityBringsOwnTerrain(EFacilityVisualSet VisualSet)
 	{
 		return false;
@@ -116,33 +111,31 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 	const FSoftObjectPath RuinsLevelPath(TEXT("/Game/PG/LevelDesign/Tiles/LD_Tile_None_Ruins.LD_Tile_None_Ruins"));
 	// 칸 크기(2000cm). 맵 
 	constexpr float DesignCellSize = 2000.0f;
-	// The one walking datum every flat cell, tile prop and road slab is authored
-	// against. Only facility footprints are allowed to leave it.
+	// 모든 평평한 칸, 타일 소품, 도로판이 기준으로 삼는 하나뿐인 걷는 높이.
+	// 여기서 벗어나도 되는 건 시설 자리뿐이다.
 	constexpr float BaseGroundSurfaceZ = 20.0f;
-	// ACharacter::CharacterMovement->MaxStepHeight default, which
-	// ALevelDesignValidationCharacter does not override. Any riser above this is a
-	// lip the player has to jump, not walk.
+	// ACharacter::CharacterMovement->MaxStepHeight 기본값이고,
+	// ALevelDesignValidationCharacter 는 이 값을 바꾸지 않는다. 이보다 높은 턱은
+	// 걸어서 못 넘고 점프해야 하는 턱이다.
 	constexpr float MaxTraversableStepCm = 45.0f;
-	// The road's walking face clears the shared terrain top by this much, and the
-	// slab is thick enough that its underside sits well inside the ground cube.
+	// 도로의 걷는 면은 공통 땅 윗면보다 이만큼 높고,
+	// 판이 충분히 두꺼워서 아랫면은 땅 상자 안쪽 깊숙이 들어간다.
 	constexpr float RoadSurfaceLiftCm = 10.0f;
 	constexpr float RoadSurfaceThicknessCm = 30.0f;
-	// Border lake. The bed sits far enough under the surface that the water reads as
-	// deep rather than as a puddle, and the surface sits below the shared ground top
-	// so the bank is a real drop the player cannot simply walk off into.
-	// Variant index meaning "all four corners wet". Not one of the four generated
-	// meshes - it routes the cell to the lake bed instead.
+	// 가장자리 호수. 바닥은 수면보다 충분히 아래에 있어 물웅덩이가 아니라 깊은 물로 보이고,
+	// 수면은 공통 땅 윗면보다 낮아서 물가 둑이 진짜 낭떠러지가 된다
+	// - 플레이어가 그냥 걸어 들어갈 수 없다.
+	// '네 모서리가 다 젖음'을 뜻하는 모양 번호. 만들어진 메시 네 개 중 하나가 아니고,
+	// 그 칸을 호수 바닥 처리로 보낸다.
 	constexpr int32 SubmergedShoreVariant = -2;
 	constexpr float LakeSurfaceZ = -35.0f;
-	// Must equal the generated shore meshes' wet-corner height, otherwise the beach
-	// ends at -110 and the flat bed starts at a different depth, putting a step
-	// right where the two meet.
+	// 만들어진 물가 메시의 '젖은 모서리' 높이와 같아야 한다. 아니면 모래사장은 -110 에서
+	// 끝나고 평평한 바닥은 다른 깊이에서 시작해, 둘이 만나는 곳에 턱이 생긴다.
 	constexpr float LakeBedZ = -110.0f;
 
-	// The lake is one metaball centred just outside a map corner, so it bites into
-	// the grid as a rounded bay rather than a band along an edge. Both the tile pass
-	// that floods the cells and the facility reservation that puts the lakeside
-	// settlement on its shore have to agree on where it is, so it lives here.
+	// 호수는 맵 한 모서리 바로 바깥에 중심을 둔 metaball 하나다. 그래서 가장자리 따라 띠처럼
+	// 생기지 않고 둥근 만처럼 격자를 파고든다. 칸을 물로 채우는 타일 단계와 호숫가 마을
+	// 자리를 잡는 시설 예약이 위치에 대해 같은 답을 내야 하므로 여기 둔다.
 	struct FBorderLake
 	{
 		FVector2D CentreCell = FVector2D::ZeroVector;
@@ -152,13 +145,12 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 	inline FBorderLake GetBorderLake(int64 RaidSeed, const FIntPoint& MinCell, const FIntPoint& MaxCell,
 		float RadiusCells, const TSet<FIntPoint>& TraversalCells)
 	{
-		// The corner used to be the seed hash alone. When the generator happened to
-		// run roads or a spawn into that corner, the per-cell traversal guard in the
-		// flood pass shredded the disc into leftover puddles - the lake's size was
-		// being decided by the road layout, not by RadiusCells (observed as
-		// cells=28/25/5/3/1 across runs with the radius fixed at 9). Score all four
-		// corners and take the one the road network reaches least; the seed only
-		// picks where the scan starts, so equally clean corners still vary per raid.
+		// 예전에는 모서리를 시드 해시만으로 골랐다. 그런데 생성기가 하필 그 모서리로 길이나
+		// 시작 지점을 내면, 물 채우기 단계의 칸별 '지나갈 수 있는 칸 보호' 때문에 원판이
+		// 자잘한 웅덩이로 쪼개졌다 - 호수 크기를 RadiusCells 가 아니라 도로 배치가 정하고 있었다
+		// (반지름 9 고정인데 판마다 cells=28/25/5/3/1 로 나왔다). 그래서 네 모서리를 다 점수 매겨
+		// 도로망이 가장 덜 닿는 곳을 고른다. 시드는 어느 모서리부터 볼지만 정하므로,
+		// 똑같이 깨끗한 모서리끼리는 판마다 여전히 달라진다.
 		FBorderLake Lake;
 		Lake.Radius = RadiusCells;
 		const int32 FirstCorner = static_cast<int32>(GetTypeHash(RaidSeed) % 4u);
@@ -173,8 +165,8 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 			for (const FIntPoint& Cell : TraversalCells)
 				if (FVector2D::Distance(FVector2D(Cell.X, Cell.Y), Centre) <= RadiusCells + 2.0f)
 					++Count;
-			// Strict less-than: the first corner in scan order wins ties, which keeps
-			// the choice identical at both call sites.
+			// '보다 작다'만 쓴다: 점수가 같으면 먼저 본 모서리가 이기므로,
+			// 두 군데서 불러도 똑같은 답이 나온다.
 			if (Count < BestCount)
 			{
 				BestCount = Count;
@@ -184,8 +176,8 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 		return Lake;
 	}
 
-	// Per-cell wobble on the waterline. Without it the shore is a clean arc, which
-	// reads as machine-made just as plainly as a straight edge does.
+	// 칸마다 물가 선을 조금씩 흔든다. 안 흔들면 물가가 깔끔한 원호가 되는데,
+	// 그건 직선만큼이나 기계로 만든 티가 난다.
 	inline float GetLakeShoreJitter(int64 RaidSeed, const FIntPoint& Cell)
 	{
 		const uint32 ShoreHash = HashCombine(
@@ -229,10 +221,9 @@ inline float SampleTerrainFeatureHeight(const FTerrainFeatureMesh& Feature, floa
 			|| Type == ETileType::WarZone;
 	}
 
-	// The facility reservation and the flood pass both ask where the lake is and
-	// must agree, so the corner choice may only depend on data both of them see
-	// identically: the logical tile map. Supplemental spur roads are visual-layer
-	// additions and deliberately excluded from the score.
+	// 시설 예약과 물 채우기 단계 둘 다 호수 위치를 묻고 같은 답을 받아야 한다.
+	// 그래서 모서리 선택은 둘이 똑같이 보는 데이터인 논리 타일 맵에만 기대야 한다.
+	// 추가 갈래길은 화면 단계에서 덧붙이는 것이라 점수 계산에서 일부러 뺀다.
 	inline TSet<FIntPoint> CollectTraversalCells(const TMap<FIntPoint, AMapTile*>& TileByCell)
 	{
 		TSet<FIntPoint> Cells;

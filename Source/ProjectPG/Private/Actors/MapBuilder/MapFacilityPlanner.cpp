@@ -60,9 +60,9 @@ bool UMapFacilityPlanner::PlanFacilities(
 
 	if (Candidates.IsEmpty() || CompoundCandidates.IsEmpty())
 	{
-		// This runs from Tick and used to return silently, so a WarZone that came
-		// out too small to hold the compound produced an empty world and not one
-		// line of explanation. Report it once instead of every frame.
+		// 이 함수는 Tick 에서 불리는데 예전엔 조용히 return 했다. 그래서 WarZone 이 너무 작아
+		// 중심 시설이 안 들어가면 텅 빈 세계만 나오고 이유는 한 줄도 안 남았다.
+		// 이제는 매 프레임이 아니라 한 번만 알린다.
 		if (!bLoggedMissingWarZoneFootprint)
 		{
 			bLoggedMissingWarZoneFootprint = true;
@@ -91,8 +91,8 @@ bool UMapFacilityPlanner::PlanFacilities(
 	Candidates.Sort(SortByCenterDistance);
 	CompoundCandidates.Sort([](const FIntPoint& A, const FIntPoint& B)
 	{
-		// Compare footprint centres, not anchors, so the largest facility actually
-		// occupies the middle of the authoritative WarZone.
+		// 기준점(anchor)이 아니라 차지 칸의 중심끼리 비교한다. 그래야 가장 큰 시설이
+		// 실제로 원본 WarZone 한가운데를 차지한다.
 		const int64 CenterAX = static_cast<int64>(A.X) + WarZoneCoreCentreOffset.X;
 		const int64 CenterAY = static_cast<int64>(A.Y) + WarZoneCoreCentreOffset.Y;
 		const int64 CenterBX = static_cast<int64>(B.X) + WarZoneCoreCentreOffset.X;
@@ -106,9 +106,9 @@ bool UMapFacilityPlanner::PlanFacilities(
 		return A.Y < B.Y;
 	});
 
-	// Reserve one 3x3 anchor facility, then several well-spaced 2x2 satellite
-	// camps. AMapTile remains the logical authority; the future server manifest
-	// only needs anchor, footprint, rotation, visual type and stable seed.
+	// 3x3 중심 시설 하나를 먼저 잡고, 서로 충분히 떨어진 2x2 주변 거점 여러 개를 잡는다.
+	// AMapTile 이 계속 논리 원본이다. 나중 서버 manifest 에는 기준점, 차지 칸,
+	// 회전, 모양 종류, 고정 시드만 있으면 된다.
 	TArray<FIntPoint> SelectedFacilityAnchors;
 	TSet<FIntPoint> SelectedFacilityCells;
 	const FIntPoint CompoundAnchor = CompoundCandidates[0];
@@ -199,9 +199,9 @@ bool UMapFacilityPlanner::PlanFacilities(
 			TileByCell);
 	}
 
-	// The design contract also needs genuinely multi-cell shapes, not only square
-	// compounds. Reserve two 2x1 interiors and one 4x1 linear encounter while the
-	// brother's WarZone cells remain the authoritative eligibility mask.
+	// 기획상 정사각형 구역만이 아니라 진짜로 여러 칸에 걸친 모양도 필요하다.
+	// 2x1 실내 두 개와 4x1 일자 교전 장소 하나를 잡는다. 어디에 놓을 수 있는지는
+	// 팀원의 WarZone 칸이 계속 원본 기준이다.
 	// 4) 막사(2×1, 1×2)와 참호(4×1): 가운데에 가까운 워존 빈자리 중 처음 맞는 곳.
 	auto ReserveBestRect = [this, &WarZoneByCell, &TileByCell, &SelectedFacilityCells](
 		EFacilityVisualSet VisualSet,
@@ -312,10 +312,10 @@ bool UMapFacilityPlanner::PlanFacilities(
 			TileByCell);
 	}
 
-	// Reserve three themed districts outside the combat core.  They deliberately
-	// consume ordinary None cells: the brother's metaball/road result stays the
-	// authority, while the design manifest replaces only open visual cells with a
-	// multi-cell POI.  Roads to each entrance are added by BuildTileDesignPlacements.
+	// 전투 중심 밖에 테마 구역 세 개를 잡는다. 일부러 보통 None 칸을 쓴다:
+	// 팀원의 metaball/도로 결과가 원본으로 남고, 디자인 manifest 는
+	// 비어 있는 화면용 칸만 여러 칸짜리 POI 로 바꾼다.
+	// 각 입구까지 가는 길은 BuildTileDesignPlacements 가 붙인다.
 	// 6) 바깥 동네 3곳(다운타운 6×6, 공장 2×2, 호숫가 마을 2×2)의 목표 지점을 정하고, 도로에서 너무 멀지 않은 빈 칸을 고른다.
 	//    맵 크기(GridCellSpan)도 여기서 재서 맵에 적어 둔다(길찾기 바닥판 크기에 씀).
 	int32 MinCellX = MAX_int32;
@@ -349,13 +349,12 @@ bool UMapFacilityPlanner::PlanFacilities(
 		AverageSpawnCell.X + FMath::Sign(-AverageSpawnCell.X) * 6,
 		AverageSpawnCell.Y + FMath::Sign(-AverageSpawnCell.Y) * 6);
 	const FIntPoint FactoryTarget(LerpCell(MinCellX, MaxCellX, 0.76f), LerpCell(MinCellY, MaxCellY, 0.26f));
-	// The rural settlement is a lakeside hamlet - cabins, a pier and two rowing
-	// boats. Dropped in the middle of a dry field it reads as a diorama someone
-	// parked there, which is what the first placement looked like. Aim it just
-	// inland of the border lake's waterline so the pier has water to sit on and the
-	// boats have somewhere to be. ReserveThemedDistrict picks the nearest legal 2x2
-	// to this point, and flooding never touches reserved cells, so the settlement
-	// itself always ends up on dry land.
+	// 시골 마을은 호숫가 작은 마을이다 - 오두막, 부두, 노 젓는 보트 두 척.
+	// 마른 들판 한가운데 두면 누가 갖다 놓은 디오라마처럼 보인다 - 첫 배치가 딱 그랬다.
+	// 그래서 가장자리 호수 물가 선 바로 안쪽 땅을 노려서, 부두가 물에 닿고
+	// 보트가 떠 있을 곳이 있게 한다. ReserveThemedDistrict 는 이 점에서 가장 가까운
+	// 놓을 수 있는 2x2 를 고르고, 물 채우기는 예약된 칸을 건드리지 않으므로
+	// 마을 자체는 항상 마른 땅 위에 놓인다.
 	const int64 LakeRaidSeed = Map->GetRaidSeed(); // 서버 = 게임모드 시드, 들어온 사람 = 설계도로 받은 시드
 	const FBorderLake RuralLake = GetBorderLake(
 		LakeRaidSeed, FIntPoint(MinCellX, MinCellY), FIntPoint(MaxCellX, MaxCellY),
@@ -368,12 +367,11 @@ bool UMapFacilityPlanner::PlanFacilities(
 	const FIntPoint RuralTarget(
 		FMath::Clamp(FMath::RoundToInt(RuralShorePoint.X), MinCellX, MaxCellX),
 		FMath::Clamp(FMath::RoundToInt(RuralShorePoint.Y), MinCellY, MaxCellY));
-	// Cells-to-nearest-road for every cell, as one multi-source breadth-first sweep
-	// from the whole network at once. Facility placement used to score only the
-	// distance to its thematic target, so compounds landed an average of 13 cells
-	// from any road and the access-spur pass then had to drag a 260 m service lane
-	// out to each one - or give up, which it did for 7 to 10 of the 11 facilities.
-	// Paying for the road afterwards was the wrong order; sitting near one is free.
+	// 모든 칸의 '가장 가까운 도로까지 칸 수'. 도로망 전체에서 동시에 퍼지는 너비 우선 탐색 한 번으로 구한다.
+	// 예전 시설 배치는 테마 목표 위치까지 거리만 점수로 봐서, 시설들이 도로에서 평균 13칸
+	// 떨어진 곳에 놓였다. 그러면 진입로 단계가 시설마다 260 m 짜리 길을 끌어와야 했고
+	// - 아니면 포기했는데, 시설 11개 중 7~10개에서 포기했다.
+	// 길을 나중에 놓는 건 순서가 틀렸다. 처음부터 도로 근처에 앉히면 공짜다.
 	TMap<FIntPoint, int32> RoadDistanceByCell;
 	{
 		TArray<FIntPoint> Frontier;
@@ -381,9 +379,9 @@ bool UMapFacilityPlanner::PlanFacilities(
 		{
 			if (!IsValid(Pair.Value))
 				continue;
-			// The WarZone is deliberately excluded even though it is traversable:
-			// it is a wide region, and counting it as road would mark most of the
-			// middle of the map as road-adjacent and defeat the whole term.
+			// WarZone 은 지나갈 수 있는 곳이지만 일부러 뺀다: 넓은 지역이라
+			// 도로로 치면 맵 가운데 대부분이 '도로 옆'이 되어
+			// 이 점수 항목 자체가 의미 없어진다.
 			const ETileType Type = Pair.Value->GetType();
 			if (Type == ETileType::Road || Type == ETileType::Spawn
 				|| Type == ETileType::Exit || Type == ETileType::Obstacle)
@@ -448,11 +446,10 @@ bool UMapFacilityPlanner::PlanFacilities(
 			const int32 CenterY2 = Candidate.Y * 2 + Footprint.Y - 1;
 			const int64 DX = static_cast<int64>(CenterX2) - Target.X * 2;
 			const int64 DY = static_cast<int64>(CenterY2) - Target.Y * 2;
-			// Only the part of the road distance a spur cannot cover is charged for.
-			// Anything already inside the spur budget gets a paved approach for free,
-			// so penalising it would push districts around for no gain; beyond the
-			// budget the cost grows quadratically, the same shape as the target term
-			// so the two stay comparable. DX/DY are in half-cells, hence the *4.
+			// 갈래길이 닿지 못하는 만큼의 도로 거리만 점수에서 깎는다.
+			// 갈래길 거리 안이면 어차피 포장 진입로가 공짜로 생기므로, 거기에 벌점을 주면
+			// 괜히 구역만 밀려난다. 거리를 넘으면 비용이 제곱으로 커진다 - 목표 위치 항목과 같은
+			// 모양이라 둘을 서로 비교할 수 있다. DX/DY 는 반 칸 단위라서 *4 를 한다.
 			const int32 RoadCells = RoadDistanceByCell.Contains(Candidate)
 				? RoadDistanceByCell[Candidate]
 				: Map->MaxFacilitySpurSearchCells;
@@ -476,9 +473,9 @@ bool UMapFacilityPlanner::PlanFacilities(
 		}
 		for (const FIntPoint& Cell : BestOccupied)
 			SelectedFacilityCells.Add(Cell);
-		// road_cells is what the access-spur pass will have to bridge. Anything at or
-		// under MaxFacilitySpurCells gets paved; above it the district is stranded,
-		// which is exactly what this scoring term exists to stop happening.
+		// road_cells 는 진입로 단계가 이어야 할 거리다. MaxFacilitySpurCells 이하면
+		// 포장되고, 넘으면 그 구역은 길 없이 고립된다
+		// - 이 점수 항목이 막으려는 바로 그 상황이다.
 		UE_LOG(LogTemp, Display,
 			TEXT("Themed district placed: set=%s anchor=(%d,%d) road_cells=%d target_cells=%.1f"),
 			*StaticEnum<EFacilityVisualSet>()->GetNameStringByValue(static_cast<int64>(VisualSet)),
@@ -535,10 +532,10 @@ void UMapFacilityPlanner::ReserveFacility(
 
 	if (VisualSet == EFacilityVisualSet::Warehouse && Footprint == WarZoneCoreFootprint)
 	{
-		// Ground, not WarZoneStronghold: the +220 pad and its four ramps existed to
-		// give the code-built core silhouette and approaches. The harvested factory
-		// compound is authored flat, and raising it would hang its yard fences and
-		// barrel rows over the pad edge the way the rural island once hung over its.
+		// WarZoneStronghold 가 아니라 Ground: +220 단상과 경사로 네 개는 코드로 만든 중심 시설의
+		// 윤곽과 진입로를 위한 것이었다. 가져온 공장 구역은 평평하게 만들어져 있어서, 들어 올리면
+		// 마당 울타리와 드럼통 줄이 단상 가장자리 밖으로 떠 버린다
+		// - 예전에 시골 섬이 자기 단상 밖으로 삐져나왔던 것처럼.
 		Placement.ElevationProfile = EFacilityElevationProfile::Ground;
 	}
 	else if (VisualSet == EFacilityVisualSet::Yard)
@@ -557,30 +554,30 @@ void UMapFacilityPlanner::ReserveFacility(
 	}
 	else if (VisualSet == EFacilityVisualSet::DowntownBlock)
 	{
-		// The authored block sits on its own paving just above the shared datum, so
-		// the pad beneath it must stay there too. A 160 cm raise would leave the cafe
-		// terrace on a plinth with its kerbs hanging over the edge.
+		// 손작업 블록은 공통 높이 바로 위 자기 포장면에 서 있으므로,
+		// 그 아래 바닥판도 그 높이에 있어야 한다. 160 cm 올리면 카페 테라스가
+		// 받침대 위에 올라가고 연석이 가장자리 밖으로 삐져나온다.
 		Placement.ElevationProfile = EFacilityElevationProfile::Ground;
 		Placement.BaseElevationCm = 0.0f;
 	}
 	else if (VisualSet == EFacilityVisualSet::FactoryConstruction)
 	{
-		// The authored hall level was trimmed so its own floor slabs are gone and its
-		// building bases sit at local Z=0. Raising or lowering the pad under it would
-		// leave the halls standing on a step instead of on the surrounding ground.
+		// 손작업 공장 레벨은 자체 바닥판을 지우고 건물 밑면을 로컬 Z=0 에 맞춰 다듬었다.
+		// 그 아래 바닥판을 올리거나 내리면 건물이 주변 땅이 아니라
+		// 턱 위에 서 있게 된다.
 		Placement.ElevationProfile = EFacilityElevationProfile::Ground;
 		Placement.BaseElevationCm = 0.0f;
 	}
 	else if (VisualSet == EFacilityVisualSet::RuralHideout)
 	{
-		// Its own ground is deleted, so the cabins stand on the shared terrain.
+		// 자체 땅을 지웠으므로 오두막들은 공통 지형 위에 선다.
 		Placement.ElevationProfile = EFacilityElevationProfile::Ground;
 		Placement.BaseElevationCm = 0.0f;
 	}
 
-	// Pick an edge that approaches the closest generator-authored traversal cell.
-	// This is deterministic and is serialized with the facility, so the visual ramp,
-	// the access-road endpoint and a future server manifest all agree.
+	// 생성기가 만든 '지나갈 수 있는 칸' 중 가장 가까운 쪽을 향한 가장자리를 고른다.
+	// 매번 똑같이 정해지고 시설과 함께 저장되므로, 보이는 경사로,
+	// 진입로 끝점, 나중 서버 manifest 가 모두 같은 답을 갖는다.
 	const FIntPoint CardinalDirections[] = {
 		FIntPoint(0, 1), FIntPoint(1, 0), FIntPoint(0, -1), FIntPoint(-1, 0)
 	};
@@ -628,8 +625,8 @@ void UMapFacilityPlanner::ReserveFacility(
 	}
 	if (Placement.ElevationProfile != EFacilityElevationProfile::Ground)
 	{
-		// Procedural facilities expose north/south entrances in local space. Rotate
-		// local south toward the chosen road-facing edge so the ramp never meets a wall.
+		// 코드로 만든 시설은 로컬 기준 북/남 입구를 갖는다. 로컬 남쪽을 도로를 향한
+		// 가장자리로 돌려서 경사로가 벽에 막히지 않게 한다.
 		if (Placement.EntranceDirection == FIntPoint(0, -1)) Placement.RotationQuarterTurns = 0;
 		else if (Placement.EntranceDirection == FIntPoint(1, 0)) Placement.RotationQuarterTurns = 1;
 		else if (Placement.EntranceDirection == FIntPoint(0, 1)) Placement.RotationQuarterTurns = 2;

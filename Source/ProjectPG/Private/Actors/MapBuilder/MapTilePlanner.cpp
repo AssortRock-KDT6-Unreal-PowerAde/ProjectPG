@@ -42,11 +42,10 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		return A.X != B.X ? A.X < B.X : A.Y < B.Y;
 	});
 
-	// Sculpted ground features claim whole cells exactly the way facilities do: a
-	// reserved cell gets no flat slab and no tile actor, and the feature mesh fills it
-	// instead. Only plain nature cells with a one-cell nature margin qualify, so a
-	// feature never borders a road, spawn, exit, WarZone or facility footprint - the
-	// props in those tiles all assume a flat surface and would be left floating.
+	// 깎은 땅 모양은 시설과 똑같이 칸 단위로 자리를 차지한다: 예약된 칸에는 평판도
+	// 타일 액터도 없고 땅 모양 메시가 그 자리를 채운다. 둘레 한 칸까지 자연 칸인
+	// 평범한 자연 칸만 쓸 수 있어서, 땅 모양은 도로·시작·탈출·WarZone·시설 자리와
+	// 절대 붙지 않는다 - 그 타일들의 소품은 모두 평평한 땅을 전제로 해서 떠 버린다.
 	// 1) 언덕: 들판·워존 바깥쪽에 흙 언덕을 최대 28개 솟게 하고 그 위에 돌·나무·덤불을 뿌린다.
 	//    언덕이 차지한 칸은 "예약됨"(ReservedCells)이 돼서 평평한 타일을 안 깐다.
 	for (UHierarchicalInstancedStaticMeshComponent* FeatureComponent : Map->TerrainFeatureHISMs)
@@ -69,8 +68,8 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		OutType = (*TilePtr)->GetType();
 		return true;
 	};
-	// The same centre the ground and tile bands use, so a feature's material always
-	// matches the flat cells it is dropped among.
+	// 땅·타일 띠가 쓰는 것과 같은 중심. 그래야 땅 모양의 머티리얼이
+	// 주변 평평한 칸과 항상 같다.
 	FIntPoint FeatureWarZoneCenter = FIntPoint::ZeroValue;
 	for (const FFacilityPlacement& FacilityPlacement : Map->FacilityPlacements)
 	{
@@ -97,8 +96,8 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		const int32 MeshIndex = static_cast<int32>((FeatureHash >> 8) % static_cast<uint32>(FeatureMeshes.Num()));
 		const FIntPoint Footprint = FeatureMeshes[MeshIndex].Footprint;
 
-		// Nature and WarZone cells both qualify, but a feature never straddles the two:
-		// every cell it touches, margin included, must share the anchor's type.
+		// 자연 칸과 WarZone 칸 둘 다 쓸 수 있지만, 한 땅 모양이 둘에 걸치지는 않는다:
+		// 둘레 포함 닿는 모든 칸이 기준 칸과 같은 타입이어야 한다.
 		ETileType AnchorType = ETileType::None;
 		if (!GetCellType(FeatureAnchor, AnchorType)
 			|| (AnchorType != ETileType::None && AnchorType != ETileType::WarZone))
@@ -106,8 +105,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 			continue;
 		}
 
-		// The industrial core stays flat: it holds the central facility, its approach
-		// lanes and the densest authored cover.
+		// 공업 중심부는 평평하게 둔다: 중앙 시설, 그 진입로, 가장 촘촘한 엄폐물이 있는 곳이다.
 		const int32 CoreDeltaX = FeatureAnchor.X - FeatureWarZoneCenter.X;
 		const int32 CoreDeltaY = FeatureAnchor.Y - FeatureWarZoneCenter.Y;
 		const int32 CoreDistanceSquared = CoreDeltaX * CoreDeltaX + CoreDeltaY * CoreDeltaY;
@@ -134,15 +132,15 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				ReservedCells.Add(FIntPoint(FeatureAnchor.X + OffsetX, FeatureAnchor.Y + OffsetY));
 		}
 
-		// The authored perimeter sits at local Z=0 and the shared walking surface is
-		// Z=20, so placing the centre there makes the seam exact.
+		// 손작업 둘레는 로컬 Z=0 이고 공통 걷는 면은 Z=20 이므로,
+		// 중심을 거기 두면 이음새가 딱 맞는다.
 		const FTerrainFeatureMesh& FeatureMesh = FeatureMeshes[MeshIndex];
 		const FVector FeatureCenter(
 			(FeatureAnchor.X + (Footprint.X - 1) * 0.5f) * DesignCellSize,
 			(FeatureAnchor.Y + (Footprint.Y - 1) * 0.5f) * DesignCellSize,
 			20.0f);
-		// Band mirrors BuildLightweightWorldVisuals: a WarZone cell inside d^2=225 sits
-		// on transition dirt, anything further out shares the nature ground.
+		// 띠 판정은 BuildLightweightWorldVisuals 와 같다: d^2=225 안의 WarZone 칸은
+		// 전환용 흙 위에 있고, 그보다 바깥은 자연 땅을 같이 쓴다.
 		const int32 BandIndex = (AnchorType == ETileType::WarZone && CoreDistanceSquared <= 225) ? 1 : 0;
 		const int32 ComponentIndex = BandIndex * FeatureMeshes.Num() + MeshIndex;
 		UHierarchicalInstancedStaticMeshComponent* FeatureComponent =
@@ -153,8 +151,8 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				FTransform(FRotator::ZeroRotator, FeatureCenter, FVector::OneVector), true);
 		}
 
-		// Dress the slope off the same height field the mesh was generated from. These
-		// cells carry no tile actor, so without this a feature reads as a bare lump.
+		// 메시를 만들 때 쓴 높이 공식 그대로 비탈을 꾸민다. 이 칸에는 타일 액터가 없어서,
+		// 이게 없으면 땅 모양이 맨 흙덩이로만 보인다.
 		FRandomStream DressingStream(static_cast<int32>(FeatureHash));
 		auto ScatterOnFeature = [&](
 			UHierarchicalInstancedStaticMeshComponent* Component,
@@ -164,7 +162,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				return;
 			for (int32 Index = 0; Index < Count; ++Index)
 			{
-				// Stay off the outer eighth so nothing straddles the flat seam.
+				// 바깥 1/8 은 피해서 평평한 이음새에 걸치는 것이 없게 한다.
 				const float U = DressingStream.FRandRange(0.12f, 0.88f);
 				const float V = DressingStream.FRandRange(0.12f, 0.88f);
 				const FVector Location = FeatureCenter + FVector(
@@ -177,9 +175,9 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 					FVector(DressingStream.FRandRange(MinScale, MaxScale))), true);
 			}
 		};
-		// A hollow reads as a sheltered thicket, a rise as an exposed rocky crown. On
-		// WarZone ground the pines are dropped entirely - a stand of forest inside an
-		// industrial yard is exactly the kind of seam this band split exists to avoid.
+		// 움푹한 곳은 아늑한 덤불숲, 솟은 곳은 드러난 바위 꼭대기로 보이게 한다.
+		// WarZone 땅에서는 소나무를 아예 뺀다 - 공업 마당 안의 숲은
+		// 이 띠 나누기가 피하려는 바로 그런 이음새다.
 		const bool bHollow = FeatureMesh.Amplitude < 0.0f;
 		const bool bIndustrial = AnchorType == ETileType::WarZone;
 		ScatterOnFeature(Map->TerrainRockHISM,
@@ -215,14 +213,13 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 	//    도로 칸 → 이웃 연결 수로 직선/꺾임/T자/십자/막다른 길 타일 + 회전,
 	//    시작점 → 벽 친 대기소(입구가 워존 가는 길 쪽), 출구·장애물 → 검문소, 워존 → 워존 땅,
 	//    나머지 → 호수/가장자리 숲/미로 숲 띠/풀밭·덤불·바위 등(5×5칸 단위로 묶어서 숲 띠·공터처럼 보이게).
-	// Counted while the placements are built below; declared here so the summary
-	// that follows the placement loop can report them together.
+	// 아래에서 배치를 만들면서 센다. 배치 반복문 뒤의 요약에서 같이 출력하려고 여기 선언한다.
 	int32 SpawnOpeningCount = 0;
 	int32 SpawnRoutedOpenings = 0;
 	int32 WalledOffSpawnConnections = 0;
 
-	// One lake for the whole pass; the corner is scored against the road network,
-	// so this must not be re-derived per cell.
+	// 이 단계 전체에 호수는 하나다. 모서리는 도로망을 보고 점수 매겨 고르므로
+	// 칸마다 다시 구하면 안 된다.
 	const FBorderLake BorderLake = GetBorderLake(
 		RaidSeed, MinCell, MaxCell, Map->BorderLakeRadiusCells, CollectTraversalCells(TileByCell));
 	Map->BorderLakeCentreCell = BorderLake.CentreCell;
@@ -254,17 +251,17 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				&& NeighborType != ETileType::Exit
 				&& NeighborType != ETileType::WarZone
 				&& NeighborType != ETileType::Obstacle;
-			// An access road consumes the original visual cell. Only the explicit
-			// planned route mask may connect to it; incidental side adjacency is not
-			// a socket and must not turn a one-lane path into a giant crossroad.
+			// 진입로가 원래 화면용 칸을 차지한다. 계획된 경로 마스크로만 이어질 수 있다:
+			// 우연히 옆에 붙은 것은 연결 자리가 아니며, 한 줄 길을
+			// 커다란 사거리로 바꾸면 안 된다.
 			if (bNeighborBecomesAccessRoad)
 				return false;
 			return IsRoadTraversalType((*Neighbor)->GetType());
 		};
 
-		// Explicit route edges are authoritative for supplemental connectors. If a
-		// route crosses an existing generator road, union those explicit edges with
-		// that road's normal neighbours so both sides keep reciprocal sockets.
+		// 추가 연결로는 명시된 경로 변이 원본이다. 경로가 생성기 도로를 가로지르면
+		// 명시된 변과 그 도로의 원래 이웃을 합쳐서,
+		// 양쪽 모두 서로 이어지는 연결 자리를 유지하게 한다.
 		uint8 ConnectionMask = SupplementalRoadMasks.FindRef(Cell);
 		if (!bSupplementalRoad)
 		{
@@ -331,23 +328,21 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		{
 			Placement.Visual = ETileDesignVisual::Spawn;
 			Placement.VisualLevel = TSoftObjectPtr<UWorld>(SpawnLevelPath);
-			// LD_Tile_Spawn_Staging is a walled compound with a single opening on its
-			// authored east face, so the rotation chosen here decides which one of the
-			// cell's connections the player can actually walk out through. Picking the
-			// lowest set bit meant a spawn wired north+east faced north and sealed the
-			// east road behind a wall - the player saw no way to the WarZone at all.
+			// LD_Tile_Spawn_Staging 은 담으로 둘러싸인 구역이고 손작업 동쪽 면에만 출입구가 하나 있다.
+			// 그래서 여기서 고르는 회전이 칸의 여러 연결 중 플레이어가 실제로 걸어 나갈 수 있는
+			// 하나를 정한다. 가장 낮은 비트를 골랐더니 북+동으로 이어진 시작 지점이 북쪽을 보고
+			// 동쪽 도로를 담 뒤에 막아 버렸다 - 플레이어 눈엔 WarZone 으로 가는 길이 아예 없었다.
 			//
-			// Prefer the edge the spawn-to-WarZone guarantee actually routed through,
-			// so the opening always faces the path that is promised to lead somewhere.
+			// 시작 지점→WarZone 보장 경로가 실제로 지나간 변을 우선한다.
+			// 그래야 출입구가 항상 어딘가로 이어진다고 약속된 길을 바라본다.
 			const uint8 RouteMask = SupplementalRoadMasks.FindRef(Cell) & ConnectionMask;
 			const uint8 PreferredMask = RouteMask != 0 ? RouteMask : ConnectionMask;
 			const uint8 TargetMask = PreferredMask != 0
 				? static_cast<uint8>(1 << FMath::CountTrailingZeros(PreferredMask))
 				: EastConnection;
 			Placement.RotationQuarterTurns = FindPositiveYawRotation(EastConnection, TargetMask);
-			// Any remaining connection is a road that dead-ends against this tile's
-			// wall. Harmless for routing, but it reads as a road to nowhere, so count
-			// them instead of letting them pass silently.
+			// 남은 연결은 이 타일의 담에 막혀 끝나는 도로다. 경로상으로는 괜찮지만
+			// 어디로도 안 가는 길처럼 보이므로, 조용히 넘기지 않고 센다.
 			SpawnOpeningCount += ConnectionMask != 0 ? 1 : 0;
 			WalledOffSpawnConnections += FMath::Max(0, FMath::CountBits(ConnectionMask) - 1);
 			SpawnRoutedOpenings += RouteMask != 0 ? 1 : 0;
@@ -409,16 +404,14 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 			const bool bMazeBarrierBand = !bNearTraversal && !bMapBorder
 				&& MazeBandValue % 9 == 0;
 
-			// A lake eats into one corner of the map. The grid is square and always
-			// will be, but the coastline does not have to be: a metaball centred
-			// outside the corner plus per-cell jitter gives a ragged shore, which is
-			// what stops the border reading as a drawn box. It also gives the shore
-			// assets - the rural diorama, its pier and boats - somewhere they belong
-			// instead of sitting in the middle of a dry field.
+			// 호수가 맵 한 모서리를 파먹는다. 격자는 앞으로도 정사각형이지만 해안선까지 그럴 필요는 없다:
+			// 모서리 바깥에 중심을 둔 metaball 에 칸마다 흔들림을 더하면 들쭉날쭉한 물가가 생기고,
+			// 그래서 맵 경계가 그려 놓은 상자처럼 보이지 않는다. 물가용 에셋 - 시골 디오라마,
+			// 부두, 보트 - 에게도 마른 들판 한가운데가 아닌 어울리는 자리가 생긴다.
 			//
-			// Traversal cells are never flooded, and neither are their neighbours, so
-			// a spawn or exit that the generator placed near the edge keeps a
-			// peninsula out to it rather than drowning.
+			// 지나갈 수 있는 칸은 물로 채우지 않고, 그 이웃 칸도 채우지 않는다.
+			// 그래서 생성기가 가장자리 근처에 놓은 시작·탈출 지점은 물에 잠기지 않고
+			// 거기까지 이어진 곶(반도)을 갖는다.
 			if (Map->BorderLakeRadiusCells > 0.0f
 				&& !bNearTraversal && Placement.Visual != ETileDesignVisual::WarZoneGround)
 			{
@@ -429,12 +422,12 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 					Placement.Visual = ETileDesignVisual::Water;
 			}
 
-			// Natural cells are grouped into 5x5-cell macro biomes so the result reads
-			// as forest belts, clearings and rocky fields rather than visual noise.
-			// Road-adjacent cells deliberately remain more open for combat readability.
+			// 자연 칸을 5x5 칸 큰 묶음(biome)으로 나눠서, 결과가 잡음이 아니라
+			// 숲 띠, 공터, 바위 들판처럼 보이게 한다.
+			// 도로 옆 칸은 전투 시 잘 보이도록 일부러 더 트이게 둔다.
 			if (Placement.Visual == ETileDesignVisual::Water)
 			{
-				// Already decided above; the biome roll must not overwrite it.
+				// 위에서 이미 정했다. biome 굴림이 덮어쓰면 안 된다.
 			}
 			else if (bMapBorder)
 			{
@@ -444,9 +437,9 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 			}
 			else if (bMazeBarrierBand)
 			{
-				// Five-cell macro belts become the Maze's impassable-looking terrain.
-				// Existing/generated traversal cells and a two-cell shoulder are always
-				// exempt, so this shapes routes without changing server connectivity.
+				// 5칸짜리 큰 띠가 미로의 '못 지나갈 것처럼 보이는' 지형이 된다.
+				// 원래 있던/생성된 지나갈 수 있는 칸과 그 둘레 2칸은 항상 빼므로,
+				// 서버 쪽 연결은 바꾸지 않고 경로 모양만 다듬는다.
 				Placement.Visual = FineRoll < 76
 					? ETileDesignVisual::NatureForestDense
 					: ETileDesignVisual::NatureRocky;
@@ -524,10 +517,10 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		Map->LayoutHash = HashCombine(Map->LayoutHash, GetTypeHash(Placement.LocalSeed));
 	}
 
-	// routed_openings should equal openings: every spawn's single doorway ought to
-	// face the road the WarZone guarantee actually planned. walled_connections is
-	// the count of roads that still dead-end against a spawn's wall - the tile has
-	// one opening, so anything above zero is a road the player can see but not use.
+	// routed_openings 는 openings 와 같아야 한다: 모든 시작 지점의 출입구 하나가
+	// WarZone 보장 경로가 실제로 계획한 도로를 바라봐야 한다. walled_connections 는
+	// 아직 시작 지점 담에 막혀 끝나는 도로 수다 - 타일 출입구가 하나뿐이므로,
+	// 0 보다 크면 플레이어가 보기만 하고 쓸 수 없는 길이 있다는 뜻이다.
 	UE_LOG(LogTemp, Display,
 		TEXT("Spawn opening alignment: spawns=%d routed_openings=%d walled_connections=%d"),
 		SpawnOpeningCount, SpawnRoutedOpenings, WalledOffSpawnConnections);

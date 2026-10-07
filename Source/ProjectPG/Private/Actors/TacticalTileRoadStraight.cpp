@@ -1,4 +1,4 @@
-// Playable 20x20m straight-road tile prototype. Does not modify the team's generator.
+// 플레이 가능한 20x20m 일자 도로 타일 시제품. 팀의 생성기는 건드리지 않는다.
 
 #include "Actors/TacticalTileRoadStraight.h"
 
@@ -196,7 +196,7 @@ void ATacticalTileRoadStraight::RebuildFixedInstances()
 	BarrelCover->ClearInstances();
 	GrassDressing->ClearInstances();
 
-	// Broken perimeter: endpoints at X +/-1000 remain open for tile-to-tile travel.
+	// 끊긴 둘레: X +/-1000 끝은 타일끼리 오갈 수 있게 열어 둔다.
 	const float WallX[] = {-900, -620, -340, -60, 300, 660};
 	for (int32 Index = 0; Index < 6; ++Index)
 	{
@@ -206,8 +206,8 @@ void ATacticalTileRoadStraight::RebuildFixedInstances()
 			BoundaryWalls->AddInstance(FTransform(FRotator(0, -90, 0), FVector(WallX[Index] + 210, -950, 0), FVector(Index == 1 ? 1.0f : 1.15f, 1.0f, Index == 1 ? 0.65f : 1.0f)));
 	}
 
-	// Four authored combat silhouettes share the exact same 20m footprint and
-	// west/east road sockets. They vary shoulder use without closing the lane.
+	// 손작업 전투 실루엣 네 가지가 똑같은 20m 차지 칸과 서/동 도로 연결 자리를 같이 쓴다.
+	// 도로는 막지 않고 갓길 쓰는 방식만 바꾼다.
 	if (Variant == 0 || Variant == 1)
 	{
 		const float Side = Variant == 0 ? 1.0f : -1.0f;
@@ -227,25 +227,25 @@ void ATacticalTileRoadStraight::RebuildFixedInstances()
 
 	switch (Variant)
 	{
-	case 0: // roadside service shelter and staggered counter-cover
+	case 0: // 길가 정비 쉼터와 엇갈린 맞엄폐물
 		ConcreteCover->AddInstance(FTransform(FRotator(0, 78, 0), FVector(-40, -455, 8), FVector(1.6f)));
 		ConcreteCover->AddInstance(FTransform(FRotator(0, -68, 0), FVector(610, 475, 8), FVector(1.35f)));
 		BarrelCover->AddInstance(FTransform(FRotator::ZeroRotator, FVector(-690, -555, 10), FVector::OneVector));
 		BarrelCover->AddInstance(FTransform(FRotator::ZeroRotator, FVector(-625, -585, 10), FVector::OneVector));
 		break;
-	case 1: // mirrored lay-by with an open flanking shoulder
+	case 1: // 좌우 뒤집은 길가 정차 공간과 트인 우회 갓길
 		ConcreteCover->AddInstance(FTransform(FRotator(0, 70, 0), FVector(-600, 470, 8), FVector(1.55f)));
 		ConcreteCover->AddInstance(FTransform(FRotator(0, -82, 0), FVector(70, 430, 8), FVector(1.3f)));
 		BarrelCover->AddInstance(FTransform(FRotator::ZeroRotator, FVector(710, 565, 10), FVector::OneVector));
 		break;
-	case 2: // vehicle ambush lane: alternating cover, no enclosed room
+	case 2: // 차량 매복 통로: 번갈아 놓인 엄폐물, 막힌 방은 없음
 		ConcreteCover->AddInstance(FTransform(FRotator(0, 82, 0), FVector(-610, 440, 8), FVector(1.55f)));
 		ConcreteCover->AddInstance(FTransform(FRotator(0, -75, 0), FVector(10, -440, 8), FVector(1.8f)));
 		ConcreteCover->AddInstance(FTransform(FRotator(0, 15, 0), FVector(690, 520, 8), FVector(1.25f)));
 		BarrelCover->AddInstance(FTransform(FRotator::ZeroRotator, FVector(-760, -570, 10), FVector::OneVector));
 		BarrelCover->AddInstance(FTransform(FRotator::ZeroRotator, FVector(420, 600, 10), FVector::OneVector));
 		break;
-	default: // long sightline: sparse hard cover keeps the road readable
+	default: // 긴 시야: 듬성한 단단한 엄폐물로 도로가 잘 보이게 둠
 		ConcreteCover->AddInstance(FTransform(FRotator(0, 88, 0), FVector(-680, -455, 8), FVector(1.35f)));
 		ConcreteCover->AddInstance(FTransform(FRotator(0, -88, 0), FVector(680, 455, 8), FVector(1.35f)));
 		BarrelCover->AddInstance(FTransform(FRotator::ZeroRotator, FVector(0, -565, 10), FVector::OneVector));

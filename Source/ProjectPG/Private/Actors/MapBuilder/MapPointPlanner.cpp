@@ -48,14 +48,13 @@ void UMapPointPlanner::BuildPoints()
 			const int32 ManhattanDistance = FMath::Abs(Cell.X - Placement.GridCell.X)
 				+ FMath::Abs(Cell.Y - Placement.GridCell.Y);
 			if (Placement.Visual == ETileDesignVisual::Spawn && ManhattanDistance < 4)
-				return true; // 60m minimum spawn safe band
+				return true; // 시작 지점 주변 최소 60m 안전 띠
 			if (Placement.Visual == ETileDesignVisual::Exit && ManhattanDistance < 2)
-				return true; // do not camp directly on the extraction stencil
+				return true; // 탈출 지점 표시 위에 바로 진 치지 않게
 		}
-		// The boat landing is a spawn too, but it is a gameplay point on the rural
-		// hamlet, not a Spawn tile, so the band above cannot see it. Without this
-		// the natural encounters crept to 49.5 m of the landing and the hamlet
-		// itself was tallied as a facility missing its resident AI.
+		// 보트 상륙 지점도 시작 지점이지만, Spawn 타일이 아니라 시골 마을 위의 게임플레이 지점이라
+		// 위의 띠 검사가 못 본다. 이게 없으면 들판 교전 지점이 상륙 지점 49.5 m 까지 다가왔고,
+		// 마을 자체가 '상주 AI 가 없는 시설'로 집계됐다.
 		if (Map->bHasBorderLake)
 		{
 			for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
@@ -108,9 +107,9 @@ void UMapPointPlanner::BuildPoints()
 			Cell.X * DesignCellSize,
 			Cell.Y * DesignCellSize,
 			120.0f + Map->GetSurfaceElevationForCell(Cell)) + TacticalOffset;
-		// The authored offsets are preferred, but random tactical variants can place
-		// cover there. Search a deterministic 3x3 pocket so every emitted point is
-		// actually spawnable without changing the selected tile or layout hash.
+		// 손으로 정한 위치를 먼저 쓰지만, 무작위 전술 변형이 그 자리에 엄폐물을 놓을 수 있다.
+		// 매번 똑같은 3x3 주변을 찾아서, 내보내는 모든 지점이 실제로 스폰 가능하게 한다.
+		// 고른 타일이나 layout hash 는 바뀌지 않는다.
 		const FVector CandidateOffsets[] = {
 			FVector::ZeroVector,
 			FVector(320, 0, 0), FVector(-320, 0, 0), FVector(0, 320, 0), FVector(0, -320, 0),
@@ -167,7 +166,7 @@ void UMapPointPlanner::BuildPoints()
 
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
 	{
-		// Nothing gameplay-facing belongs in the lake.
+		// 호수 안에는 게임플레이용 지점을 두지 않는다.
 		if (Placement.Visual == ETileDesignVisual::Water)
 			continue;
 		if (Placement.Visual == ETileDesignVisual::Spawn)
@@ -176,7 +175,7 @@ void UMapPointPlanner::BuildPoints()
 			// 왜: 검사기가 "첫 번째 시작 지점" 을 출발점으로 쓴다. 칸 순서대로 넣으면 첫 자리가 다른 구역으로 바뀐다.
 			if (Map->SpawnRegionCells.IndexOfByKey(Placement.GridCell) > 0)
 				continue;
-			// Four candidates prevent a future squad from stacking into one capsule.
+			// 후보를 네 개 둬서, 나중에 분대가 캡슐 하나에 겹쳐 나오지 않게 한다.
 			AddPoint(ELevelDesignPointType::Spawn, Placement.GridCell, FVector(0, -430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
 			AddPoint(ELevelDesignPointType::Spawn, Placement.GridCell, FVector(0, 430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
 			AddPoint(ELevelDesignPointType::Spawn, Placement.GridCell, FVector(360, -430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
@@ -211,9 +210,9 @@ void UMapPointPlanner::BuildPoints()
 			|| Placement.Visual == ETileDesignVisual::NatureDitch;
 		if (bNaturalTile)
 		{
-			// A deterministic low-density lattice makes the entire 900m field useful
-			// for a loot-shooter. The server can serialize these markers in the future
-			// manifest; no client-side random choice is involved.
+			// 매번 똑같이 나오는 낮은 밀도의 격자로 900m 들판 전체를 루트 슈터에 쓸모 있게 만든다.
+			// 서버가 나중에 이 표시들을 manifest 에 담아 보낼 수 있다.
+			// 클라이언트 쪽 무작위 선택은 없다.
 			const int32 StableX = Placement.GridCell.X + 64;
 			const int32 StableY = Placement.GridCell.Y + 64;
 			const bool bNaturalLoot = (StableX % 7 == 0 && StableY % 7 == 0)
@@ -315,10 +314,9 @@ void UMapPointPlanner::BuildPoints()
 		// 호숫가 마을의 "보트 타고 도착" 시작 자리. 호수 위치가 판마다 달라서 표의 고정 좌표로는 못 적는다.
 		if (Facility.VisualSet == EFacilityVisualSet::RuralHideout && Map->bHasBorderLake)
 		{
-			// "Arrived by boat": a spawn on the hamlet's water-facing edge. The
-			// lake corner moves per seed, so aim at the recorded lake centre and
-			// undo the facility's yaw - a fixed socket would face the water only
-			// on the seeds that happen to rotate the hamlet the authored way.
+			// "보트로 도착": 마을의 물 쪽 가장자리에 있는 시작 지점. 호수 모서리는 시드마다 바뀌므로,
+			// 기록된 호수 중심을 향하게 하고 시설의 회전(yaw)을 되돌린다. 위치를 고정해 두면
+			// 마을이 우연히 원래 방향으로 돌아간 시드에서만 물을 바라본다.
 			const FVector FacilityCentre = Map->GetDesignFootprintCenter(Facility);
 			const FVector2D ToLake = (Map->BorderLakeCentreCell * DesignCellSize
 				- FVector2D(FacilityCentre.X, FacilityCentre.Y)).GetSafeNormal();
@@ -377,8 +375,8 @@ void UMapPointPlanner::RebuildHash()
 	uint32 Hash = 0;
 	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
 	{
-		// FName's runtime comparison index is process-local. Hash the serialized
-		// string contents so server and clients agree after independent launches.
+		// FName 의 실행 중 비교 번호는 그 프로세스 안에서만 유효하다. 저장되는 문자열 내용으로
+		// 해시해야 서버와 클라이언트가 따로 켜져도 같은 값을 낸다.
 		Hash = HashCombine(Hash, FCrc::StrCrc32(*Point.PointId.ToString()));
 		Hash = HashCombine(Hash, FCrc::StrCrc32(*Point.ArchetypeId.ToString()));
 		Hash = HashCombine(Hash, GetTypeHash(Point.GridCell.X));

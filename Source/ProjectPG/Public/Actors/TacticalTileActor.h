@@ -1,4 +1,4 @@
-// Runtime-spawnable 20x20m tactical tile family used by the procedural map visual layer.
+// 런타임에 스폰하는 20x20m 전술 타일 묶음. 절차 맵의 화면 단계가 쓴다.
 
 #pragma once
 
@@ -49,33 +49,33 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tactical Tile")
 	ETacticalTileKind TileKind = ETacticalTileKind::OpenGround;
 
-	// Authored visual footprint in 20m grid cells. It is serialized into the
-	// future TileManifest; the anchor cell remains the only spawned actor.
+	// 손작업 화면 차지 칸 수(20m 격자 칸 단위). 나중 TileManifest 에 저장되고,
+	// 실제로 스폰되는 액터는 기준 칸 하나뿐이다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tactical Tile")
 	FIntPoint FootprintCells = FIntPoint(1, 1);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tactical Tile")
 	int32 LocalSeed = 1337;
 
-	// Stable authored layout variant. 255 derives a 0..3 variant from LocalSeed.
-	// The value is part of the future TileManifest contract so multiplayer clients
-	// never depend on a different random-stream implementation.
+	// 고정된 손작업 배치 변형. 255 면 LocalSeed 에서 0..3 변형을 뽑는다.
+	// 이 값은 나중 TileManifest 약속의 일부라서, 멀티플레이 클라이언트가
+	// 서로 다른 난수 구현에 기대지 않는다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tactical Tile", meta = (ClampMin = "0", ClampMax = "255"))
 	uint8 LayoutVariantOverride = 255;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tactical Tile")
 	bool bShowDynamicProps = true;
 
-	// Design-layer POI connector. It keeps the same socket contract as a road
-	// tile, but uses varied natural shoulder cover instead of repeating the full
-	// authored road dressing every 20 metres.
+	// 디자인 단계의 POI 연결로. 도로 타일과 같은 연결 자리 약속을 지키지만,
+	// 20 m 마다 손작업 도로 꾸미기 전체를 반복하지 않고
+	// 여러 가지 자연 갓길 엄폐물을 쓴다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tactical Tile")
 	bool bIsAccessRoad = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tactical Tile", meta = (ClampMin = "0.0", ClampMax = "3.0"))
 	float DressingDensityScale = 1.0f;
 
-	// 255 keeps the authored canonical mask. Values 0..15 override N/E/S/W at runtime.
+	// 255 면 손작업 기본 마스크를 쓴다. 0..15 면 런타임에 N/E/S/W 를 덮어쓴다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tactical Tile", meta = (ClampMin = "0", ClampMax = "255"))
 	uint8 ConnectionMaskOverride = 255;
 
@@ -192,8 +192,8 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UInstancedStaticMeshComponent> UtilityProps;
 
-	// Selected Fab industrial pieces. These remain deterministic ISM dressing so
-	// the future TileManifest only needs tile kind, seed and variant.
+	// 고른 Fab 공업 조각. 매번 똑같은 ISM 꾸미기로 남겨서
+	// 나중 TileManifest 에는 타일 종류, 시드, 변형만 있으면 된다.
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UInstancedStaticMeshComponent> FactoryContainers;
 

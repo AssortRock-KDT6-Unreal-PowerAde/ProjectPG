@@ -196,9 +196,9 @@ void UMapVerifier::VerifyDesignLevelSeparation()
 				- BoundsByFacility[A].GetExtent().X - BoundsByFacility[B].GetExtent().X;
 			const float PairGapY = FMath::Abs(Delta.Y)
 				- BoundsByFacility[A].GetExtent().Y - BoundsByFacility[B].GetExtent().Y;
-			// For axis-aligned facility bounds, separation on either axis is enough.
-			// The old radial extent calculation could report a negative gap even when
-			// Intersect() correctly said the facilities did not overlap.
+			// 축에 맞춘 시설 범위 상자는 한 축에서만 떨어져 있어도 안 겹친다.
+			// 예전의 반지름 기준 계산은 Intersect() 가 '안 겹침'이라고 제대로 답했는데도
+			// 간격을 음수로 보고하기도 했다.
 			const float PairGapCm = FMath::Max(PairGapX, PairGapY);
 			MinimumGapCm = bMeasuredGap ? FMath::Min(MinimumGapCm, PairGapCm) : PairGapCm;
 			bMeasuredGap = true;
@@ -272,8 +272,8 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 		FVector Origin;
 		FVector Extent;
 		Actor->GetActorBounds(false, Origin, Extent, true);
-		// Ignore editor-only connection arrows and tall debug vectors. Validate only
-		// colliding primitive bounds because those are what can overlap neighbors.
+		// 에디터 전용 연결 화살표와 긴 디버그 화살표는 무시한다. 이웃과 겹칠 수 있는 건
+		// 충돌이 있는 부품의 범위뿐이라 그것만 검사한다.
 		TArray<UPrimitiveComponent*> PrimitiveComponents;
 		Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
 		bool bActorOverflow = false;
@@ -298,10 +298,9 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 				continue;
 			}
 			const FBoxSphereBounds Bounds = Primitive->Bounds;
-			// Seam dressing and angled CQB cover may overhang the nominal 10 m
-			// half-cell slightly. Industrial props are intentionally used as visual
-			// bridges between adjacent WarZone cells, so they receive a larger but
-			// still bounded allowance. Structural walls retain the stricter limit.
+			// 이음새 꾸미기와 비스듬한 CQB 엄폐물은 기준 반 칸(10 m)보다 살짝 삐져나올 수 있다.
+			// 공업 소품은 일부러 이웃한 WarZone 칸 사이를 잇는 다리처럼 쓰므로,
+			// 더 크지만 여전히 한계가 있는 여유를 준다. 구조용 벽은 더 엄격한 한계를 유지한다.
 			const bool bIndustrialSeamProp = ComponentName.Contains(TEXT("Container"))
 				|| ComponentName.Contains(TEXT("Crane"))
 				|| ComponentName.Contains(TEXT("Tank"))
@@ -430,8 +429,8 @@ void UMapVerifier::VerifyTravelCoverDensity()
 		for (int32 X = -22; X <= 22; ++X)
 		{
 			++SampleCount;
-			// Cover is useful when it protects a crouched player; the previous 1.4m
-			// standing-eye trace incorrectly rejected deliberate chest-high cover.
+			// 엄폐물은 웅크린 플레이어를 가려 주면 쓸모 있다. 예전의 1.4m 선 눈높이 트레이스는
+			// 일부러 놓은 가슴 높이 엄폐물을 잘못 걸러냈다.
 			const FVector EyeLocation(X * MapVerifierConst::DesignCellSize, Y * MapVerifierConst::DesignCellSize, 90.0f);//각 칸 가운데 쪼그려 앉은 사람 눈높이를 정한다.(90cm)
 			bool bHasNearbyCover = false;
 			FCollisionQueryParams Query(SCENE_QUERY_STAT(TravelCoverDensity), true);//거기서 8방향(45도씩)9m 짜리 막대기를 뻗어 본다. 
@@ -444,7 +443,7 @@ void UMapVerifier::VerifyTravelCoverDensity()
 				{
 					const UPrimitiveComponent* Component = Hit.GetComponent();
 					const FVector Normal = Hit.ImpactNormal;
-					// Ground is a horizontal hit; meaningful cover has a lateral face.
+					// 땅은 수평으로 맞는다. 쓸모 있는 엄폐물은 옆면이 있다.
 					// 막대기 옆면에 있는 것(담,상자,바위)이 걸리면->"여기 숨을 데 있음". 바닥에 걸린건 엄폐물이 아니라서 안침
 					if (IsValid(Component) && FMath::Abs(Normal.Z) < 0.55f)
 					{
@@ -574,9 +573,9 @@ void UMapVerifier::VerifyGameplayPointDistribution()
 
 	// ⑤⑥ 맵을 100m마다(칸 번호가 5의 배수인 곳) 찍어서, 거기서 가장 가까운 상자·몬스터까지 거리를 잰다.
 	// 그중 제일 먼 값이 기준을 넘으면 "한참 걸어도 줍을 게 없다(250m)" / "싸울 게 없다(300m)".
-	// Sample the playable cell field every 100m. A loot-shooter can contain open
-	// traversal space, but no sampled region should be excessively far from both
-	// a loot opportunity and a possible encounter.
+	// 플레이 가능한 칸 영역을 100m 마다 찍어 본다. 루트 슈터에 트인 이동 공간은 있어도 되지만,
+	// 찍은 어느 곳도 전리품 기회와 교전 가능 지점 둘 다에서
+	// 너무 멀면 안 된다.
 	float MaximumLootGapCm = 0.0f;
 	float MaximumAIGapCm = 0.0f;
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
@@ -611,7 +610,7 @@ void UMapVerifier::VerifyGameplayPointDistribution()
 				return Facility.OccupiedCells.Contains(Point->GridCell);
 			});
 		if (!bHasLoot) ++FacilitiesMissingLoot;
-		// A facility inside the spawn safe band intentionally has no resident AI.
+		// 시작 지점 안전 띠 안의 시설에는 일부러 상주 AI 를 두지 않는다.
 		if (!bHasAI && !Facility.OccupiedCells.ContainsByPredicate(IsProtectedFromAI))
 			++FacilitiesMissingAI;
 	}
@@ -668,9 +667,8 @@ void UMapVerifier::VerifyNavigation()
 	const FVector QueryExtent(180.0f, 180.0f, 650.0f);
 	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
 	{
-		// Navigation is generated only around the central invoker. Points outside
-		// its 120 m generation radius are validated later when a player/AI invoker
-		// approaches them.
+		// 길찾기는 가운데 invoker 주변에서만 만들어진다. 그 120 m 생성 반지름 밖의 지점은
+		// 나중에 플레이어/AI invoker 가 다가갈 때 검사한다.
 		if (FVector::DistSquared2D(Point.WorldLocation, Map->GetActorLocation()) > FMath::Square(10000.0f))
 			continue;
 
@@ -679,9 +677,9 @@ void UMapVerifier::VerifyNavigation()
 		if (NavigationSystem->ProjectPointToNavigation(Point.WorldLocation, ProjectedLocation, QueryExtent))
 		{
 			++ProjectedCount;
-			// Projection alone can succeed on an isolated polygon. Accept a movement
-			// pocket in any cardinal direction; the old +X-only check falsely rejected
-			// valid narrow rooms and rotated upper decks.
+			// 투영만으로는 떨어진 외딴 폴리곤에서도 성공할 수 있다. 동서남북 어느 쪽으로든
+			// 움직일 공간이 있으면 통과시킨다. 예전의 +X 방향만 보는 검사는
+			// 좁은 방이나 회전한 위층 바닥을 잘못 걸러냈다.
 			const FVector NeighborOffsets[] = {
 				FVector(350.0f, 0.0f, 0.0f), FVector(-350.0f, 0.0f, 0.0f),
 				FVector(0.0f, 350.0f, 0.0f), FVector(0.0f, -350.0f, 0.0f)
@@ -706,8 +704,8 @@ void UMapVerifier::VerifyNavigation()
 			FailedPointIds.Add(Point.PointId);
 	}
 
-	// Wait a little longer when the dynamic Recast generator has not exposed
-	// any polygon yet, then report a deterministic pass/fail result.
+	// 동적 Recast 생성기가 아직 폴리곤을 하나도 안 내놨으면 조금 더 기다린 뒤,
+	// 매번 똑같은 통과/실패 결과를 알린다.
 	if (ProjectedCount == 0 && ElapsedSeconds < 20.0)
 		return;
 
@@ -754,10 +752,10 @@ void UMapVerifier::VerifyCriticalRoutes()
 	// 걸을 수 있는 칸 목록 만들기: 물 칸만 빼고 전부 + 큰 건물이 차지한 칸들.
 	// (길찾기 지도는 플레이어·몬스터 주변에만 깔려서 600m 맵 전체를 한 번에 못 물어본다.
 	//  그래서 칸 바둑판으로 "이어져 있나" 만 따진다 — 원래 영어 주석의 뜻.)
-	// Whole-raid reachability is a logical graph question. Runtime Recast is
-	// generated only around invokers, so attempting one 900m nav query reports
-	// false failures. BFS proves the generated walkable cell field is connected;
-	// local Recast and AI movement are verified separately below.
+	// 판 전체에서 갈 수 있는지는 논리 그래프 문제다. 런타임 Recast 는 invoker 주변에서만
+	// 만들어지므로, 900m 길찾기 질의 하나를 시도하면 가짜 실패가 나온다. BFS 로
+	// 만들어진 걸을 수 있는 칸들이 서로 이어져 있음을 확인하고,
+	// 지역 Recast 와 AI 이동은 아래에서 따로 검사한다.
 	TSet<FIntPoint> WalkableCells;
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
 	{
@@ -845,10 +843,9 @@ void UMapVerifier::VerifyTraversableElevation()
 
 	// 출구 검사는 "칸이 이어졌나" 만 보고 높이는 안 본다. 그래서 거기서 "갈 수 있음" 이어도
 	// 캐릭터가 못 넘는 턱에 막힐 수 있다. 이 검사는 같은 칸들을 실제 바닥 높이를 넣고 다시 본다.
-	// VerifyCriticalRoutes answers "is the cell field connected"; it says nothing
-	// about height, so a route it calls reachable can still be walled off by a lip
-	// the character cannot step over. This audit walks the same field with the
-	// authored surface heights applied.
+	// VerifyCriticalRoutes 는 "칸들이 이어져 있나"만 답하고 높이는 모른다. 그래서 갈 수 있다고
+	// 한 경로도 캐릭터가 못 넘는 턱에 막혀 있을 수 있다. 이 검사는 같은 칸 영역을
+	// 손작업 표면 높이를 적용해서 다시 걷는다.
 
 	// 칸마다 바닥 높이 적기(물 칸은 빼고 개수만 센다).
 	TMap<FIntPoint, float> SurfaceByCell;
@@ -858,9 +855,9 @@ void UMapVerifier::VerifyTraversableElevation()
 	{
 		// 호수 칸은 일부러 못 가게 만든 곳(호숫가가 벽 역할). 걷는 칸으로 치면
 		// 모든 호숫가가 "못 넘는 턱" 으로 잡혀서 맵 전체가 실패로 나온다.
-		// Lake cells are deliberately unreachable - the bank is the Maze barrier the
-		// design calls for. Counting them as walkable would report every shoreline as
-		// an unclimbable lip and mark the whole map unreachable.
+		// 호수 칸은 일부러 못 가게 했다 - 둑이 기획서가 말하는 미로의 벽이다.
+		// 이걸 걸을 수 있는 칸으로 세면 물가마다 못 넘는 턱으로 잡혀서
+		// 맵 전체가 못 가는 곳으로 나온다.
 		if (Placement.Visual == ETileDesignVisual::Water)
 		{
 			++WaterCellCount;
@@ -882,10 +879,9 @@ void UMapVerifier::VerifyTraversableElevation()
 	// 건물 받침대로 올라가는 차량 경사로·사람 계단 자리 목록.
 	// 경사로·계단은 "건물 안 입구 칸" 과 "바로 바깥 칸" 사이 한 군데에만 있고, 받침대 나머지 가장자리는 일부러 벽이다.
 	// 지형을 만든 함수(GetFacilityAccessEdges)와 같은 목록을 써야 검사와 실제가 어긋나지 않는다.
-	// Each vehicle ramp and infantry stair bridges exactly one cell edge: an entrance
-	// cell inside the footprint and the cell just outside it. Every other pad edge is
-	// a deliberate wall. Read the access points from the same helper the terrain
-	// builder uses so the audit cannot drift out of step with what was built.
+	// 차량 경사로와 보병 계단은 각각 딱 한 칸 경계를 잇는다: 차지 칸 안의 입구 칸과
+	// 그 바로 바깥 칸. 단상의 나머지 가장자리는 일부러 만든 벽이다. 진입 지점은 지형 빌더가
+	// 쓰는 것과 같은 함수에서 읽어서, 검사가 실제로 만든 것과 어긋나지 않게 한다.
 	TArray<TPair<FIntPoint, FIntPoint>> RampBridgedEdges;
 	TArray<TPair<FIntPoint, FIntPoint>> AccessEdges;
 	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
@@ -918,8 +914,8 @@ void UMapVerifier::VerifyTraversableElevation()
 
 	// 못 넘는 턱 세기: 건물 받침대 쪽(일부러 만든 벽)과 들판 한가운데(항상 버그)로 나눠서 센다.
 	// 들판 쪽은 가장 높은 턱과 그 칸도 기억해 둔다.
-	// Census of unclimbable risers, split by whether they belong to a facility pad
-	// (intended, and ramped) or sit out on open ground (always a defect).
+	// 못 넘는 턱 개수 세기. 시설 단상에 속한 것(의도한 것이고 경사로가 있음)과
+	// 빈 땅에 있는 것(항상 결함)을 나눠서 센다.
 	int32 OpenGroundHardEdges = 0;
 	int32 FacilityWallEdges = 0;
 	float WorstOpenGroundStepCm = 0.0f;
@@ -968,8 +964,7 @@ void UMapVerifier::VerifyTraversableElevation()
 	}
 
 	// 워존 한가운데 큰 공장 구역(3×5칸)은 이 판의 핵심 목적지라, 따로 이름 붙여 "걸어서 갈 수 있나" 를 적는다.
-	// The WarZone core is the raid's headline destination, so it is reported by name
-	// rather than folded into the facility tally.
+	// WarZone 중심은 판의 대표 목적지라, 시설 합계에 섞지 않고 이름으로 따로 알린다.
 	FIntPoint WarZoneCoreCell = FIntPoint::ZeroValue;
 	bool bHasWarZoneCore = false;
 	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
@@ -1046,35 +1041,31 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 	// 누구도 서로를 모르니, 다 지어진 월드를 직접 들여다보는 수밖에 없다.
 	// 예전엔 선을 12만 3천 개 아래로 쏴서 "0개" 라고 했는데 엉터리였다: 선은 부딪히는 판정이 있는 것에만 멈추는데,
 	// 그림만 있고 판정이 없는 판도 화면에선 깜빡인다. 그래서 선 대신 판의 크기 상자를 비교한다(더 싸고 정확).
-	// Z-fighting is two faces landing on the same depth, and the runtime world is
-	// assembled from several independent sources - shared ground slabs, the road
-	// HISM, facility pads, packed tile geometry and terrain features. No single
-	// builder can see the others, so the only way to catch a coplanar pair is to
-	// inspect the finished world.
+	// z-fighting 은 두 면이 같은 깊이에 놓이는 것이다. 런타임 세계는 여러 독립된 곳에서 만든 것
+	// - 공통 땅판, 도로 HISM, 시설 단상, 담아 둔 타일 모양, 땅 모양 - 을 모아 만든다.
+	// 어느 빌더도 다른 빌더를 볼 수 없으므로, 같은 높이로 겹친 면을 잡는 유일한 방법은
+	// 완성된 세계를 살펴보는 것이다.
 	//
-	// An earlier version traced 123,000 rays downward and reported a confident zero.
-	// That was worthless: a ray only stops on collision, and packed tile visuals
-	// inherit whatever collision their source mesh had. A render-only marking or
-	// slab lets every ray straight through while still fighting on screen. Compare
-	// instance bounds instead, which is both collision-agnostic and far cheaper.
+	// 예전 버전은 광선 123,000 개를 아래로 쏘고 자신 있게 0 을 보고했다.
+	// 쓸모없는 결과였다: 광선은 충돌에서만 멈추는데, 담아 둔 타일 모양은 원본 메시의
+	// 충돌을 그대로 물려받는다. 보이기만 하는 표시나 판은 광선이 그냥 통과하는데 화면에선
+	// 여전히 깜빡인다. 그래서 인스턴스 범위 상자를 비교한다 - 충돌과 상관없고 훨씬 싸다.
 
 	// 높이 차가 이것(5cm) 이하면 "같은 높이" 로 본다.
 	constexpr float CoplanarToleranceCm = 5.0f;
 	// 겹치는 넓이가 이것(0.25㎡) 이상이어야 센다. 옆 땅판끼리는 모서리만 닿고 넓이는 안 겹치니 빼려고.
-	// 0.25 m^2. Neighbouring ground slabs are authored edge to edge, so they share a
-	// boundary line but no area; only a real shared area puts two surfaces in the
-	// same screen pixels.
+	// 0.25 m^2. 이웃 땅판은 가장자리끼리 붙게 만들어져서 경계선은 같이 써도 넓이는 같이 쓰지 않는다.
+	// 실제로 넓이를 같이 써야 두 면이 같은 화면 픽셀에 그려진다.
 	constexpr float MinimumSharedAreaCm2 = 2500.0f;
 	// 판을 이것(6만 장)보다 많이 모으면 멈추고 "너무 많음(truncated)" 표시.
 	constexpr int32 MaxTrackedSurfaces = 60000;
 	// 150m 안에서 사라지는 것(풀 등)은 뺀다. 깜빡임은 멀리서 보일 때 생기는데, 그 전에 안 그려지는 건 원인이 될 수 없다.
 	// 풀 무더기는 수만 개씩 겹쳐 있어서 넣으면 진짜 문제가 묻힌다.
-	// Depth precision is the whole reason this artifact exists: a 2 cm separation
-	// reads as solid up close and collapses into a shimmer far away. Anything the
-	// renderer culls before that distance therefore cannot be the cause of a flicker
-	// seen across the map. Grass patches cull out at 80 m and overlap each other by
-	// the tens of thousands, which was enough to blow through MaxTrackedSurfaces and
-	// hide every long-range pair behind noise. Audit only what stays drawn.
+	// 이 문제가 생기는 이유는 전부 깊이 정밀도다: 2 cm 간격은 가까이선 멀쩡해 보이고
+	// 멀리선 깜빡임으로 무너진다. 그러니 그 거리 전에 렌더러가 안 그리는 것은
+	// 맵 건너편에서 보이는 깜빡임의 원인일 수 없다. 풀 덩어리는 80 m 에서 안 그려지고
+	// 수만 개가 서로 겹쳐 있어서, MaxTrackedSurfaces 를 넘겨 버리고
+	// 먼 거리의 진짜 겹침을 잡음 속에 묻어 버렸다. 계속 그려지는 것만 검사한다.
 	constexpr float MinAuditDrawDistanceCm = 15000.0f;
 
 	// 납작한 판 하나의 기록: 위에서 본 네모 범위(Min~Max), 윗면 높이, 이름.
@@ -1102,9 +1093,9 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 		const FVector Size = WorldBounds.GetSize();
 		const float MinHorizontal = FMath::Min(Size.X, Size.Y);
 		// 판처럼 납작한 것만(가로세로 1m 이상, 높이는 짧은 변의 절반 이하). 벽·컨테이너는 뺀다.
-		// Plate-like geometry only. A wall or a shipping container has a top face
-		// too, but it is not a surface another surface can fight with in a way the
-		// player sees; including them would bury the real hits in noise.
+		// 판 모양만 본다. 벽이나 컨테이너도 윗면은 있지만, 플레이어 눈에 보이게
+		// 다른 면과 깜빡일 면은 아니다. 넣으면 진짜 겹침이
+		// 잡음에 묻힌다.
 		if (MinHorizontal < 100.0f || Size.Z > MinHorizontal * 0.5f)
 			return;
 		if (++FlatSurfaceCount > MaxTrackedSurfaces)
@@ -1186,9 +1177,9 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 	}
 
 	// 판끼리 비교: 각 칸을 자기 자신 + 오른쪽·위쪽·대각선 칸과만 비교한다(칸 경계에 걸친 판도 잡고, 같은 짝을 두 번 세지 않게).
-	// A slab can straddle a cell boundary, so each cell is compared against itself
-	// and the three neighbours on its positive side. That covers every adjacent pair
-	// exactly once instead of finding each one twice from both directions.
+	// 판은 칸 경계에 걸칠 수 있으므로, 각 칸을 자기 자신과 + 방향의 이웃 세 칸과 비교한다.
+	// 그러면 이웃한 쌍을 양쪽에서 두 번 찾지 않고
+	// 딱 한 번씩만 본다.
 	const FIntPoint CompareOffsets[] = {
 		FIntPoint(0, 0), FIntPoint(1, 0), FIntPoint(0, 1), FIntPoint(1, 1)
 	};

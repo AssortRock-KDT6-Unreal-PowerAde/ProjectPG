@@ -27,11 +27,11 @@ void UMapRoadPlanner::PlanAccessRoads(
 	TSet<FIntPoint>& SupplementalRoadCells,
 	TMap<FIntPoint, uint8>& SupplementalRoadMasks)
 {
-	// The senior generator remains authoritative for gameplay regions. The design
-	// layer adds deterministic dirt access roads between the authored facilities so
-	// POIs do not read as isolated boxes in an otherwise traversable wilderness.
-	// These cells become part of the future visual TileManifest, not a mutation of
-	// AMapTile's server-owned type.
+	// 게임플레이 구역은 팀원이 만든 생성기가 계속 원본이다. 디자인 단계는 손작업 시설 사이에
+	// 매번 똑같이 정해지는 흙 진입로를 더해서, 어디든 다닐 수 있는 들판 속에서
+	// POI 가 외딴 상자처럼 보이지 않게 한다.
+	// 이 칸들은 나중 화면용 TileManifest 에 들어갈 뿐이고,
+	// 서버가 가진 AMapTile 의 타입을 바꾸지 않는다.
 	auto GetFacilityCenterCell = [](const FFacilityPlacement& Facility)
 	{
 		int32 SumX = 0;
@@ -76,27 +76,24 @@ void UMapRoadPlanner::PlanAccessRoads(
 			SupplementalRoadMasks.FindOrAdd(B) |= NorthConnection;
 		}
 	};
-	// Facilities used to be wired to one another with a nearest-neighbour spanning
-	// tree. That laid more road than the generator itself produced - roughly 131
-	// cells of facility-to-facility web against the authored network - and none of
-	// it served the route the player actually needs. Two outlying camps do not need
-	// a paved road between them: the ground is flat and walkable everywhere, so the
-	// web only buried the generator's deliberate road layout under service lanes.
+	// 예전에는 시설끼리 '가장 가까운 이웃' 신장 트리로 이었다. 그랬더니 생성기가 만든
+	// 도로보다 더 많은 길이 깔렸다 - 원래 도로망에 비해 시설끼리 잇는 길이 약 131칸 -
+	// 그리고 그중 플레이어가 실제로 필요한 경로는 하나도 없었다. 바깥 캠프 두 곳 사이에
+	// 포장도로는 필요 없다: 땅은 어디나 평평하고 걸을 수 있으니, 그 길들은 생성기가
+	// 일부러 짠 도로 배치를 정비용 길 밑에 묻어 버리기만 했다.
 	//
-	// What genuinely reads as wrong is a compound with no approach at all. So give
-	// each facility one short spur to the nearest road it can already reach, and
-	// leave anything beyond the budget unpaved. Spawn/Exit endpoint repair and the
-	// WarZone route guarantee below are untouched - those are the roads that make
-	// the raid playable.
+	// 진짜 어색해 보이는 건 들어가는 길이 아예 없는 시설이다. 그래서 시설마다 이미 닿을 수
+	// 있는 가장 가까운 도로까지 짧은 갈래길 하나만 주고, 거리 제한을 넘으면 포장하지 않는다.
+	// 아래의 시작/탈출 끝점 보수와 WarZone 경로 보장은 그대로다
+	// - 판을 플레이할 수 있게 만드는 길은 그쪽이다.
 	// 1) 시설 흙길: 시설 입구에서 가장 가까운 도로를 칸 하나씩 넓혀 가며 찾는다(너비 우선 탐색).
 	//    게임에서: 큰 건물 입구로 들어가는 짧은 흙길. 6칸(120m)보다 멀면 길을 안 깐다(맵이 흙길투성이가 되지 않게).
 	int32 FacilitySpurCount = 0;
 	int32 FacilitySpurCellCount = 0;
 	int32 FacilitySpurSkippedCount = 0;
-	// How far the skipped facilities actually were. Raising MaxFacilitySpurCells
-	// blindly re-creates the old over-roading problem (the facility-to-facility
-	// spanning tree once laid 131 cells against a 39-cell authored network), so the
-	// budget only moves once these numbers say what it would actually cost.
+	// 건너뛴 시설들이 실제로 얼마나 멀었는지. MaxFacilitySpurCells 를 무작정 올리면
+	// 예전의 길 과잉 문제가 다시 생긴다(시설끼리 잇는 신장 트리가 원래 도로망 39칸에
+	// 131칸을 깐 적이 있다). 그래서 이 숫자로 실제 비용을 확인한 뒤에만 제한값을 바꾼다.
 	int32 NearestUnpavedCells = TNumericLimits<int32>::Max();
 	int32 FarthestUnpavedCells = 0;
 	int32 UnpavedCellsTotal = 0;
@@ -108,8 +105,7 @@ void UMapRoadPlanner::PlanAccessRoads(
 		};
 		for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
 		{
-			// Elevated facilities terminate their route at the foot of the ramp, not
-			// underneath the building in the reserved footprint.
+			// 높이 올린 시설은 경로를 차지 칸 안 건물 밑이 아니라 경사로 발치에서 끝낸다.
 			const FIntPoint StartCell = Facility.AccessCell != FIntPoint::ZeroValue
 				? Facility.AccessCell
 				: GetFacilityCenterCell(Facility);
@@ -119,9 +115,9 @@ void UMapRoadPlanner::PlanAccessRoads(
 				continue;
 			}
 
-			// Breadth-first so the spur is the shortest legal approach rather than a
-			// meander; a service road that wanders 40 m to reach a road 3 cells away
-			// is exactly the noise this pass exists to remove.
+			// 너비 우선 탐색이라 갈래길이 구불구불하지 않고 가장 짧은 길이 된다.
+			// 3칸 떨어진 도로에 닿으려고 40 m 를 돌아가는 정비용 길이야말로
+			// 이 단계가 없애려는 잡음이다.
 			TArray<FIntPoint> OpenCells;
 			TMap<FIntPoint, FIntPoint> ParentByCell;
 			TMap<FIntPoint, int32> DepthByCell;
@@ -139,9 +135,9 @@ void UMapRoadPlanner::PlanAccessRoads(
 			{
 				const FIntPoint Current = OpenCells[ReadIndex++];
 				const int32 CurrentDepth = DepthByCell[Current];
-				// The budget is applied to the *result*, not to the search. Cutting the
-				// search short reported "no road" for facilities that had one just past
-				// the limit, which hid how far off the network they really were.
+				// 거리 제한은 탐색이 아니라 *결과*에 건다. 탐색을 일찍 끊었더니 제한 바로 밖에
+				// 도로가 있는 시설도 "도로 없음"으로 나와서, 실제로 도로망에서 얼마나 먼지
+				// 가려졌다.
 				if (CurrentDepth >= Map->MaxFacilitySpurSearchCells)
 					continue;
 
@@ -172,8 +168,7 @@ void UMapRoadPlanner::PlanAccessRoads(
 
 			if (!bFoundRoad)
 			{
-				// No road anywhere within the search horizon - a placement problem,
-				// not a budget one.
+				// 탐색 범위 안 어디에도 도로가 없다 - 거리 제한 문제가 아니라 배치 문제다.
 				++FacilitySpurSkippedCount;
 				++UnreachableFacilityCount;
 				continue;
@@ -182,11 +177,10 @@ void UMapRoadPlanner::PlanAccessRoads(
 			const int32 RoadDistanceCells = DepthByCell.FindRef(FoundRoad);
 			if (RoadDistanceCells > Map->MaxFacilitySpurCells)
 			{
-				// Deliberate: a compound this far from the network stays unpaved
-				// rather than dragging a long service lane across open terrain.
-				// Named because it matters *which* ones these are: satellite camps,
-				// barracks and the trench sit inside the WarZone where no road runs
-				// by design, while a stranded Downtown or Factory is a real fault.
+				// 일부러 이렇게 둔다: 도로망에서 이만큼 먼 시설은 빈 땅을 가로질러 긴 길을 끌어오지 않고
+				// 포장 없이 둔다. 이름을 남기는 건 *어떤* 시설인지가 중요해서다: 주변 거점, 막사,
+				// 참호는 원래 도로가 없는 WarZone 안에 있지만, Downtown 이나 Factory 가 고립되면
+				// 진짜 문제다.
 				UE_LOG(LogTemp, Display,
 					TEXT("  unpaved facility: set=%s cell=(%d,%d) road_cells=%d"),
 					*StaticEnum<EFacilityVisualSet>()->GetNameStringByValue(
@@ -243,10 +237,10 @@ void UMapRoadPlanner::PlanAccessRoads(
 		ExtraSpawnCells = Map->SpawnRegionPlanner->GetExtraSpawnCells();
 	}
 
-	// The facility tree above does not include server-authored Spawn/Exit cells.
-	// Repair each endpoint to the nearest real road through valid non-facility
-	// cells, otherwise one seed can leave a spawn pad visually stranded even
-	// though the other endpoints happen to touch the generated road network.
+	// 위의 시설 길은 서버가 정한 시작/탈출 칸을 포함하지 않는다. 각 끝점을
+	// 시설이 아닌 유효한 칸을 지나 가장 가까운 실제 도로까지 이어 준다. 안 그러면
+	// 다른 끝점들은 우연히 도로망에 닿아도, 어떤 시드에서는 시작 지점 하나가
+	// 길 없이 동떨어져 보일 수 있다.
 	// 2) 시작점·출구 흙길: 시작점/출구에서 가장 가까운 도로까지 잇는다.
 	//    게임에서: 시작하자마자 길이 안 보여서 헤매는 일이 없게.
 	int32 EndpointCount = 0;
@@ -336,14 +330,13 @@ void UMapRoadPlanner::PlanAccessRoads(
 		TEXT("Endpoint access road repair: endpoints=%d repaired=%d failed=%d"),
 		EndpointCount, RepairedEndpointCount, FailedEndpointCount);
 
-	// A spawn touching an arbitrary nearby road is not sufficient: that road can
-	// still belong to a disconnected outer branch.  Build one deterministic
-	// shortest visual route from every spawn to the nearest WarZone boundary.
-	// This does not change the server-owned tile types; it only guarantees that
-	// the client-side design manifest has a continuous readable approach route.
-	// Exits need the same guarantee. Covering only spawns left exit routes ending in
-	// a dead-end branch that never reached the centre, so a player who found an exit
-	// pad had no road leading back toward the WarZone.
+	// 시작 지점이 근처 아무 도로에 닿는 것만으론 부족하다: 그 도로가 끊어진 바깥 가지일 수 있다.
+	// 그래서 모든 시작 지점에서 가장 가까운 WarZone 경계까지 매번 똑같은 최단 경로를 하나 만든다.
+	// 서버가 가진 타일 타입은 바꾸지 않고, 클라이언트 쪽 디자인 manifest 에
+	// 끊기지 않고 눈에 잘 보이는 접근로가 있다는 것만 보장한다.
+	// 탈출 지점도 같은 보장이 필요하다. 시작 지점만 챙겼더니 탈출 경로가 중심까지 안 가는
+	// 막다른 가지로 끝나서, 탈출 지점을 찾은 플레이어가 WarZone 쪽으로
+	// 돌아가는 길이 없었다.
 	// 3) 시작점·출구 → 워존 흙길: 가까운 도로가 맵 바깥쪽 막다른 길일 수도 있으니, 워존까지 이어지는 길을 하나 보장한다.
 	//    게임에서: 시작점에서 길만 따라가면 한가운데 전투 지역에 도착한다.
 	int32 SpawnRouteCount = 0;

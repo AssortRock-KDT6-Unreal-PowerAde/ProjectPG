@@ -1,4 +1,4 @@
-﻿// Visual layer for the procedural map: turns the logical AMapTile grid into tiles, facilities and the border lake.
+﻿// 절차 맵의 화면 담당: 논리 칸(AMapTile) 격자를 보고 타일·시설·가장자리 호수를 실제로 깔아 준다.
 
 #pragma once
 
@@ -63,9 +63,9 @@ enum class ETileDesignVisual : uint8
 	Spawn,
 	Exit,
 	Obstacle,
-	// Border lake. The design doc lists water among the Maze's impassable terrain,
-	// so these cells are deliberately not walkable: the bank at the shoreline is the
-	// barrier, and VerifyTraversableElevation excludes them for that reason.
+	// 가장자리 호수. 기획서에서 물은 미로의 '못 지나가는 지형'에 들어가므로
+	// 이 칸들은 일부러 걸을 수 없게 둔다: 물가의 둑이 곧 벽이고,
+	// 그래서 VerifyTraversableElevation 도 이 칸들을 검사에서 뺀다.
 	Water
 };
 
@@ -83,26 +83,26 @@ struct FTileDesignPlacement
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	ETileDesignVisual Visual = ETileDesignVisual::OpenGround;
 
-	// N=1, E=2, S=4, W=8 in design-world coordinates.
+	// N=1, E=2, S=4, W=8 (디자인 세계 좌표 기준).
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	uint8 ConnectionMask = 0;
 
-	// True for deterministic design-layer access roads that connect large POIs.
-	// These use the lightweight road builder so a long corridor does not repeat
-	// the fully dressed 1x1 authored showcase tile every 20 metres.
+	// 큰 거점(POI)끼리 잇는, 매번 똑같이 정해지는 디자인용 진입로이면 true.
+	// 이 길은 가벼운 도로 빌더를 쓴다. 그래야 긴 길에 꾸밈이 가득한
+	// 1x1 전시용 타일이 20 m 마다 반복되지 않는다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bSupplementalAccessRoad = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 RotationQuarterTurns = 0;
 
-	// Stable authored combat-layout selection (0..3). This is serialized in the
-	// future TileManifest instead of being recomputed differently per client.
+	// 고정된 손작업 전투 배치 선택값(0..3). 클라이언트마다 따로 다시 계산하지 않도록
+	// 나중에 TileManifest 에 저장해 보낸다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	uint8 LayoutVariant = 0;
 
-	// Per-cell deterministic prop/dressing seed. The server manifest sends this
-	// value directly; clients never use local time or recompute it differently.
+	// 칸마다 정해지는 소품/꾸미기 시드. 서버 manifest 가 이 값을 그대로 보내고,
+	// 클라이언트는 자기 시간값을 쓰거나 따로 다시 계산하지 않는다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int64 LocalSeed = 0;
 
@@ -137,8 +137,8 @@ struct FLevelDesignPoint
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FName PointId = NAME_None;
 
-	// Data-only contract consumed later by the authoritative spawn/loot system.
-	// No replicated gameplay actor is created by the level designer.
+	// 나중에 서버 쪽 스폰/전리품 시스템이 읽어 가는 데이터 약속일 뿐이다.
+	// 레벨 디자인 단계에서는 복제되는 게임플레이 액터를 만들지 않는다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FName ArchetypeId = NAME_None;
 
@@ -178,15 +178,15 @@ struct FFacilityPlacement
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int64 LocalSeed = 0;
 
-	// Height and access are part of the deterministic facility manifest.  Clients
-	// must not infer these from local traces or asset bounds.
+	// 높이와 출입구는 매번 똑같이 정해지는 시설 manifest 의 일부다. 클라이언트가
+	// 자기 쪽 트레이스나 에셋 크기로 따로 추측하면 안 된다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	EFacilityElevationProfile ElevationProfile = EFacilityElevationProfile::Ground;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float BaseElevationCm = 0.0f;
 
-	// Occupied edge cell, adjacent ground cell, and outward cardinal direction.
+	// 자리 안쪽 가장자리 칸, 그 옆 땅 칸, 바깥을 향하는 동서남북 방향.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FIntPoint EntranceCell = FIntPoint::ZeroValue;
 
@@ -196,8 +196,8 @@ struct FFacilityPlacement
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FIntPoint EntranceDirection = FIntPoint(0, -1);
 
-	// The authored facility level selected for this logical reservation.
-	// A soft reference keeps the heavy level unloaded during grid generation.
+	// 이 논리 자리에 쓰기로 고른, 손으로 만든 시설 레벨.
+	// 소프트 레퍼런스라서 격자를 만드는 동안 무거운 레벨을 불러오지 않는다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TSoftObjectPtr<UWorld> FacilityLevel;
 
@@ -237,14 +237,14 @@ protected:
 
 private:
 	void TryReserveFootprint();
-	// Entrance cell / outward cardinal direction for every ramp-and-stair approach a
-	// facility owns. Shared by the terrain builder and VerifyTraversableElevation.
+	// 시설이 가진 경사로+계단 진입로마다 입구 칸 / 바깥 방향.
+	// 땅 빌더와 VerifyTraversableElevation 이 같이 쓴다.
 	void GetFacilityAccessEdges(
 		const FFacilityPlacement& Placement,
 		TArray<TPair<FIntPoint, FIntPoint>>& OutAccessEdges) const;
 	float GetSurfaceElevationForCell(const FIntPoint& Cell) const;
-	// Chooses a shore mesh variant and quarter-turn per land cell touching the lake.
-	// Value is (variant index, quarter turns).
+	// 호수에 닿는 땅 칸마다 물가 메시 모양과 90도 회전 횟수를 고른다.
+	// 값은 (모양 번호, 90도 회전 횟수).
 	void BuildShoreTransitionMap(
 		const TSet<FIntPoint>& LakeCells,
 		TMap<FIntPoint, TPair<int32, int32>>& OutShoreTileByCell) const;
@@ -356,7 +356,7 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> TransitionGroundHISM;
 
-	// Border lake: a sunken bed and the water sheet above it.
+	// 가장자리 호수: 꺼진 바닥과 그 위의 물 판.
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> LakeBedHISM;
 
@@ -369,26 +369,25 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> RoadSurfaceHISM;
 
-	// Sculpted multi-cell ground features. Each mesh is authored flat around its whole
-	// perimeter and only curves inside, so it drops into reserved cells without any
-	// edge matching: every neighbouring tile still meets it at the shared surface.
+	// 손으로 깎은 여러 칸짜리 땅 모양. 메시마다 둘레 전체는 평평하고 안쪽만 휘게 만들어서
+	// 가장자리를 맞출 필요 없이 예약된 칸에 그냥 놓는다:
+	// 이웃 타일은 모두 공통 높이에서 만난다.
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> TerrainFeatureHISMs;
 
-	// Dressing for those features. Terrain cells carry no tile actor, so these are the
-	// only props on them and they are sampled straight off the authored height field.
+	// 그 땅 모양 위의 꾸미기. 땅 모양 칸에는 타일 액터가 없어서 이것들이 유일한 소품이고,
+	// 손으로 만든 높이 정보에서 바로 높이를 읽어 놓는다.
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> TerrainRockHISM;
 
-	// Rocks and reeds standing in the shallows, used to break up the cell-aligned
-	// waterline.
+	// 얕은 물에 세우는 바위·갈대. 칸 따라 반듯한 물가 선을 흐트러뜨리는 용도.
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> ShoreRockHISM;
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> ShoreReedHISM;
 
-	// Straight / outer corner / inner corner, in that order.
+	// 일자 / 바깥 모서리 / 안쪽 모서리, 이 순서.
 	UPROPERTY(VisibleAnywhere)
 	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> ShoreTransitionHISMs;
 
@@ -398,22 +397,21 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> TerrainBushHISM;
 
-	// One invisible static surface feeds Recast. Per-cell visuals/collision stay
-	// on HISM, avoiding thousands of navigation geometry exports.
+	// 안 보이는 Static 바닥 하나가 Recast 의 입력이다. 칸마다의 보이는 모양·충돌은
+	// HISM 에 두어서, 길찾기용 모양을 수천 개 뽑아내지 않게 한다.
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UStaticMeshComponent> NavigationFloor;
 
-	// A small number of code-authored platform/ramp/stair components provide true
-	// macro elevation and navigation without turning every 20m visual cell into a
-	// navigation source.
+	// 코드로 만든 소수의 단상/경사로/계단 컴포넌트가 큰 높이차와 길찾기를 맡는다.
+	// 그래야 20 m 칸 하나하나가 다 길찾기 입력이 되지 않는다.
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> ElevatedTerrainComponents;
 
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UNavigationInvokerComponent> NavigationInvoker;
 
-	// Two small local obstacle sets keep Recast aware of tactical walls without
-	// exporting all 2,000 runtime tiles at once.
+	// 작은 지역 장애물 묶음 두 개로 Recast 가 전술용 벽을 알게 한다.
+	// 런타임 타일 2,000개를 한꺼번에 길찾기용으로 뽑아내지 않기 위해서다.
 	UPROPERTY(VisibleAnywhere, Category = "Design World")
 	TObjectPtr<UTacticalTileNavModifierComponent> CenterNavigationBlockers;
 
@@ -443,16 +441,15 @@ private:
 
 	bool bLevelDesignPointsBuilt = false;
 
-	// Cells across the generated grid, measured from the tiles the logical layer
-	// actually produced rather than assumed. UMapGeneratorComponent::_mapSize is
-	// editable, so nothing downstream may hardcode a 45-cell / 900 m world.
+	// 만들어진 격자의 칸 수. 짐작하지 않고 논리 단계가 실제로 만든 타일에서 잰다.
+	// UMapGeneratorComponent::_mapSize 는 바꿀 수 있으므로, 뒤 단계 어디서도
+	// 45칸 / 900 m 세계를 고정값으로 쓰면 안 된다.
 	UPROPERTY(VisibleInstanceOnly, Category = "Design Placements")
 	int32 GridCellSpan = 45;
 
-	// Where the border lake ended up this raid, in cell coordinates. The corner is
-	// chosen against the road network per seed, so anything that wants to face the
-	// water - the hamlet's boat-landing spawn point - must read this rather than
-	// assume a direction.
+	// 이번 판에 가장자리 호수가 놓인 곳(칸 좌표). 어느 모서리일지는 시드마다 도로망을 보고
+	// 정하므로, 물을 바라봐야 하는 것 - 마을의 보트 상륙 시작 지점 같은 것 - 은
+	// 방향을 짐작하지 말고 이 값을 읽어야 한다.
 	UPROPERTY(VisibleInstanceOnly, Category = "Design Placements")
 	FVector2D BorderLakeCentreCell = FVector2D::ZeroVector;
 
@@ -468,68 +465,65 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Design Placements")
 	bool bUseRuntimeBlueprintTiles = true;
 
-	// Off by default: the audit walks every instance in the finished world. Turn it
-	// on when hunting z-fighting.
+	// 기본은 꺼짐: 이 검사는 완성된 세계의 모든 인스턴스를 다 돈다.
+	// z-fighting(겹쳐서 깜빡임)을 찾을 때 켠다.
 	UPROPERTY(EditAnywhere, Category = "Design Placements")
 	bool bRunCoplanarSurfaceAudit = false;
 
-	// Ring the map with the Downtown pack's background-mountain mesh so the world
-	// reads as a basin: tile map on the valley floor, mountains on every horizon.
-	// Purely visual and deliberately collision-free - leaving the tiles still ends
-	// in a fall, exactly as before. Placement is derived from the raid seed, so
-	// every client computes the identical ring with nothing to replicate.
+	// Downtown 팩의 배경 산 메시로 맵을 빙 둘러 세계가 분지처럼 보이게 한다:
+	// 타일 맵은 골짜기 바닥, 사방 지평선엔 산.
+	// 보이기만 하고 일부러 충돌이 없다 - 타일 밖으로 나가면 예전처럼 떨어진다.
+	// 배치는 판의 시드로 정해지므로 모든 클라이언트가 복제할 것 없이
+	// 똑같은 산 고리를 계산한다.
 	UPROPERTY(EditAnywhere, Category = "Design Placements")
 	bool bBuildBorderMountains = true;
 
-	// Spawn the hand-authored facility Blueprint wherever one exists instead of the
-	// code-built AProceduralFacilityActor. Turn off to put every facility back on
-	// the procedural builder in one step.
+	// 손으로 만든 시설 블루프린트가 있으면 코드로 만드는 AProceduralFacilityActor 대신 그걸 놓는다.
+	// 끄면 모든 시설이 한 번에 코드 빌더로 돌아간다.
 	UPROPERTY(EditAnywhere, Category = "Design Placements")
 	bool bUseAuthoredFacilityBlueprints = true;
 
-	// How far a facility may reach for a paved approach, in 20 m cells. A facility
-	// with no road inside this budget is left unpaved on purpose. Set to 0 to drop
-	// facility spurs entirely and keep only the Spawn/Exit and WarZone routes.
+	// 시설이 포장된 진입로를 찾아 뻗을 수 있는 거리(20 m 칸 단위). 이 거리 안에 도로가 없는
+	// 시설은 일부러 포장 안 한 채로 둔다. 0 이면 시설 갈래길을 아예 없애고
+	// 시작/탈출 길과 WarZone 길만 남긴다.
 	UPROPERTY(EditAnywhere, Category = "Design Placements", meta = (ClampMin = "0", ClampMax = "20"))
 	int32 MaxFacilitySpurCells = 6;
 
-	// How far the spur search looks before giving up, independent of the budget
-	// above. The search has to run past the budget or the log cannot report how far
-	// the unpaved facilities actually were - and without that number the budget can
-	// only be guessed at. Purely diagnostic reach; it never lays road by itself.
+	// 갈래길 탐색이 포기하기 전까지 보는 거리. 위 거리 제한과는 따로다. 탐색이 제한보다 더
+	// 멀리 봐야 포장 안 된 시설이 실제로 얼마나 멀었는지 로그에 남길 수 있다
+	// - 그 숫자가 없으면 제한값을 감으로만 정해야 한다.
+	// 진단용 거리일 뿐이고, 이 값만으로 길을 깔지는 않는다.
 	UPROPERTY(EditAnywhere, Category = "Design Placements", meta = (ClampMin = "1", ClampMax = "40"))
 	int32 MaxFacilitySpurSearchCells = 20;
 
-	// How hard facility placement is pulled toward the road network, against its
-	// thematic target position. Only distance past MaxFacilitySpurCells is charged,
-	// so 0 restores the old target-only behaviour and larger values will trade a
-	// district's intended part of the map for a spot beside a road.
+	// 시설 배치가 원래 테마상 목표 위치를 두고 도로망 쪽으로 얼마나 끌려가는지.
+	// MaxFacilitySpurCells 를 넘는 거리만 계산에 넣으므로, 0 이면 예전처럼 목표 위치만 보고,
+	// 값이 클수록 구역이 원래 있어야 할 자리를 내주고 도로 옆 자리를 택한다.
 	UPROPERTY(EditAnywhere, Category = "Design Placements", meta = (ClampMin = "0", ClampMax = "8"))
 	int32 FacilityRoadProximityWeight = 1;
 
-	// Radius of the border lake in 20 m cells, measured from a point just outside one
-	// map corner. 0 disables the lake entirely: no water cells, no shoreline meshes,
-	// and the rural settlement falls back to an inland site.
+	// 가장자리 호수의 반지름(20 m 칸 단위). 맵 한 모서리 바로 바깥 점에서 잰다.
+	// 0 이면 호수를 아예 끈다: 물 칸도, 물가 메시도 없고,
+	// 시골 마을은 내륙 자리로 대신 간다.
 	//
-	// Defaulted off. The lake reads well from above but marrying a height change to a
-	// 20 m tile grid keeps producing new seams at the waterline, and the map is in a
-	// known-good state without it. Set this to 9 to work on it again - the shoreline
-	// meshes need PG.BuildShoreMeshes to have been run and saved first.
+	// 기본은 꺼짐. 위에서 보면 호수가 보기 좋지만, 20 m 타일 격자에 높이 변화를 맞추다 보니
+	// 물가에서 새 이음새가 계속 생겼고, 호수 없이도 맵은 문제없이 돌아가는 상태다.
+	// 다시 작업하려면 9 로 두면 된다 - 그 전에 PG.BuildShoreMeshes 를
+	// 돌려서 물가 메시를 저장해 둬야 한다.
 	UPROPERTY(EditAnywhere, Category = "Design Placements", meta = (ClampMin = "0.0", ClampMax = "14.0"))
 	float BorderLakeRadiusCells = 0.0f;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AActor>> SpawnedRuntimeTiles;
 
-	// Runtime tile Blueprints are converted into mesh-keyed HISM batches after
-	// deterministic construction. This keeps the visual result while avoiding
-	// roughly two thousand persistent tile actors and tens of thousands of scene
-	// components on every client.
+	// 런타임 타일 블루프린트는 정해진 순서로 다 만든 뒤 메시별 HISM 묶음으로 바꾼다.
+	// 보이는 결과는 그대로 두면서, 클라이언트마다 계속 남는 타일 액터 약 2천 개와
+	// 씬 컴포넌트 수만 개를 없앤다.
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> RuntimePackedVisualHISMs;
 
-	// One local visual Level Instance per manifest facility placement. The same
-	// authored facility map may appear several times with different rotations.
+	// manifest 시설 배치 하나마다 이 컴퓨터에서만 보이는 Level Instance 하나.
+	// 같은 손작업 시설 맵이 회전만 다르게 여러 번 나올 수 있다.
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<ULevelStreamingDynamic>> FacilityDesignLevelInstances;
 

@@ -77,9 +77,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 	Map->RuntimePackedVisualHISMs.Reset();
 	BuildElevatedFacilityTerrain();
 
-	// The reviewed LD_Tile maps are packed into reusable Blueprint classes by
-	// PG.BuildPackedTileBlueprints. Spawning those classes keeps the authored
-	// meshes/materials/collision while avoiding thousands of streamed UWorlds.
+	// 검토가 끝난 LD_Tile 맵들은 PG.BuildPackedTileBlueprints 로 재사용 블루프린트 클래스에 담아 둔다.
+	// 이 클래스를 스폰하면 손작업 메시/머티리얼/충돌은 그대로 두면서
+	// 스트리밍 UWorld 수천 개를 피할 수 있다.
 	// 타일 BP 는 DA_MapAssets(보이는 것 목록)에서 고른다. 예전엔 여기 경로 24줄이 글자로 박혀 있었다.
 	const UMapAssetSet& Assets = Map->GetMapAssets();
 	const TSoftClassPtr<AActor>& CornerPath = Assets.RoadCornerTile;
@@ -136,8 +136,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		Actor->GetComponents(PrimitiveComponents);
 		for (UPrimitiveComponent* Component : PrimitiveComponents)
 		{
-			// Packed tile Blueprints retain intentionally hidden alternate props.
-			// Hidden meshes must never leave an invisible gameplay collision behind.
+			// 담아 둔 타일 블루프린트에는 일부러 숨긴 대체용 소품이 남아 있다.
+			// 숨긴 메시가 안 보이는 게임플레이 충돌을 남기면 절대 안 된다.
 			if (IsValid(Component) && !Component->IsVisible())
 				Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
@@ -162,8 +162,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 			{
 				continue;
 			}
-			// Four 10x10 m packed slabs form the 20x20 m base. Only replace that
-			// terrain material; road lanes, roofs and authored industrial floors stay.
+			// 10x10 m 판 네 개가 20x20 m 바닥을 이룬다. 그 지형 머티리얼만 바꾸고,
+			// 도로 차선·지붕·손작업 공업 바닥은 그대로 둔다.
 			Component->SetMaterial(0, UnifiedGround);
 		}
 	};
@@ -193,9 +193,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				const bool bGroundMaterial = IsValid(Material)
 					&& (Material->GetPathName().Contains(TEXT("MI_RoadStraight_Ground"))
 						|| Material->GetPathName().Contains(TEXT("MI_RuntimeGround_NatureUnified")));
-				// Runtime tactical-tile actors use SM_Floor_2x2 only as their old base
-				// terrain/road slab.  Facilities are handled separately and never enter
-				// this lambda, so hiding every such slab is both safe and deterministic.
+				// 런타임 전술 타일 액터는 SM_Floor_2x2 를 예전 바닥 지형/도로판으로만 쓴다.
+				// 시설은 따로 처리되어 이 람다에 절대 들어오지 않으므로,
+				// 이런 판을 전부 숨겨도 안전하고 매번 결과가 같다.
 				bIsTerrainUnderlay |= bPackedGroundMesh || bGroundMaterial;
 			}
 
@@ -228,10 +228,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 			int32 EndCullDistance = 0;
 			if (const UInstancedStaticMeshComponent* SourceInstances = Cast<UInstancedStaticMeshComponent>(Source))
 				SourceInstances->GetCullDistances(StartCullDistance, EndCullDistance);
-			// Authored Fab props are often plain StaticMeshComponents and therefore
-			// arrive with infinite draw distance. Once packed into the runtime HISM,
-			// apply foliage-specific culling while preserving the rare Pivot Painter
-			// hero shrubs and their wind close to the player.
+			// Fab 에서 가져온 손작업 소품은 보통 평범한 StaticMeshComponent 라서 그리는 거리가 무한이다.
+			// 런타임 HISM 에 담은 뒤 풀/나무용 컬링 거리를 준다. 단, 드물게 있는
+			// Pivot Painter 주연급 덤불과 플레이어 근처의 바람 흔들림은 그대로 둔다.
 			const FString MeshPath = Mesh->GetPathName();
 			const bool bIsFreeShrub = MeshPath.Contains(TEXT("/GV_FreeShrubsPack/"));
 			const bool bIsRuntimeGrass = MeshPath.Contains(TEXT("/Foliage/Grass_Patch"))
@@ -245,8 +244,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 			{
 				if (!bIsFreeShrub || !IsValid(SourceMaterial) || !IsValid(RuntimeHeroShrubMaterial))
 					return SourceMaterial;
-				// Preserve bark while replacing the neon, high-amplitude Pivot Painter
-				// leaf material with the local dark, nearly-static gameplay variant.
+				// 나무껍질은 그대로 두고, 형광색에 크게 흔들리는 Pivot Painter 잎 머티리얼만
+				// 이 프로젝트의 어둡고 거의 안 움직이는 게임플레이용 버전으로 바꾼다.
 				return SourceMaterial->GetPathName().Contains(TEXT("Leaf"))
 					? RuntimeHeroShrubMaterial
 					: SourceMaterial;
@@ -254,9 +253,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 			const bool bPackedEvaluateWorldPositionOffset = Source->bEvaluateWorldPositionOffset && !bIsFreeShrub;
 			if (bIsRuntimeGrass)
 			{
-				// Dense grass remains unchanged at player distance; only far-away cells
-				// stop drawing earlier. This keeps the Tarkov-like silhouette without
-				// submitting tens of thousands of invisible grass cards.
+				// 빽빽한 풀은 플레이어 거리에서는 그대로다. 먼 칸만 일찍 그리기를 멈춘다.
+				// 그러면 타르코프 같은 실루엣은 유지하면서
+				// 안 보이는 풀 카드 수만 장을 그리지 않는다.
 				StartCullDistance = 1800;
 				EndCullDistance = 6000;
 			}
@@ -363,9 +362,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				if (!Component->GetInstanceTransform(InstanceIndex, InstanceTransform, false)
 					|| InstanceTransform.GetScale3D().Z > 0.1f)
 					continue;
-				// Packed road slabs started almost coplanar with the common 20 cm
-				// terrain surface. Keep their centre at least 25 cm high: this leaves
-				// a small, stable render separation without creating a gameplay step.
+				// 담아 둔 도로판은 처음엔 공통 지형 높이 20 cm 와 거의 같은 높이에서 시작했다.
+				// 중심을 최소 25 cm 높이로 유지한다: 그리기 겹침은 안정적으로 피하면서
+				// 게임 중에 느껴지는 턱은 만들지 않는다.
 				FVector Translation = InstanceTransform.GetTranslation();
 				Translation.Z = FMath::Max(Translation.Z, 25.0f);
 				InstanceTransform.SetTranslation(Translation);
@@ -389,12 +388,10 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				FTransform InstanceTransform;
 				if (!Component->GetInstanceTransform(InstanceIndex, InstanceTransform, false))
 					continue;
-				// The EXIT stencil is authored 2 cm above the terrain datum, which is
-				// where the road surface used to sit, and a flat 8 cm lift was enough
-				// to clear it. Raising the road to RoadSurfaceLiftCm put the stencil
-				// back exactly on the asphalt - the audit caught 16 m2 of it at a
-				// 0.00 cm gap. Derive the lift from the road height instead of a
-				// constant so the two cannot drift apart again.
+				// EXIT 바닥 글씨는 지형 기준 높이보다 2 cm 위에 만들어져 있다 - 예전 도로 표면 높이다 -
+				// 그래서 예전엔 8 cm 만 올려도 충분했다. 도로를 RoadSurfaceLiftCm 로 올리자 글씨가 다시
+				// 아스팔트와 딱 같은 높이가 됐다 - 검사에서 간격 0.00 cm 인 면이 16 m2 나왔다.
+				// 그래서 고정값 대신 도로 높이에서 올릴 양을 계산해, 둘이 다시 어긋나지 않게 한다.
 				constexpr float AuthoredMarkingHeightCm = 2.0f;
 				constexpr float MarkingClearanceCm = 8.0f;
 				const float MarkingLiftCm =
@@ -438,8 +435,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		const int32 ClusterSize,
 		const uint32 BandSalt)
 	{
-		// Offset by half a cluster so the central 3x3 facility and its immediate
-		// apron belong to one coherent patch instead of straddling four quadrants.
+		// 묶음 반 개만큼 밀어서, 가운데 3x3 시설과 바로 옆 마당이
+		// 네 구역에 걸치지 않고 한 덩어리에 들어가게 한다.
 		const int32 ClusterX = FloorDivide(DeltaX + ClusterSize / 2, ClusterSize);
 		const int32 ClusterY = FloorDivide(DeltaY + ClusterSize / 2, ClusterSize);
 		return HashCombine(
@@ -462,15 +459,13 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
 	{
 		const uint32 StableHash = Placement.LocalSeed;
-		// Lake cells get no tile actor at all. Their ground is 2.8 m under the water
-		// surface, so a spawned tile would put its cars, containers and walls in open
-		// water - which is exactly how the first pass looked.
+		// 호수 칸에는 타일 액터를 아예 두지 않는다. 그 땅은 수면보다 2.8 m 아래라,
+		// 타일을 스폰하면 차·컨테이너·벽이 물 한가운데 놓인다 - 첫 시도가 딱 그렇게 보였다.
 		//
-		// Shore cells are skipped for the same reason: every tile places its props
-		// against a flat Z=20 surface, but a shore cell's ground is the generated
-		// beach mesh sloping away underneath. The first pass left pine trees and
-		// boulders standing in mid-air over the slope. The beach is meant to be open
-		// anyway - the shore rock and reed scatter dresses it.
+		// 물가 칸도 같은 이유로 건너뛴다: 모든 타일은 평평한 Z=20 면에 소품을 놓는데,
+		// 물가 칸의 땅은 그 아래로 기울어진 모래사장 메시다. 첫 시도에서는 소나무와
+		// 큰 바위가 비탈 위 허공에 떠 있었다. 모래사장은 원래 트인 곳으로 두려던 것이고,
+		// 물가 바위·갈대 흩뿌리기가 꾸며 준다.
 		if (Placement.Visual == ETileDesignVisual::Water
 			|| ShoreCellsForTileSkip.Contains(Placement.GridCell))
 		{
@@ -504,9 +499,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		case ETileDesignVisual::NatureDitch: Kind = ETacticalTileKind::NatureDitch; ClassPath = NatureDitchPath; break;
 		case ETileDesignVisual::WarZoneGround:
 		{
-			// WarZone is one large logical region, not the single 3x3 anchor building.
-			// Convert it into deterministic concentric combat bands: an unmistakably
-			// industrial core, a mixed firefight belt and a natural outer buffer.
+			// WarZone 은 3x3 중심 건물 하나가 아니라 하나의 큰 논리 구역이다.
+			// 이를 매번 똑같은 동심원 전투 띠로 바꾼다: 누가 봐도 공업 지대인 중심,
+			// 섞인 교전 띠, 자연스러운 바깥 완충 지대.
 			const int32 DeltaX = Placement.GridCell.X - WarZoneCoreCell.X;
 			const int32 DeltaY = Placement.GridCell.Y - WarZoneCoreCell.Y;
 			const int32 DistanceSquared = DeltaX * DeltaX + DeltaY * DeltaY;
@@ -535,9 +530,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 					else if (FeatureRoll < 96) { Kind = ETacticalTileKind::WarZoneWarehouse; ClassPath = WarehousePath; WarZoneVisualTag = TEXT("WZ_AuthoredWarehouse"); }
 					else { Kind = ETacticalTileKind::Ruins; ClassPath = RuinsPath; WarZoneVisualTag = TEXT("WZ_Ruins"); }
 				}
-				// The combat core must read as a broad industrial yard, not a maze of
-				// one-cell wall fragments.  Feature cells still provide containers,
-				// tanks and authored yards; only a small minority become ruins.
+				// 전투 중심은 칸 하나짜리 벽 조각이 얽힌 미로가 아니라 넓은 공업 마당으로 보여야 한다.
+				// 특징 칸은 여전히 컨테이너, 탱크, 손작업 마당을 갖고,
+				// 폐허가 되는 칸은 아주 일부뿐이다.
 				else if (DetailRoll < 88) { Kind = ETacticalTileKind::OpenGround; ClassPath = WarZoneIndustrialOpenPath; WarZoneVisualTag = TEXT("WZ_IndustrialOpen"); }
 				else { Kind = ETacticalTileKind::Ruins; ClassPath = RuinsPath; WarZoneVisualTag = TEXT("WZ_Ruins"); }
 			}
@@ -598,10 +593,10 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		default: break;
 		}
 
-		// Long POI access roads deliberately use the C++ tactical road builder.
-		// The packed LD_Tile roads remain on generator-authored road cells and at
-		// landmarks, while access corridors get clean shoulders plus sparse cover.
-		// This prevents walls, barrels and cars from repeating every single cell.
+		// POI 로 가는 긴 진입로는 일부러 C++ 전술 도로 빌더를 쓴다.
+		// 담아 둔 LD_Tile 도로는 생성기가 만든 도로 칸과 랜드마크에만 쓰고,
+		// 진입로는 깔끔한 갓길과 듬성한 엄폐물을 갖는다.
+		// 그래야 벽·드럼통·차가 칸마다 반복되지 않는다.
 		UClass* TileClass = Placement.bSupplementalAccessRoad
 			? ATacticalTileActor::StaticClass()
 			: ResolveClass(ClassPath);
@@ -633,8 +628,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		if (!IsValid(Tile)) { ++SpawnFailures; continue; }
 		if (ATacticalTileActor* TacticalTile = Cast<ATacticalTileActor>(Tile))
 		{
-			// Runtime placement is authoritative. Blueprint defaults are only an
-			// editor preview and must not override the server/seed-selected tile kind.
+			// 런타임 배치가 원본이다. 블루프린트 기본값은 에디터 미리보기일 뿐이라
+			// 서버/시드가 고른 타일 종류를 덮어쓰면 안 된다.
 			TacticalTile->TileKind = Kind;
 			if (!WarZoneVisualTag.IsNone())
 			{
@@ -649,8 +644,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				else if (Kind == ETacticalTileKind::WarZoneYard
 					|| Kind == ETacticalTileKind::WarZoneWarehouse)
 				{
-					// Authored industrial cells still need an overgrown shoulder. The old
-					// zero multiplier silently removed all grass added by their layouts.
+					// 손작업 공업 칸에도 풀이 자란 갓길은 필요하다. 예전의 0 배율은
+					// 배치가 추가한 풀을 전부 조용히 없애 버렸다.
 					TacticalTile->DressingDensityScale = 0.70f;
 				}
 				else if (Kind == ETacticalTileKind::OpenGround
@@ -669,7 +664,7 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				TacticalTile->bIsAccessRoad = true;
 				TacticalTile->DressingDensityScale = 0.35f;
 			}
-			// Rebuild needs the combat-band tags to choose its ground treatment.
+			// Rebuild 가 땅 처리를 고르려면 전투 띠 태그가 필요하다.
 			if (!WarZoneBandTag.IsNone()) TacticalTile->Tags.AddUnique(WarZoneBandTag);
 			if (!WarZoneVisualTag.IsNone()) TacticalTile->Tags.AddUnique(WarZoneVisualTag);
 			TacticalTile->RebuildFromRuntimeSpec(
@@ -680,9 +675,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		NormalizePackedBaseGround(Tile);
 		HiddenTerrainUnderlayCount += HidePerTileTerrainUnderlay(Tile);
 		DisableCollisionOnHiddenPrimitives(Tile);
-		// All authored road/ground underlays are hidden above.  The one shared road
-		// HISM is now the only rendered surface, eliminating both the leaf-pattern
-		// material and coplanar flicker.
+		// 손작업 도로/땅 밑판은 위에서 모두 숨겼다. 이제 같이 쓰는 도로 HISM 하나만
+		// 그려지므로, 나뭇잎 무늬 머티리얼 문제와
+		// 같은 높이 면 깜빡임이 둘 다 없어진다.
 		if (Placement.Visual == ETileDesignVisual::Exit)
 			LiftPackedExitMarking(Tile);
 		Tile->Tags.AddUnique(TEXT("RuntimeTacticalTile"));
@@ -699,9 +694,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		Tile->SetActorLabel(FString::Printf(TEXT("RuntimeTile_%d_%d"), Placement.GridCell.X, Placement.GridCell.Y));
 		Tile->SetFolderPath(TEXT("RuntimeTacticalTiles"));
 		#endif
-		// The tile actor is only a deterministic construction template. Consolidate
-		// its visible static meshes into shared HISM batches, then discard the actor;
-		// the authoritative placement manifest and gameplay points remain unchanged.
+		// 타일 액터는 매번 똑같이 만들어지는 조립용 틀일 뿐이다. 보이는 스태틱 메시를
+		// 같이 쓰는 HISM 묶음으로 모은 뒤 액터는 버린다.
+		// 원본 배치 manifest 와 게임플레이 지점은 그대로다.
 		PackActorVisuals(Tile);
 		Tile->Destroy();
 		++PackedTileActorCount;
@@ -716,8 +711,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 	int32 SpawnedFacilityCount = 0;
 	for (const FFacilityPlacement& Placement : Map->FacilityPlacements)
 	{
-		// An authored level supplies the whole facility. Spawning the procedural
-		// builder as well would stack a second building inside the first.
+		// 손작업 레벨이 시설 전체를 준다. 코드 빌더까지 스폰하면
+		// 첫 건물 안에 두 번째 건물이 겹쳐 생긴다.
 		if (FacilityUsesAuthoredLevel(Placement.VisualSet, Placement.Footprint))
 			continue;
 
@@ -740,12 +735,10 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		const FVector FacilityLocation = Map->GetDesignFootprintCenter(Placement);
 		const FRotator FacilityRotation(0.0f, Placement.RotationQuarterTurns * 90.0f, 0.0f);
 
-		// An authored Blueprint, when one exists for this facility, is preferred over
-		// the code-built version: its walls and props are individual components a
-		// designer can select and drag in the editor, which the HISM instances
-		// AProceduralFacilityActor emits can never be. The procedural builder stays
-		// as the fallback for every kind that has not been authored yet, so the two
-		// can coexist while the library is filled in one facility at a time.
+		// 이 시설용 손작업 블루프린트가 있으면 코드로 만든 버전보다 먼저 쓴다: 그 벽·소품은
+		// 디자이너가 에디터에서 골라 끌 수 있는 개별 컴포넌트이고, AProceduralFacilityActor 가
+		// 만드는 HISM 인스턴스로는 절대 그렇게 할 수 없다. 아직 손으로 안 만든 종류는
+		// 모두 코드 빌더로 돌아가므로, 시설을 하나씩 채워 가는 동안 둘이 같이 쓰일 수 있다.
 		UClass* AuthoredFacilityClass = nullptr;
 		if (Map->bUseAuthoredFacilityBlueprints)
 		{
@@ -761,11 +754,10 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				AuthoredFacilityClass, FacilityLocation, FacilityRotation, Parameters);
 			if (IsValid(Facility))
 			{
-				// The authored Blueprint derives from ATacticalTileActor, so its
-				// inherited 20 m ground slab and nature dressing would be layered
-				// under a 40-60 m footprint. The shared terrain pad already covers
-				// this cell range; hide the inherited underlay exactly as the packed
-				// tiles do.
+				// 손작업 블루프린트는 ATacticalTileActor 를 상속하므로, 물려받은 20 m 땅판과
+				// 자연 꾸미기가 40-60 m 차지 칸 밑에 겹쳐 깔린다. 이 칸 범위는
+				// 같이 쓰는 지형판이 이미 덮고 있으니, 담아 둔 타일과 똑같이
+				// 물려받은 밑판을 숨긴다.
 				HiddenTerrainUnderlayCount += HidePerTileTerrainUnderlay(Facility);
 			}
 		}
@@ -778,9 +770,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				Parameters);
 			if (IsValid(ProceduralFacility))
 			{
-				// Rotation controls how the footprint connects to the generated road
-				// graph; the facility's deterministic interior variant is derived
-				// independently from the server-authored local seed.
+				// 회전은 차지 칸이 생성된 도로망과 어떻게 이어지는지를 정한다.
+				// 시설 내부 변형은 서버가 정한 로컬 시드에서
+				// 따로 매번 똑같이 정해진다.
 				const uint8 FacilityLayoutVariant = static_cast<uint8>(Placement.LocalSeed) & 3;
 				ProceduralFacility->Configure(FacilityKind, Placement.LocalSeed, FacilityLayoutVariant);
 			}
@@ -812,9 +804,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		++SpawnedFacilityCount;
 	}
 
-	// Render a single unified ground layer for the whole generated footprint.
-	// Per-tile terrain slabs are hidden above, so there are no coplanar surfaces
-	// and no material discontinuity at the 20 m cell boundary.
+	// 만들어진 영역 전체에 하나로 합친 땅 층을 그린다.
+	// 타일별 지형판은 위에서 숨겼으므로, 같은 높이로 겹친 면도 없고
+	// 20 m 칸 경계에서 머티리얼이 끊기지도 않는다.
 	Map->GroundHISM->SetVisibility(true, true);
 	Map->GroundHISM->SetHiddenInGame(false);
 	Map->WarZoneGroundHISM->SetVisibility(true, true);
@@ -931,11 +923,10 @@ void UMapTileSpawner::BuildElevatedFacilityTerrain()
 			const FVector RampDelta = TopPoint - GroundPoint;
 			const FRotator RampRotation = RampDelta.Rotation();
 			constexpr float RampThickness = 35.0f;
-			// The slab is centred on the line from ground to pad, so its walkable face
-			// used to stand half a thickness proud at both ends: an 18 cm lip to climb
-			// before the ramp even began, and another 18 cm drop on to the pad at the
-			// top. Sink it by that half thickness along its own up axis so the top face,
-			// not the centre line, is what meets the ground and the pad.
+			// 판은 땅에서 단상까지 이은 선에 중심이 맞춰져 있어서, 예전엔 걷는 면이 양 끝에서
+			// 두께 절반만큼 튀어나왔다: 경사로 시작 전에 올라야 하는 18 cm 턱, 꼭대기에서 단상으로
+			// 내려서는 18 cm 턱. 그래서 판 자신의 위쪽 축을 따라 두께 절반만큼 내려서,
+			// 중심선이 아니라 윗면이 땅과 단상에 닿게 한다.
 			const FVector RampUp = RampRotation.RotateVector(FVector::UpVector);
 			AddTerrainComponent(
 				(GroundPoint + TopPoint) * 0.5f - RampUp * (RampThickness * 0.5f),
@@ -945,7 +936,7 @@ void UMapTileSpawner::BuildElevatedFacilityTerrain()
 				TEXT("VehicleRamp"));
 			++RampCount;
 
-			// A parallel infantry stair remains usable if the vehicle ramp is occupied.
+			// 차량 경사로가 막혀도 쓸 수 있게 나란히 보병 계단을 둔다.
 			const FVector2D Perpendicular(-Outward.Y, Outward.X);
 			const FVector StairSideOffset(Perpendicular.X * (RampWidth * 0.5f + 230.0f),
 				Perpendicular.Y * (RampWidth * 0.5f + 230.0f), 0.0f);

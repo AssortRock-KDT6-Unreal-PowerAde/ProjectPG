@@ -1,4 +1,4 @@
-// Code-authored multi-cell facility used by the procedural map visual layer.
+// 코드로 만드는 여러 칸짜리 시설. 절차 맵의 화면 단계가 쓴다.
 
 #pragma once
 
@@ -56,14 +56,14 @@ private:
 	void AddRoofRect(const FVector& Center, float HalfX, float HalfY, float Z, float ModuleSize = 1000.0f);
 	void AddWallRun(const FVector& Start, const FVector& End, float Z, bool bDoorGap, bool bWindows);
 	void AddRailingRun(const FVector& Start, const FVector& End, float Z);
-	// For AddCover/AddContainer, Location.Z is the surface the prop stands on.
+	// AddCover/AddContainer 에서 Location.Z 는 소품이 서는 바닥 면이다.
 	FVector RestOnSurface(
 		const UHierarchicalInstancedStaticMeshComponent* Component,
 		const FVector& SurfaceLocation,
 		const FVector& Scale) const;
 	void AddCover(const FVector& Location, const FVector& Scale, float Yaw = 0.0f);
 	void AddContainer(const FVector& Location, float Yaw, const FVector& Scale = FVector(0.65f));
-	// Location is where the bottom step rests; RiseCm is the height it must climb.
+	// Location 은 첫 계단이 놓이는 곳, RiseCm 은 올라가야 할 높이다.
 	void AddStair(const FVector& Location, float Yaw, float RiseCm);
 	float GetStairTopOffsetCm() const;
 	void AddIndustrialWorkCell(const FVector& Center, float Yaw, uint8 Variant);
@@ -96,9 +96,9 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> Railings;
 
-	// Real Factory Pack landmarks used by the 3x3 WarZone facility.  The modular
-	// CQB pieces still define gameplay lanes; these components provide the large
-	// industrial silhouette and readable POI identity.
+	// 3x3 WarZone 시설이 쓰는 진짜 Factory Pack 랜드마크. 게임플레이 통로는
+	// 여전히 CQB 모듈 조각이 정하고, 이 컴포넌트들은 큰 공업 실루엣과
+	// 알아보기 쉬운 POI 느낌을 준다.
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> FactoryHalls;
 
@@ -111,8 +111,8 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> FactoryFences;
 
-	// Downtown West modules form readable, enterable street blocks instead of
-	// treating the pack as distant background scenery.
+	// Downtown West 모듈을 먼 배경 풍경으로 쓰지 않고,
+	// 알아보기 쉽고 들어갈 수 있는 거리 블록으로 짓는다.
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> DowntownStorefronts;
 
@@ -128,8 +128,8 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> DowntownBenches;
 
-	// Rural Cabin modules are assembled into small interiors with intentional
-	// doors; the props make the district suitable for later loot sockets.
+	// Rural Cabin 모듈을 일부러 문을 낸 작은 실내로 조립한다.
+	// 소품 덕분에 나중에 전리품 자리를 두기 좋은 구역이 된다.
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> RuralWalls;
 
@@ -157,9 +157,9 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> FactorySiteHouses;
 
-	// Small Factory Pack modules finish the interiors of the large tile-authored
-	// shells. Keeping them in deterministic HISM batches preserves the manifest
-	// contract while avoiding dozens of individual prop actors per facility.
+	// 작은 Factory Pack 모듈이 타일로 만든 큰 건물의 실내를 마무리한다.
+	// 매번 똑같은 HISM 묶음으로 두면 manifest 약속을 지키면서
+	// 시설마다 소품 액터 수십 개가 생기는 걸 피한다.
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UHierarchicalInstancedStaticMeshComponent> FactoryPipes;
 

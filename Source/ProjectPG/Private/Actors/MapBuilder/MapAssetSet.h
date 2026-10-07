@@ -77,19 +77,18 @@ public:
 
 	// ---------- 큰 건물 (건물 자리 담당이 고른 자리에 공사 담당이 불러온다) ----------
 	// 워존 한가운데 공장 단지(3×5) 레벨.
-	// The WarZone core: two warehouse halls and the barrel yard between them, cut
-	// from the Factory pack demo's west compound (window centre (400,-2000), half
-	// 3000 — every edge passes through open yard, the demo interior there is flat
-	// at z=100 and was dropped to local 0). Replaces the code-built IndustrialRaid3x3.
+	// WarZone 중심: 창고 건물 두 동과 그 사이 드럼통 마당. Factory 팩 데모의 서쪽 구역에서
+	// 잘라 왔다(잘라낸 창 중심 (400,-2000), 반폭 3000 — 모든 가장자리가 빈 마당을 지나간다.
+	// 데모에서 그 안쪽은 z=100 평지라 로컬 0 으로 내렸다).
+	// 코드로 만들던 IndustrialRaid3x3 을 대신한다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> WarZoneCoreLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_WarZoneCore_3x3.LD_Facility_WarZoneCore_3x3")));
 	// 공장 단지 BP. 있으면 레벨보다 이걸 먼저 쓴다(벽 하나하나를 에디터에서 끌어 옮길 수 있음).
-	// Hand-authored facility Blueprints. Every wall and prop in these is an
-	// individual StaticMeshComponent, so a designer can select one in the editor
-	// viewport and drag or rescale it - which is impossible for the HISM instances
-	// AProceduralFacilityActor emits. A visual set with no entry here has not been
-	// authored yet and falls back to the procedural builder, so the library can be
-	// filled in one facility at a time.
+	// 손으로 만든 시설 블루프린트. 안의 벽·소품 하나하나가 따로 된 StaticMeshComponent 라서
+	// 디자이너가 에디터 화면에서 하나를 골라 끌거나 크기를 바꿀 수 있다
+	// - AProceduralFacilityActor 가 만드는 HISM 인스턴스로는 불가능한 일이다.
+	// 여기 항목이 없는 모양 세트는 아직 손으로 안 만든 것이라 코드 빌더로 돌아간다.
+	// 그래서 시설을 하나씩 채워 나갈 수 있다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftClassPtr<AActor> WarZoneCoreBlueprint = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Facilities/Blueprints/BP_Facility_IndustrialRaid_3x3.BP_Facility_IndustrialRaid_3x3_C")));
 	UPROPERTY(EditAnywhere, Category = "시설")
@@ -98,31 +97,28 @@ public:
 	TSoftObjectPtr<UWorld> YardLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_Yard_2x2.LD_Facility_Yard_2x2")));
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> CheckpointLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_Checkpoint_1x2.LD_Facility_Checkpoint_1x2")));
-	// A cafe and storefront block harvested from the Downtown West demo environment.
-	// Its paved walkways and kerbs are kept rather than deleted: unlike a sculpted
-	// terrain they are a thin surface laid a few centimetres over the shared ground,
-	// and a city block standing on bare dirt reads worse than the seam they cost. The
-	// level was lifted so that paving clears the shared datum by about 10 cm, the same
-	// margin the runtime road slab uses to stay out of depth-buffer range.
-	// 6x6: a complete two-sided street segment cut alley-to-alley from the pack's
-	// demo city. Every earlier attempt cut a 3x3 window through physically attached
-	// building rows, which always left some building's back or side face open -
-	// the pack authors its blocks as continuous strips, so the only clean cuts are
-	// the real alleys at demo x=-10100 and x=-1000.
+	// Downtown West 데모 환경에서 가져온 카페·상점 구역.
+	// 포장된 보도와 연석은 지우지 않았다: 깎은 지형과 달리 이것들은 공통 땅 위에
+	// 몇 cm 얹힌 얇은 면이고, 도시 블록이 맨흙 위에 서 있는 쪽이 이음새보다 더 어색하다.
+	// 레벨을 들어 올려 포장면이 공통 높이보다 약 10 cm 위에 오게 했다
+	// - 런타임 도로판이 깊이 버퍼 겹침(깜빡임)을 피하려고 띄우는 간격과 같다.
+	// 6x6: 팩의 데모 도시에서 골목부터 골목까지 잘라 온, 양쪽에 건물이 있는 거리 한 구간.
+	// 예전에는 붙어 있는 건물 줄을 가로질러 3x3 로 잘랐는데, 그러면 늘 어떤 건물의
+	// 뒷면이나 옆면이 뚫린 채 남았다. 이 팩은 건물 블록을 끊김 없는 줄로 만들어 두어서,
+	// 깨끗하게 자를 수 있는 곳은 데모의 x=-10100 과 x=-1000 에 있는 실제 골목뿐이다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> DowntownLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_DowntownBlock_6x6.LD_Facility_DowntownBlock_6x6")));
-	// Four connected factory halls harvested from the Factory Pack demo map, complete
-	// with their interiors - racks, roof trusses, skylights. Unlike the rural diorama
-	// this level carries no ground of its own: its floor slabs were deleted so the
-	// shared tile terrain runs straight through, which is what stops a facility
-	// reading as a diorama parked on the map.
+	// Factory Pack 데모 맵에서 가져온, 서로 이어진 공장 건물 네 동. 안쪽 - 선반, 지붕 트러스,
+	// 천창 - 까지 다 있다. 시골 디오라마와 달리 이 레벨에는 자체 땅이 없다:
+	// 바닥판을 지워서 공통 타일 지형이 그대로 지나가게 했다.
+	// 그래야 시설이 맵 위에 올려놓은 디오라마처럼 보이지 않는다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> FactoryLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_FactoryHall_2x2.LD_Facility_FactoryHall_2x2")));
 	// 호숫가 마을(오두막·부두·보트).
-	// A hand-built lakeside settlement trimmed from the Modular Rural Cabin demo:
-	// cabins, a caravan, a pier, water and two rowing boats on sculpted ground.
-	// Unlike every other facility level this one carries its own terrain, so the
-	// shared flat pad has to be suppressed underneath it.
+	// Modular Rural Cabin 데모에서 다듬어 온 손작업 호숫가 마을:
+	// 오두막, 캠핑카, 부두, 물, 노 젓는 보트 두 척이 깎은 땅 위에 있다.
+	// 다른 시설 레벨과 달리 이것만 자체 지형을 가지므로,
+	// 그 아래 공통 평판은 깔지 않아야 한다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> RuralHideoutLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Facilities/LD_Facility_RuralDiorama_2x2.LD_Facility_RuralDiorama_2x2")));
 
