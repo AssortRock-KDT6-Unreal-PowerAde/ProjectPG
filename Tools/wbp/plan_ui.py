@@ -67,7 +67,14 @@ def tooltip():
     set_default("WBP_InventoryGrid", "item_widget_class", unreal.load_class(None, cls_path("WBP_FitIconItemWidget")))
 
 
-STEPS = {"tooltip": tooltip}
+# ---------------- 2) 옵션 화면 ----------------
+def option():
+    # 형님 로비 메뉴 WBP 의 부모를 우리 자식(ULobbyMenuWidget: 옵션·종료 동작)으로. 배치·버튼은 그대로.
+    reparent("WBP_Lobby", "/Script/ProjectPG.LobbyMenuWidget")
+    set_default("WBP_Lobby", "option_screen_class", unreal.load_class(None, cls_path("WBP_Option")))
+
+
+STEPS = {"tooltip": tooltip, "option": option}
 
 wanted = [s.strip() for s in os.environ.get("PG_PLAN_STEPS", "").split(",") if s.strip()] or list(STEPS.keys())
 for name in wanted:
