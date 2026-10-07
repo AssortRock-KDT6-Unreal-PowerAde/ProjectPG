@@ -3,6 +3,8 @@
 #include "Components/Image.h"
 #include "Components/EquipComponent.h"
 #include "Components/InventoryComponent.h"
+#include "Components/OverLay.h"
+
 #include "UI/InventoryWindow.h"
 #include "Core/TableSubSystem.h"
 #include "Core/UIManagerSubSystem.h"
@@ -115,7 +117,7 @@ void UEquipmentWidget::HandleBackpackContainerUpdate()
 	if (BackpackItem && BackpackItem->GUID.IsValid())
 	{
 		// 로그 출력은 포인터 검증이 끝난 안전한 이곳에서 수행합니다.
-		UE_LOG(LogTemp, Warning, TEXT("아이템 장착 상태 : %d"), BackpackItem->bEquip);
+		UE_LOG(LogTemp, Warning, TEXT("아이템 장착 상태 : %d (GUID=%s, ItemID=%s)"), BackpackItem->bEquip, *BackpackItem->GUID.ToString(), *BackpackItem->ItemID.ToString());
 
 		UTableSubSystem* subSystem = UTableSubSystem::Get(GetWorld());
 		if (!subSystem) return;
@@ -125,6 +127,9 @@ void UEquipmentWidget::HandleBackpackContainerUpdate()
 		if (ItemData && ItemData->SlotSize.X > 0 && ItemData->SlotSize.Y > 0)
 		{
 			// ★ 1. InventoryComponent에 가방 메모리 공간(크기) 우선 등록
+			// backpack을 다른 inventory로 옮겼다가 다시 장착하는 경우에도,
+			// child item의 실제 소유 컨테이너는 여전히 backpack GUID여야 하므로
+			// 기존 GUID 컨테이너를 비우거나 새 GUID로 덮어쓰지 않는다.
 			InventoryComponent->RegisterContainer(
 				BackpackItem->GUID,
 				FIntPoint(ItemData->SlotSize.X, ItemData->SlotSize.Y)
@@ -146,6 +151,13 @@ void UEquipmentWidget::HandleBackpackContainerUpdate()
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("가방을 장착하지 않았거나 해제했습니다."));
-		ParentInvenWindow->SetupBackPackInventoryWidget(nullptr);
+		// 여기서 RefreshAllGrids()를 다시 호출하면 RefreshAllGrids ->
+		// HandleBackpackContainerUpdate -> RefreshAllGrids() 재귀가 발생해
+		// 장착 해제 시 무한 루프가 생긴다.
+		// 따라서 backpack 오버레이만 정리하고 여기서 종료한다.
+		if (ParentInvenWindow->BackPackInvenOverlay)
+		{
+			ParentInvenWindow->BackPackInvenOverlay->ClearChildren();
+		}
 	}
 }

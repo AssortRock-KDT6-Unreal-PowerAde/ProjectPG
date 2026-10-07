@@ -16,11 +16,20 @@
 #include "Components/EquipComponent.h"
 #include "Components/OverlaySlot.h"
 
+#include "Server/WebSocketSubSystem.h"
 #include <Core/TableSubSystem.h>
 #include <UI/InventoryWindow.h>
 #include <UI/EquipSlot.h>
 #include <Core/UIManagerSubSystem.h>
 #include <Server/InventorySubSystem.h>
+static 	void SafeRemoveWidget(UWidget* Widget)
+{
+	if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
+	{
+		Widget->RemoveFromParent();
+	}
+}
+
 
 void UInventoryGridWidget::NativeConstruct()
 {
@@ -35,8 +44,14 @@ void UInventoryGridWidget::RefreshGrid(UInventoryComponent* InComp, const FGuid&
 
 	InventoryGUID = InvenGuid;
 	BindInventoryComponent(InComp);
-	// (10/4) 묶은 뒤 바로 한 번 그린다. 예전엔 곧이어 서버 인벤토리가 와서 "바뀜" 알림으로 그려졌지만,
-	//        이제 데이터가 이미 있는 상태에서 창이 열리므로 알림이 안 온다 → 안 그리면 빈 화면.
+
+	// ★ 중요: BindInventoryComponent()는 OnInventoryUpdated 델리게이트를 "구독"만 할 뿐,
+	// 이미 지나간 RegisterContainer()/OnInventoryUpdated 브로드캐스트(예: 가방 재장착 시
+	// HandleBackpackContainerUpdate()가 먼저 RegisterContainer를 호출해 크기를 등록하고,
+	// 그 다음에야 이 그리드 위젯을 생성/바인딩하는 순서)를 소급해서 받을 수 없다.
+	// 그 결과 다음 번 우연한 OnInventoryUpdated(다른 아이템 이동 등)가 발생하기 전까지
+	// 배경 그리드가 만들어지지 않아 "가방을 장착해도 인벤토리 그리드가 안 생긴다"는
+	// 증상이 나타난다. 바인딩 직후 즉시 한 번 그려서 이 문제를 해결한다.
 	RefreshGridUI();
 }
 
@@ -135,25 +150,6 @@ FIntPoint UInventoryGridWidget::CalculateDropTile(
 	{
 		return FIntPoint(-1, -1);
 	}
-
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT(
-			"[CalculateDropTile] "
-			"Grid=(%.2f,%.2f) "
-			"ActualTile=(%.2f,%.2f) "
-			"TileSize=%.2f "
-			"Tile=(%d,%d)"
-		),
-		GridLocalSize.X,
-		GridLocalSize.Y,
-		ActualTileWidth,
-		ActualTileHeight,
-		TileSize,
-		TileX,
-		TileY);
-
 	return FIntPoint(TileX, TileY);
 }
 
@@ -281,7 +277,7 @@ void UInventoryGridWidget::CreateBackGroundGrid(int32 Columns, int32 Rows)
 void UInventoryGridWidget::RefreshGridUI()
 {
 	if (!TargetInventoryComp) {
-		UE_LOG(LogTemp, Warning, TEXT("TargetInventoryComp none"));
+		UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: TargetInventoryComp none"));
 		return;
 	}
 	// 1. GUID가 지정되지 않은 경우 기본 창고(Stash) GUID 가져오기 시도
@@ -291,7 +287,7 @@ void UInventoryGridWidget::RefreshGridUI()
 	}
 
 	if (!InventoryGUID.IsValid()) {
-		UE_LOG(LogTemp, Warning, TEXT("InventoryGuid none"));
+		UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: InventoryGuid none"));
 		return;
 	}
 	int32 GridColumns =
@@ -299,6 +295,8 @@ void UInventoryGridWidget::RefreshGridUI()
 
 	int32 GridRows =
 		TargetInventoryComp->GetRows(InventoryGUID);
+
+	UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: GUID=%s GridCols=%d GridRows=%d"), *InventoryGUID.ToString(), GridColumns, GridRows);
 
 	if (GridColumns <= 0 || GridRows <= 0)
 	{
@@ -415,6 +413,8 @@ void UInventoryGridWidget::RenderItems()
 			InventoryGUID,
 			TileSize);
 
+		ItemWidget->SetOwnerInventoryComp(TargetInventoryComp);
+
 		UCanvasPanelSlot* CanvasSlot =
 			ItemCanvas->AddChildToCanvas(ItemWidget);
 
@@ -434,24 +434,7 @@ void UInventoryGridWidget::RenderItems()
 		CanvasSlot->SetPosition(PositionPixel);
 		CanvasSlot->SetSize(SizePixel);
 		CanvasSlot->SetZOrder(10);
-
-		// 검색·필터에 안 맞으면 흐리게.
-		ItemWidget->SetRenderOpacity(MatchesFilter(*ItemData) ? 1.0f : FilteredOutOpacity);
 	}
-}
-
-void UInventoryGridWidget::SetFilter(const FString& Text, int32 TypeFilter)
-{
-	FilterText = Text.TrimStartAndEnd();
-	FilterType = TypeFilter;
-	RenderItems();
-}
-
-bool UInventoryGridWidget::MatchesFilter(const FItemTableRow& Data) const
-{
-	if (FilterType >= 0 && static_cast<int32>(Data.ItemType) != FilterType)
-		return false;
-	return FilterText.IsEmpty() || Data.DisPlayName.ToString().Contains(FilterText);
 }
 USlotWidget* UInventoryGridWidget::GetSlotWidgetAt(int32 TileX, int32 TileY)
 {
@@ -652,17 +635,6 @@ bool UInventoryGridWidget::NativeOnDrop(
 			MouseScreenPosition,
 			ItemDragOp);
 
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("[NativeOnDrop] TargetTile=(%d,%d) Mouse=(%.1f,%.1f) OffsetAbs=(%.1f,%.1f)"),
-		TargetTile.X,
-		TargetTile.Y,
-		MouseScreenPosition.X,
-		MouseScreenPosition.Y,
-		ItemDragOp->DragOffsetAbs.X,
-		ItemDragOp->DragOffsetAbs.Y);
-
 	if (TargetTile.X < 0 ||
 		TargetTile.Y < 0)
 	{
@@ -692,14 +664,6 @@ bool UInventoryGridWidget::NativeOnDrop(
 			ItemDragOp->WidgetReference
 				->SetRenderOpacity(1.0f);
 		}
-
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT("[NativeOnDrop] 배치 불가능 TargetTile=(%d,%d)"),
-			TargetTile.X,
-			TargetTile.Y);
-
 		return false;
 	}
 
@@ -709,75 +673,51 @@ bool UInventoryGridWidget::NativeOnDrop(
 
 	if (ItemDragOp->bFromEquip)
 	{
-		if (ItemDragOp->WidgetReference)
-		{
-			if (UEquipSlot* SrcSlot =
-				Cast<UEquipSlot>(
-					ItemDragOp->WidgetReference))
-			{
-				SrcSlot->RequestUnEquip();
-			}
-		}
-
-		TempInstance.parent_inventory_guid =
-			InventoryGUID;
-
-		const bool bAdded =
-			TargetInventoryComp->AddItemAt(
-				TempInstance,
-				TargetTile);
-
-		if (bAdded)
-		{
-			// (예전: 서버로 장착 해제·이동 패킷 전송) 10/4 웹 서버를 빼서 위 AddItemAt 이 곧 결과다.
-			UE_LOG(
-				LogTemp,
-				Warning,
-				TEXT("[NativeOnDrop] Unequip Success Target=(%d,%d)"),
-				TargetTile.X,
-				TargetTile.Y);
-		}
-
-		if (ItemDragOp->WidgetReference)
-		{
-			ItemDragOp->WidgetReference
-				->SetRenderOpacity(1.0f);
-
-			if (UEquipSlot* SrcSlot =
-				Cast<UEquipSlot>(
-					ItemDragOp->WidgetReference))
-			{
-				SrcSlot->Clear();
-			}
-		}
-
-		return bAdded;
+		UEquipSlot* pSlot = Cast<UEquipSlot>(ItemDragOp->WidgetReference);
+		UEquipComponent* Equipment = pSlot ? pSlot->GetEquipComponent() : nullptr;
+		const bool bRequested = Equipment && Equipment->UnEquipTo(pSlot->GetSlot(), TargetInventoryComp, InventoryGUID, TargetTile, TempInstance.bIsRotated);
+		if (ItemDragOp->WidgetReference) ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
+		return bRequested;
 	}
 
 	// =========================================================
 	// 일반 인벤토리 이동
 	// =========================================================
 
-	const bool bMoved =
-		TargetInventoryComp->MoveItem(
-			InventoryGUID,
-			ItemDragOp->DraggedItem.GUID,
-			TargetTile,
-			ItemDragOp->bCurrentRotated);
+	UInventoryComponent* SourceComp =
+		ItemDragOp->SourceInventoryComp.IsValid()
+			? ItemDragOp->SourceInventoryComp.Get()
+			: TargetInventoryComp;
+
+	bool bMoved = false;
+
+	if (SourceComp && SourceComp != TargetInventoryComp)
+	{
+		// 💡 드래그 출발지 컴포넌트가 현재 드롭 대상 컴포넌트와 다른 경우
+		// (예: 다른 InventoryComponent를 가진 InteractActor로 이동)
+		bMoved =
+			TargetInventoryComp->TransferItemFrom(
+				SourceComp,
+				ItemDragOp->DraggedItem.GUID,
+				InventoryGUID,
+				TargetTile,
+				ItemDragOp->bCurrentRotated);
+	}
+	else
+	{
+		bMoved =
+			TargetInventoryComp->MoveItem(
+				InventoryGUID,
+				ItemDragOp->DraggedItem.GUID,
+				TargetTile,
+				ItemDragOp->bCurrentRotated);
+	}
 
 	if (ItemDragOp->WidgetReference)
 	{
 		ItemDragOp->WidgetReference
 			->SetRenderOpacity(1.0f);
 	}
-
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("[NativeOnDrop] MoveItem Target=(%d,%d) Success=%s"),
-		TargetTile.X,
-		TargetTile.Y,
-		bMoved ? TEXT("true") : TEXT("false"));
 
 	return bMoved;
 }

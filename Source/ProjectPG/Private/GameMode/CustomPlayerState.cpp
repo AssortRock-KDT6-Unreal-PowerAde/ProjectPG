@@ -5,12 +5,13 @@
 #include "Components/InventoryComponent.h"
 #include "Components/DataComponent.h"
 #include "Components/EquipComponent.h"
+
 ACustomPlayerState::ACustomPlayerState()
 {
 	InvenComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 	DataComp = CreateDefaultSubobject<UDataComponent>(TEXT("DataComponent"));
 	EquipComp = CreateDefaultSubobject<UEquipComponent>(TEXT("EquipComponent"));
-
+	
 	if (InvenComp) InvenComp->SetIsReplicated(true);
 	if (DataComp) DataComp->SetIsReplicated(true);
 	if (EquipComp) EquipComp->SetIsReplicated(true);
@@ -21,6 +22,8 @@ ACustomPlayerState::ACustomPlayerState()
 void ACustomPlayerState::BeginPlay()
 {
 	Super::BeginPlay();
+
+	UE_LOG(LogTemp, Log, TEXT("ACustomPlayerState::BeginPlay PlayerState=%s IsNetMode=%d IsLocal=%d"), *GetName(), GetWorld() ? (int32)GetWorld()->GetNetMode() : -1, GetOwner() && GetOwner()->IsA<APlayerController>() ? Cast<APlayerController>(GetOwner())->IsLocalController() : false);
 
 
 }

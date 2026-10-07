@@ -7,11 +7,39 @@
 #include "UI/ItemDragDropOperation.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include <UI/Controller/LobbyUIFlowController.h>
+#include "Server/InventorySubSystem.h"
+#include "Components/InventoryComponent.h"
+#include "GameFramework/PlayerState.h"
 
 void APlayerController_InLobby::BeginPlay()
 {
 	Super::BeginPlay();
+	if (IsLocalController())
+	{
+		if (UInventorySubSystem* Inventory = UInventorySubSystem::Get(GetWorld()))
+		{
+			Inventory->ClearTravelInventory();
+			Inventory->SetUseWebSocket(true);
+			Inventory->SetForceLocalMoves(false);
+		}
+	}
 
+}
+
+void APlayerController_InLobby::PreClientTravel(const FString& PendingURL, ETravelType TravelType, bool bIsSeamlessTravel)
+{
+	if (IsLocalController())
+	{
+		if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld()))
+		{
+			const UInventoryComponent* Inventory = PlayerState ? PlayerState->FindComponentByClass<UInventoryComponent>() : nullptr;
+			if (!Subsystem->CaptureTravelInventory(Inventory))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[InventoryTravel] Lobby inventory is not initialized; InGame will use the initial WebSocket data."));
+			}
+		}
+	}
+	Super::PreClientTravel(PendingURL, TravelType, bIsSeamlessTravel);
 }
 
 void APlayerController_InLobby::ToggleInventory()

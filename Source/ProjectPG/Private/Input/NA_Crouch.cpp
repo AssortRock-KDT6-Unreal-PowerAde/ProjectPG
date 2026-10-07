@@ -15,6 +15,9 @@ bool UNA_Crouch::ShouldRegisterTriggerEvent(ETriggerEvent TriggerEvent) const
 
 void UNA_Crouch::Triggered(const FInputActionValue& InputActionValue, ACustomPlayerCharacter* PlayerCharacter)
 {
+	if (!IsValid(PlayerCharacter))
+		return;
+	
 	if (PlayerCharacter->IsCrouched())
 		PlayerCharacter->UnCrouch();
 	else

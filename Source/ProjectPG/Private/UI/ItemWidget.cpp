@@ -7,7 +7,6 @@
 #include "Blueprint/WidgetBlueprintLibrary.h"
 
 #include "Components/SizeBox.h"
-#include "Components/ScaleBox.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/CanvasPanelSlot.h"
@@ -18,42 +17,6 @@
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Core/UIManagerSubSystem.h"
 #include <Blueprint/SlateBlueprintLibrary.h>
-#include "UI/ItemTooltipWidget.h"
-#include "TimerManager.h"
-
-void UItemWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
-{
-	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
-	if (UWorld* World = GetWorld())
-		World->GetTimerManager().SetTimer(TooltipTimer, this, &UItemWidget::ShowTooltip, TooltipDelaySeconds, false);
-}
-
-void UItemWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
-{
-	Super::NativeOnMouseLeave(InMouseEvent);
-	HideTooltip();
-}
-
-void UItemWidget::NativeDestruct()
-{
-	HideTooltip();
-	Super::NativeDestruct();
-}
-
-void UItemWidget::ShowTooltip()
-{
-	// 끌고 있는 중이면 띄우지 않는다.
-	if (UWidgetBlueprintLibrary::IsDragDropping())
-		return;
-	UItemTooltipWidget::ShowFor(this, ItemInstance, CachedItemData);
-}
-
-void UItemWidget::HideTooltip()
-{
-	if (UWorld* World = GetWorld())
-		World->GetTimerManager().ClearTimer(TooltipTimer);
-	UItemTooltipWidget::Hide(this);
-}
 
 void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& InData, const FGuid& InInvenGUID, float InTileSize)
 {
@@ -76,8 +39,7 @@ void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& In
 	{
 		if (UTexture2D* IconTex = InData.Icon)
 		{
-			// true = 그림 원래 크기를 브러시에 기록 → ScaleBox 가 그림 비율을 알고 늘리지 않고 맞춘다.
-			ItemIcon->SetBrushFromTexture(IconTex, true);
+			ItemIcon->SetBrushFromTexture(IconTex);
 		}
 	}
 
@@ -97,6 +59,11 @@ void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& In
 	RefreshWidget();
 }
 
+void UItemWidget::SetOwnerInventoryComp(UInventoryComponent* InComp)
+{
+	 OwnerInventoryComp = InComp; 
+}
+
 void UItemWidget::SetContextWidget(UItemContextWidget* widget)
 {
 	_ContextWidget = widget;
@@ -107,22 +74,12 @@ FReply UItemWidget::NativeOnMouseButtonDown(
 	const FPointerEvent& InMouseEvent)
 {
 
-	UE_LOG(
-		LogTemp,
-		Error,
-		TEXT("[ItemWidget] CLICK %s GUID=%s"),
-		*InMouseEvent.GetEffectingButton().ToString(),
-		*ItemInstance.GUID.ToString()
-	);
+
 
 	if (InMouseEvent.GetEffectingButton() ==
 		EKeys::RightMouseButton)
 	{
-		UE_LOG(
-			LogTemp,
-			Error,
-			TEXT("[ItemWidget] RIGHT CLICK SUCCESS")
-		);
+	
 
 		UUIManagerSubSystem* Subsystem =
 			UUIManagerSubSystem::Get(GetWorld());
@@ -191,6 +148,7 @@ bool UItemWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent
 {
 	SetRenderOpacity(1.0f);
 	return Super::NativeOnDrop(MyGeometry, InDragDropEvent, InOperation);
+
 }
 
 void UItemWidget::NativeOnDragDetected(
@@ -203,8 +161,6 @@ void UItemWidget::NativeOnDragDetected(
 		InMouseEvent,
 		OutOperation);
 
-	HideTooltip();
-
 	UItemDragDropOperation* DragOp =
 		NewObject<UItemDragDropOperation>();
 
@@ -216,14 +172,9 @@ void UItemWidget::NativeOnDragDetected(
 	DragOp->WidgetReference = this;
 	DragOp->DraggedItem = ItemInstance;
 	DragOp->SourceInventoryGUID = OwnerInventoryGUID;
+	DragOp->SourceInventoryComp = OwnerInventoryComp;
 	DragOp->bCurrentRotated =
 		ItemInstance.bIsRotated;
-
-	// =========================================================
-	// ★ 모든 드래그의 공통 좌표 기준
-	//
-	// Mouse - Widget TopLeft
-	// =========================================================
 
 	const FVector2D MouseAbsolute =
 		InMouseEvent.GetScreenSpacePosition();
@@ -274,30 +225,4 @@ void UItemWidget::RefreshWidget()
 	FIntPoint GridSize = ItemInstance.GetCurrentGridSize(&CachedItemData);
 	RootSizeBox->SetWidthOverride(GridSize.X * TileSize);
 	RootSizeBox->SetHeightOverride(GridSize.Y * TileSize);
-
-	// 아이콘 자리: 평소엔 아이템 칸 전체(여백 IconPadding)를 채운다 → ScaleBox 가 그림 비율대로 꽉 맞춘다.
-	// 돌린 아이템은 돌리기 전 칸 크기의 자리를 가운데 기준 90° 돌려 칸에 맞춘다(긴 총이 세로 칸에서도 크게 보이게).
-	if (IconScale)
-	{
-		if (UCanvasPanelSlot* IconSlot = Cast<UCanvasPanelSlot>(IconScale->Slot))
-		{
-			if (ItemInstance.bIsRotated)
-			{
-				const FIntPoint BaseSize = CachedItemData.GridSize;
-				IconSlot->SetAnchors(FAnchors(0.5f, 0.5f));
-				IconSlot->SetAlignment(FVector2D(0.5f, 0.5f));
-				IconSlot->SetOffsets(FMargin(0.0f, 0.0f,
-					FMath::Max(1.0f, BaseSize.X * TileSize - 2.0f * IconPadding),
-					FMath::Max(1.0f, BaseSize.Y * TileSize - 2.0f * IconPadding)));
-			}
-			else
-			{
-				IconSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
-				IconSlot->SetAlignment(FVector2D::ZeroVector);
-				IconSlot->SetOffsets(FMargin(IconPadding));
-			}
-		}
-		IconScale->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
-		IconScale->SetRenderTransformAngle(ItemInstance.bIsRotated ? 90.0f : 0.0f);
-	}
 }

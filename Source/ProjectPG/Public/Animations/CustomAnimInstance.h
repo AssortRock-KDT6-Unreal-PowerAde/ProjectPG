@@ -4,6 +4,7 @@
 
 #include "EngineMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Common/GameData.h"
 #include "CustomAnimInstance.generated.h"
 
 /**
@@ -19,23 +20,32 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	FVector2D Aim;
+	FVector2D AimOffset;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	float Speed;
+	float NormalizedGroundSpeed;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	float Direction;
+	float MovementDirection;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsIronSighted;
+	uint8 bIsAiming : 1;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsCrouched;
+	uint8 bIsCrouched : 1;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsProne;
+	uint8 bWasJumping : 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	uint8 bIsFalling : 1;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	uint8 bIsSprinting : 1;
 
 public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+
+	void SyncAim(FRotator rotation);
+	void SyncAim(float Yaw, float Pitch);
 };

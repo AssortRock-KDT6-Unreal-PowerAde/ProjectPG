@@ -16,6 +16,7 @@ class PROJECTPG_API APlayerController_InLobby : public APlayerController
 
 public:
 	virtual void BeginPlay() override;
+	virtual void PreClientTravel(const FString& PendingURL, ETravelType TravelType, bool bIsSeamlessTravel) override;
 	void ToggleInventory();
 	void SetupInputComponent() override;
 	void OnRotateKey();

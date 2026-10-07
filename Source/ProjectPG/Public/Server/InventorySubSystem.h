@@ -2,21 +2,15 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "Dom/JsonObject.h"
 #include "Common/GameData.h"
 #include "InventorySubSystem.generated.h"
-
-class APlayerController;
 
 // Inventory 전용 델리게이트 분배
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryReceived, const FInventoryMapWrapper&, ItemsWrapper);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEquipReceived, const FInventoryMapWrapper&, ItemsWrapper);
 
-// 인벤토리 데이터 담당 (이 컴퓨터 안).
-// 예전: 웹 서버와 인벤토리를 주고받는 창구(GET_INVENTORY·REQ_MOVE_ITEM). 10/4 팀 합의로 웹 서버를 빼고 리슨 서버로 가면서
-//       서버 통신은 지우고, "처음 갖고 시작하는 짐" 을 채우는 일만 남겼다.
-// 하는 일: 창고·주머니·장비 칸을 만들고(칸 이벤트를 쏜다), 시작 짐 표(StarterInventoryTable)대로 아이템을 넣는다.
-// 안 하는 일: 아이템 옮기기·장착은 인벤토리 컴포넌트·장비 컴포넌트가 직접 한다(이제 보고할 서버가 없다).
-UCLASS(Config = Game)
+UCLASS()
 class PROJECTPG_API UInventorySubSystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -24,24 +18,81 @@ class PROJECTPG_API UInventorySubSystem : public UGameInstanceSubsystem
 public:
 	static UInventorySubSystem* Get(UWorld* World);
 
-	// 시작 짐 넣기. 로비 흐름이 로비를 띄우기 전에 부른다. 이미 채웠으면(로비로 돌아옴) 아무것도 안 한다.
-	// 넣은 아이템 수를 돌려준다(-1 = 플레이어 상태가 아직 없음).
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	int32 LoadStarterInventory(APlayerController* PlayerController);
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 
-	// 칸이 만들어졌을 때 알린다 → 인벤토리 컴포넌트가 칸을 만든다. (예전엔 서버 응답 때 울렸다)
+	void HandleInventoryMessage(const FString& MessageType, TSharedPtr<FJsonObject> PayloadObject);
+	bool CaptureTravelInventory(const class UInventoryComponent* Inventory);
+	const FInventorySnapshot* GetTravelInventory() const { return TravelInventory.bInitialized ? &TravelInventory : nullptr; }
+	void ClearTravelInventory() { TravelInventory = FInventorySnapshot(); }
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void RequestGetInventory();
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void RequestMoveItem(const FGuid& FromInventoryGuid, const FGuid& ToInventoryGuid, const FGuid& ItemGuid, const FIntPoint& TargetPosition, bool bIsRotated);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void RequestEquipItem(const FGuid& ItemGuid, const FGuid& TargetParentGuid, bool bIsEquipped);
+
+	// 로컬 캐시 및 WebSocket 사용 제어
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void SetUseWebSocket(bool bUse);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool IsUsingWebSocket() const { return bUseWebSocket; }
+
+	// 로컬에 변경된 캐시를 강제로 서버에 저장(필요 시 GameMode에서 호출)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void ForceSaveToServer();
+
+	// Replay cached inventory/equip data to newly bound listeners
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void ReplayCachedInventory();
+
+	// Inventory 관련 델리게이트 배치
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
 	FOnInventoryReceived OnInventoryReceived;
 
-	// 장비 칸 GUID 를 알린다 → 장비 컴포넌트가 칸을 등록한다.
 	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
 	FOnEquipReceived OnEquipReceived;
 
-private:
-	// 창고·주머니 크기(칸). DefaultGame.ini [/Script/ProjectPG.InventorySubSystem] 에서 바꾼다.
-	UPROPERTY(Config)
-	FIntPoint StashSize = FIntPoint(10, 10);
+	bool bHasCachedInventory = false;
+	// 서버에서 받은 장착(Equip) 캐시
+	FInventoryMapWrapper CachedEquip;
+	bool bHasCachedEquip = false;
+	// 로컬에서 변경이 발생했는지 여부 (InGame 모드에서 로컬 변경 후 Lobby 복귀 시 동기화 필요)
+	bool bHasLocalChanges = false;
+	// 기본은 WebSocket 사용(로비 등)
+	UPROPERTY()
+	bool bUseWebSocket = true;
 
-	UPROPERTY(Config)
-	FIntPoint PocketSize = FIntPoint(5, 4);
+	// 강제 로컬 이동 모드: true면 RequestMoveItem 호출은 항상 로컬로 처리
+	bool bForceLocalMoves = false;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void SetForceLocalMoves(bool bForce);
+
+	FInventoryMapWrapper CachedInventory;
+
+	// If true, we requested initial inventory and are waiting for the server response.
+	// During this window we may prefer local handling of moves to avoid racing with server replay.
+	bool bWaitingForInitialInventory = false;
+
+
+public:
+	// 로컬 변경 여부 확인
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool HasLocalChanges() const { return bHasLocalChanges; }
+
+	// 단일 정책 지점: true면 RequestMoveItem/RequestEquipItem은 반드시 로컬 캐시에서만 처리하고
+	// WebSocket으로 전송하지 않는다. 호출부는 이 함수를 직접 검사하지 말고
+	// RequestMoveItem/RequestEquipItem을 그대로 호출하면 된다 (분기는 내부에서 처리).
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool IsLocalOnly() const { return bForceLocalMoves || !bUseWebSocket || bWaitingForInitialInventory; }
+
+private:
+	UPROPERTY()
+	FInventorySnapshot TravelInventory;
 };

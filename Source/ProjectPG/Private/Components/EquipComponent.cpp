@@ -7,14 +7,15 @@
 #include "Actor/EquipActor.h"
 #include "Core/TableSubSystem.h"
 #include "Core/UIManagerSubSystem.h"
+#include <Server/WebSocketSubSystem.h>
 #include "GameFramework/PlayerState.h"
+#include "GameFramework/PlayerController.h"
 #include <Server/InventorySubSystem.h>
 
 // Sets default values for this component's properties
 UEquipComponent::UEquipComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-
 }
 
 
@@ -22,44 +23,51 @@ UEquipComponent::UEquipComponent()
 void UEquipComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	if (UInventoryComponent* Inventory = GetOwnerInventoryComponent())
+	{
+		if (Inventory->IsServerManaged())
+		{
+			Inventory->OnInventoryUpdated.AddDynamic(this, &UEquipComponent::RefreshFromInventory);
+			RefreshFromInventory();
+			return;
+		}
+	}
+	const APlayerState* OwnerState = Cast<APlayerState>(GetOwner());
+	const APlayerController* Controller = OwnerState ? Cast<APlayerController>(OwnerState->GetOwner()) : nullptr;
+	if (!Controller || !Controller->IsLocalController()) return;
 
-	// 인벤토리 담당(UInventorySubSystem)이 장비 칸을 알리면 받는다.
+	// 💡 WebSocketSubSystem 대신 UInventorySubSystem에 바인딩
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
 		InvenSub->OnEquipReceived.RemoveDynamic(this, &UEquipComponent::SetServerEquipData);
 		InvenSub->OnEquipReceived.AddDynamic(this, &UEquipComponent::SetServerEquipData);
+		// Late binding 대비: 서버/서브시스템에 캐시된 장착 데이터를 즉시 재생
+		InvenSub->ReplayCachedInventory();
 	}
 }
 
 bool UEquipComponent::Equip(const FItemInstance& Item)
 {
-	if (IsEquipped(Item.GUID))
+	return Equip(Item, nullptr);
+}
+
+bool UEquipComponent::Equip(const FItemInstance& Item, UInventoryComponent* SourceInventory)
+{
+	UInventoryComponent* Inventory = GetOwnerInventoryComponent();
+	UInventoryComponent* Source = SourceInventory ? SourceInventory : Inventory;
+	if (!Inventory || !IsValid(Source)) return false;
+	const FItemInstance* Found = Source->FindItemByGuid(Item.GUID);
+	if (!Found) return false;
+	const FItemInstance SourceItem = *Found;
+	const FItemTableRow* ItemData = Inventory->GetItemData(SourceItem.ItemID);
+	if (!ItemData || ItemData->EquipSlotType == EEquipSlot::MAX) return false;
+	const EEquipSlot Slot = ItemData->EquipSlotType;
+	if (Inventory->IsServerManaged())
 	{
-		return true;
+		const FGuid* SlotGuid = Inventory->GetEquipSlotIDs().Find(Slot);
+		return SlotGuid && Inventory->TransferItemFrom(Source, SourceItem.GUID, *SlotGuid, FIntPoint::ZeroValue, SourceItem.bIsRotated);
 	}
-	UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] 장착 시도: %s"), *Item.ItemID.ToString());
-
-	UItemSubSystem* subSystem = UItemSubSystem::Get(GetWorld());
-	if (nullptr == subSystem) return false;
-
-	const FItemTableRow* ItemData = subSystem->GetItem(Item.ItemID);
-	if (!ItemData) return false;
-
-	EEquipSlot Slot = ItemData->EquipSlotType;
-	if (Slot == EEquipSlot::MAX) return false;
-
-	// 기존 장착 아이템이 있다면 해제 (무한 루프 방지를 위해 UnEquip 내부 Broadcast 억제 필요)
-	if (Equipments.Contains(Slot))
-	{
-		UnEquip(Slot);
-	}
-
-	// 장착 맵에 추가
-	Equipments.Add(Slot, Item);
-
-	// 가방 등 추가 데이터 적용
-	ApplyItemData(Item);
-
+	if (IsEquipped(SourceItem.GUID)) return true;
 	FGuid TargetSlotGuid;
 	for (const auto& Pair : EquipSlotGuids)
 	{
@@ -70,13 +78,38 @@ bool UEquipComponent::Equip(const FItemInstance& Item)
 		}
 	}
 
-	// TargetSlotGuid must be valid
 	if (!TargetSlotGuid.IsValid())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[EquipComponent] 장착 실패: 슬롯 타입(%d)에 해당하는 유효한 TargetSlotGuid를 찾지 못했습니다!"), (int32)Slot);
 		return false;
 	}
-	// (예전: 서버로 장착 패킷 전송) 10/4 웹 서버를 빼서 여기서 장착한 것이 곧 결과다.
+	Inventory->RegisterEquipSlot(Slot, TargetSlotGuid);
+	const FItemInstance* Previous = GetEquipment(Slot);
+	const FGuid IgnoreGuid = Previous ? Previous->GUID : SourceItem.GUID;
+	if (!Inventory->CanPlaceItemByGuid(TargetSlotGuid, SourceItem.ItemID, FIntPoint::ZeroValue, SourceItem.bIsRotated, IgnoreGuid)) return false;
+	if (Previous && !UnEquip(Slot)) return false;
+	if (!Inventory->TransferItemFrom(Source, SourceItem.GUID, TargetSlotGuid, FIntPoint::ZeroValue, SourceItem.bIsRotated))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] 장착 이동 실패: GUID=%s"), *SourceItem.GUID.ToString());
+		return false;
+	}
+	FItemInstance EquippedItem = SourceItem;
+	EquippedItem.parent_inventory_guid = TargetSlotGuid;
+	EquippedItem.Position = FIntPoint::ZeroValue;
+	EquippedItem.bEquip = true;
+	EquippedItem.type = ItemData->ItemType;
+	Equipments.Add(Slot, EquippedItem);
+	ApplyItemData(EquippedItem);
+
+	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
+	{
+		if (!InvenSub->IsLocalOnly())
+		{
+			InvenSub->RequestEquipItem(SourceItem.GUID, TargetSlotGuid, true);
+		}
+	}
+
+	// UI는 OnEquipmentChanged와 OnInventoryUpdated 델리게이트로 갱신됩니다.
 	// 장착 변경 이벤트 전파 (UI 가 이 델리게이트 내부에서 다시 Equip을 부르지 않는지 확인 필요!)
 	OnEquipmentChanged.Broadcast();
 	return true;
@@ -93,26 +126,55 @@ bool UEquipComponent::UnEquip(const FItemInstance Item)
 	return UnEquip(ItemData->EquipSlotType);
 }
 
-bool UEquipComponent::UnEquip(EEquipSlot slot)
+bool UEquipComponent::UnEquip(EEquipSlot slot, bool bRestoreToInventory /*= true*/)
 {
-	if (!Equipments.Contains(slot))
-		return false;
+	UInventoryComponent* Inventory = GetOwnerInventoryComponent();
+	const FItemInstance* Item = GetEquipment(slot);
+	if (!Inventory || !Item || !bRestoreToInventory) return false;
+	const FItemInstance EquippedItem = *Item;
+	const FGuid Targets[] = { Inventory->GetPocketInventoryID(), Inventory->GetStashInventoryID() };
+	for (const FGuid& Target : Targets)
+	{
+		const FIntPoint Size = Inventory->GetInventorySizeByGuid(Target);
+		for (int32 Y = 0; Y < Size.Y; ++Y)
+		{
+			for (int32 X = 0; X < Size.X; ++X)
+			{
+				if (Inventory->CanPlaceItemByGuid(Target, EquippedItem.ItemID, FIntPoint(X, Y), EquippedItem.bIsRotated, EquippedItem.GUID))
+				{
+					return UnEquipTo(slot, Inventory, Target, FIntPoint(X, Y), EquippedItem.bIsRotated);
+				}
+			}
+		}
+	}
+	return false;
+}
 
-	FItemInstance RemovedItem = Equipments[slot];
-
-	// 1. 데이터 및 액터 해제 작업을 먼저 진행
-	RemoveItemData(slot);
-	DestroyEquipActor(slot);
-
-	// 2. 맵에서 완전 제거
-	Equipments.Remove(slot);
-
+bool UEquipComponent::UnEquipTo(EEquipSlot Slot, UInventoryComponent* TargetInventory, const FGuid& TargetGuid, FIntPoint Position, bool bRotated)
+{
+	UInventoryComponent* Inventory = GetOwnerInventoryComponent();
+	const FItemInstance* Item = GetEquipment(Slot);
+	if (!Inventory || !IsValid(TargetInventory) || !Item || TargetInventory->IsEquipContainer(TargetGuid)) return false;
+	const FGuid ItemGuid = Item->GUID;
+	if (!TargetInventory->TransferItemFrom(Inventory, ItemGuid, TargetGuid, Position, bRotated)) return false;
+	if (Inventory->IsServerManaged()) return true;
+	RemoveItemData(Slot);
+	DestroyEquipActor(Slot);
+	Equipments.Remove(Slot);
+	if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld()))
+	{
+		if (!Subsystem->IsLocalOnly()) Subsystem->RequestEquipItem(ItemGuid, TargetGuid, false);
+	}
 	OnEquipmentChanged.Broadcast();
 	return true;
 }
 
 bool UEquipComponent::Swap(EEquipSlot slot1, EEquipSlot slot2)
 {
+	if (const UInventoryComponent* Inventory = GetOwnerInventoryComponent())
+	{
+		if (Inventory->IsServerManaged()) return false;
+	}
 	if (!Equipments.Contains(slot1) ||
 		!Equipments.Contains(slot2))
 		return false;
@@ -137,16 +199,9 @@ bool UEquipComponent::IsEquipped(const FGuid& Guid)
 
 bool UEquipComponent::CanEquip(const FItemInstance& Item, EEquipSlot slot) const
 {
-	UItemSubSystem* ItemSystem =
-		UItemSubSystem::Get(GetWorld());
-
-	const FEquipTableRow* EquipData =
-		ItemSystem->GetEquip(Item.ItemID);
-
-	if (!EquipData)
-		return false;
-
-	return EquipData->EquipType == slot;
+	const UInventoryComponent* Inventory = GetOwnerInventoryComponent();
+	const FItemTableRow* Data = Inventory ? Inventory->GetItemData(Item.ItemID) : nullptr;
+	return Data && slot != EEquipSlot::MAX && Data->EquipSlotType == slot;
 }
 
 AEquipActor* UEquipComponent::GetEquipActor(EEquipSlot slot) const
@@ -167,6 +222,10 @@ const FItemInstance* UEquipComponent::GetEquipment(EEquipSlot slot) const
 
 void UEquipComponent::CopyFrom(UEquipComponent* Other)
 {
+	if (const UInventoryComponent* Inventory = GetOwnerInventoryComponent())
+	{
+		if (Inventory->IsServerManaged()) return;
+	}
 	if (!Other)
 		return;
 
@@ -203,6 +262,8 @@ void UEquipComponent::CopyFrom(UEquipComponent* Other)
 
 UInventoryComponent* UEquipComponent::GetOwnerInventoryComponent() const
 {
+	if (!GetOwner()) return nullptr;
+	if (UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>()) return Inventory;
 	if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
 	{
 		if (APlayerState* PS = PawnOwner->GetPlayerState())
@@ -211,6 +272,28 @@ UInventoryComponent* UEquipComponent::GetOwnerInventoryComponent() const
 		}
 	}
 	return nullptr;
+}
+
+void UEquipComponent::RegisterGuid(EEquipSlot slottype, FGuid guid)
+{
+	if (!guid.IsValid() || slottype == EEquipSlot::MAX) return;
+	EquipSlotGuids.Add(guid, slottype);
+	if (UInventoryComponent* Inventory = GetOwnerInventoryComponent()) Inventory->RegisterEquipSlot(slottype, guid);
+}
+
+void UEquipComponent::RefreshFromInventory()
+{
+	const UInventoryComponent* Inventory = GetOwnerInventoryComponent();
+	if (!Inventory || !Inventory->HasInitialInventory()) return;
+	Equipments.Empty();
+	EquipSlotGuids.Empty();
+	for (const auto& Slot : Inventory->GetEquipSlotIDs())
+	{
+		EquipSlotGuids.Add(Slot.Value, Slot.Key);
+		const TArray<FItemInstance>& Items = Inventory->GetItems(Slot.Value);
+		if (!Items.IsEmpty()) Equipments.Add(Slot.Key, Items[0]);
+	}
+	OnEquipmentChanged.Broadcast();
 }
 
 void UEquipComponent::SpawnEquipActor(EEquipSlot Slot, UStaticMesh* Mesh)
@@ -258,6 +341,7 @@ void UEquipComponent::ApplyItemData(const FItemInstance& Item)
 {
 	if (Item.type == EItemType::Bag)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] ApplyItemData for Bag called: ItemGUID=%s ItemID=%s"), *Item.GUID.ToString(), *Item.ItemID.ToString());
 		UTableSubSystem* subsystem = UTableSubSystem::Get(GetWorld());
 		if (!IsValid(subsystem)) return;
 
@@ -265,15 +349,9 @@ void UEquipComponent::ApplyItemData(const FItemInstance& Item)
 		if (!data) return;
 
 		// InventoryComponent에 가방 컨테이너 등록
-		if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
+		if (UInventoryComponent* InvenComp = GetOwnerInventoryComponent())
 		{
-			if (APlayerState* PS = PawnOwner->GetPlayerState())
-			{
-				if (UInventoryComponent* InvenComp = PS->GetComponentByClass<UInventoryComponent>())
-				{
-					InvenComp->RegisterContainer(Item.GUID, FIntPoint(data->SlotSize.X, data->SlotSize.Y));
-				}
-			}
+			InvenComp->RegisterContainer(Item.GUID, FIntPoint(data->SlotSize.X, data->SlotSize.Y));
 		}
 	}
 }
@@ -285,28 +363,28 @@ void UEquipComponent::RemoveItemData( EEquipSlot slot)
 
 	if (slot == EEquipSlot::BackPack || Item->type == EItemType::Bag)
 	{
-		if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
-		{
-			if (APlayerState* PS = PawnOwner->GetPlayerState())
-			{
-				if (UInventoryComponent* InvenComp = PS->GetComponentByClass<UInventoryComponent>())
-				{
-					InvenComp->UnregisterContainer(Item->GUID);
-				}
-			}
-		}
+		// backpack 컨테이너는 item GUID에 종속되므로, 장착 해제/재장착 사이에
+		// child item 상태를 보존하기 위해 즉시 해제하지 않는다.
+		// 실제 제거는 아이템 자체가 소멸하거나 다른 GUID로 교체될 때 별도 처리한다.
+		return;
 	}
 }
 
 void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 {
-	if (!InWrapper.BackPack.IsValid() && !InWrapper.MainWeapon.IsValid() /* ...다른 슬롯들도 체크... */)
+	if (const UInventoryComponent* Inventory = GetOwnerInventoryComponent())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SetServerEquipData] 유효하지 않은 맵퍼가 들어와서 무시합니다."));
-		return;
+		if (Inventory->IsServerManaged()) return;
 	}
+	bHasReceivedInitialEquipSync = true;
 
 	UE_LOG(LogTemp, Warning, TEXT("장착된 아이템이 갱신 "));
+	for (const auto& Pair : Equipments) RemoveItemData(Pair.Key);
+	for (const auto& Pair : EquipActors)
+	{
+		if (IsValid(Pair.Value)) Pair.Value->Destroy();
+	}
+	Equipments.Empty();
 	EquipSlotGuids.Empty();
 	EquipActors.Empty();
 
@@ -324,6 +402,7 @@ void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 	if (InWrapper.InventoryMap.Num() <= 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("장착된 아이템이 없습니다. "));
+		OnEquipmentChanged.Broadcast();
 		return;
 	}
 
@@ -357,8 +436,12 @@ void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 				TargetItem.parent_inventory_guid = guid;
 			}
 
-			Equip(TargetItem);
+			TargetItem.Owner = GetOwner();
+			TargetItem.bEquip = true;
+			Equipments.Add(EquipSlotGuids.FindChecked(guid), TargetItem);
+			ApplyItemData(TargetItem);
 		}
 	}
+	OnEquipmentChanged.Broadcast();
 }
 

@@ -29,10 +29,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Inventory")
 	TSubclassOf<class UItemWidget> ItemWidgetClass;
 
-	// 검색·종류에 안 맞는 아이템의 불투명도(0 = 안 보임, 1 = 그대로).
-	UPROPERTY(EditAnywhere, Category = "Inventory|Filter", meta = (ClampMin = "0", ClampMax = "1"))
-	float FilteredOutOpacity = 0.25f;
-
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UUniformGridPanel> BackGroundGrid;
 
@@ -85,16 +81,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void RefreshGrid(class UInventoryComponent* InComp, const FGuid& InvenGuid);
-
-	// (10/4 기획서 1.2.1 필터링·검색) 이름에 Text 가 들어 있고 종류가 맞는 아이템만 진하게, 나머지는 흐리게 그린다.
-	// TypeFilter < 0 = 모든 종류. 옮기기·놓기는 그대로 된다(보이는 것만 바뀜).
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void SetFilter(const FString& Text, int32 TypeFilter);
 private:
-	bool MatchesFilter(const FItemTableRow& Data) const;
-	FString FilterText;
-	int32 FilterType = -1;
-
 	FIntPoint CalculateDropTile(
 		const FVector2D& ScreenMousePosition,
 		class UItemDragDropOperation* DragOp

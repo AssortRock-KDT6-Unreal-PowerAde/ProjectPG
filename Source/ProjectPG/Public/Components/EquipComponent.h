@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Common/GameData.h"
+class UInventoryComponent;
+
 #include "EquipComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEquipmentChanged);
@@ -20,6 +22,10 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equip", meta = (AllowPrivateAccess = "true"))	TMap<EEquipSlot, FItemInstance> Equipments;
 	UPROPERTY()TMap < EEquipSlot, TObjectPtr<class AEquipActor>> EquipActors;
 	UPROPERTY()TMap<FGuid,EEquipSlot> EquipSlotGuids;
+
+	// ★ local-only(InGame) 모드에서 최초 동기화 이후에는 스테일 캐시 재생으로 인한
+	// SetServerEquipData() 전체 재적용을 막기 위한 플래그 (InventoryComponent와 동일한 이유)
+	bool bHasReceivedInitialEquipSync = false;
 public:
 	FOnEquipmentChanged OnEquipmentChanged;
 protected:
@@ -29,8 +35,11 @@ protected:
 public:
 	const TMap<EEquipSlot, TObjectPtr<class AEquipActor>>& GetEquipActors() const { return EquipActors; }
 	bool Equip(const FItemInstance& Item);
+	bool Equip(const FItemInstance& Item, UInventoryComponent* SourceInventory);
 	bool UnEquip(const FItemInstance Item);
-	bool UnEquip(EEquipSlot slot);
+	// 특정 위치로 해제할 때는 원본을 먼저 삭제하지 않고 UnEquipTo를 사용한다.
+	bool UnEquip(EEquipSlot slot, bool bRestoreToInventory = true);
+	bool UnEquipTo(EEquipSlot Slot, UInventoryComponent* TargetInventory, const FGuid& TargetGuid, FIntPoint Position, bool bRotated);
 
 	bool Swap(EEquipSlot slot1, EEquipSlot slot2);
 
@@ -41,9 +50,12 @@ public:
 	const FItemInstance* GetEquipment(EEquipSlot slot) const;
 	
 	void CopyFrom(UEquipComponent* Other);
-	void RegisterGuid(EEquipSlot slottype, FGuid guid) { if(!EquipSlotGuids.Contains(guid))EquipSlotGuids.Add(guid,slottype); }
+	void RegisterGuid(EEquipSlot slottype, FGuid guid);
 	class UInventoryComponent* GetOwnerInventoryComponent() const;
 private:
+	UFUNCTION()
+	void RefreshFromInventory();
+
 	void SpawnEquipActor(EEquipSlot Slot, class UStaticMesh* Mesh);
 
 

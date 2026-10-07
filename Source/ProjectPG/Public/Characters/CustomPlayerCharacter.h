@@ -3,12 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "CustomGameplayTags.h"
-#include "InputActionValue.h"
 #include "Characters/CustomCharacter.h"
 #include "CustomPlayerCharacter.generated.h"
 
 class UCustomAbilitySystemComponent;
+class UAnimMontage;
+
 /**
  * 
  */
@@ -18,7 +18,7 @@ class PROJECTPG_API ACustomPlayerCharacter : public ACustomCharacter
 	GENERATED_BODY()
 
 public:
-	ACustomPlayerCharacter();
+	ACustomPlayerCharacter(const FObjectInitializer& ObjectInitializer);
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -29,13 +29,32 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<class UNativeActionComponent> NativeActionComp;
-
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<class UInteractComponent> InteractComp;
 public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UCustomAbilitySystemComponent* GetCustomAbilitySystemComponent() const;
 	USpringArmComponent* GetCameraArm() const;
+	void Interact();
+	void PlayMontage(UAnimMontage* Montage);
+
+	UFUNCTION(Server, Reliable)
+	void OnReq_PlayMontage(UAnimMontage* Montage);
+	UFUNCTION(NetMulticast, Reliable)
+	void OnRep_PlayMontage(UAnimMontage* Montage);
+
+	UFUNCTION(Server, Unreliable)
+	void OnReq_SyncAimRotation(FVector2D AimDirection);
+	UFUNCTION(NetMulticast, Unreliable)
+	void OnRep_SyncAimRotation(FVector2D AimDirection);
+
+	UFUNCTION(Server, Unreliable)
+	void OnReq_SyncCharacterRotation(FVector2D AimDirection, FRotator ActorRotation);
+	UFUNCTION(NetMulticast, Unreliable)
+	void OnRep_SyncCharacterRotation(FVector2D AimDirection);
 
 protected:
 	virtual void BeginPlay() override;

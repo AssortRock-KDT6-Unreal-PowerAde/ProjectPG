@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Common/GameData.h" // FInventoryMapWrapper 정의 포함
+#include "Server/WebSocketSubSystem.h" // FInventoryMapWrapper 정의 포함
 #include "InventoryWindow.generated.h"
 
 // 전방 선언 (Forward Declaration)
@@ -13,6 +13,7 @@ class UInventoryComponent;
 class UInventoryGridWidget;
 class UEquipmentWidget;
 class UButton;
+class UEquipComponent;
 /**
  * 캐릭터 장비 및 인벤토리 창 통합 윈도우 UI
  */
@@ -32,28 +33,9 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UOverlay> EquipOverlay;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UOverlay> BackPackInvenOverlay;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> BackBtn;
-
-	// (10/4 기획서 1.2.1) 창고 위 검색 칸·종류 고르기. 창고 격자에만 적용.
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<class UEditableTextBox> SearchBox;
-
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<class UComboBoxString> FilterCombo;
-
-	// 종류 고르기 목록 글자. 0번 = 전체, 1번부터 EItemType 순서(무기·방어구·소비·퀘스트·가방·기타). WBP 에서 고친다.
-	UPROPERTY(EditAnywhere, Category = "Filter")
-	TArray<FText> FilterLabels = { INVTEXT("전체"), INVTEXT("무기"), INVTEXT("방어구"), INVTEXT("소비"), INVTEXT("퀘스트"), INVTEXT("가방"), INVTEXT("기타") };
-
-	// 뒤로가기를 누르면 돌아갈 로비 카메라 이름표(L_Title 의 카메라 태그)와 옮겨 가는 시간.
-	UPROPERTY(EditAnywhere, Category = "Lobby Camera")
-	FName MenuCameraTag = TEXT("LobbyCamera_Menu");
-	UPROPERTY(EditAnywhere, Category = "Lobby Camera", meta = (ClampMin = "0"))
-	float CameraBlendSeconds = 0.6f;
 
 
 	UPROPERTY(meta = (BindWidgetOptional))
@@ -63,13 +45,52 @@ protected:
 	TObjectPtr<UInventoryComponent> InvenComp;
 
 	UPROPERTY()
-	TObjectPtr<class UEquipComponent> EquipComp;
+	TObjectPtr<UEquipComponent> EquipComp;
+
+	// When showing an InteractActor's main inventory, this holds that actor's InventoryComponent
+	UPROPERTY()
+	TObjectPtr<UInventoryComponent> MainInventoryComp;
+	bool bShowMainInventory;
+	// When true, the main overlay is explicitly bound to an interact target's inventory component
+	// and should not fall back to the player's InvenComp.
+	bool bBoundToInteractTarget = false;
+
+	// Optional: when set, Force the main overlay to display this specific container GUID
+	FGuid MainInventoryGUID;
+public:
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UOverlay> BackPackInvenOverlay;
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	// Timer handle for deferred refresh when container registration is delayed
+	FTimerHandle DeferredRefreshTimer;
 
 public:
-	void InitWidget(UInventoryComponent* InvenComponent, class UEquipComponent* EquipComponent);
+	// InvenComponent: player-owned inventory (stash/pocket/backpack)
+	// EquipComponent: player's equip component
+	// InMainInventory: optional inventory to display in the Main area (e.g., InteractActor). If nullptr, Main shows player stash.
+	void InitWidget(UInventoryComponent* InvenComponent, UEquipComponent* EquipComponent, UInventoryComponent* InMainInventory = nullptr);
+
+	UFUNCTION(BlueprintCallable)
+	void SetShowMainInventory(bool bShow) { bShowMainInventory = bShow; }
+
+	// Alternative init: bind only actor inventory (for InteractActor)
+	UFUNCTION(BlueprintCallable)
+	void InitWidgetForActor(UInventoryComponent* ActorInventory);
+
+	// Explicit init variants
+	UFUNCTION(BlueprintCallable)
+	void InitForPlayer(UInventoryComponent* PlayerInv, UEquipComponent* PlayerEquip, bool bShowMain = true);
+
+	UFUNCTION(BlueprintCallable)
+	void InitForContainer(UInventoryComponent* ContainerInv);
+	// Overload: specify which container GUID of the provided InventoryComponent should be shown in Main area
+	void InitForContainer(UInventoryComponent* ContainerInv, const FGuid& PreferredGuid);
+
+	UFUNCTION(BlueprintCallable)
+	void InitForHuman(UInventoryComponent* HumanInv, UEquipComponent* HumanEquip);
 
 	// 외부(LobbyWidget 등)에서 호출하는 인벤토리 초기 세팅용 함수
 	void SetupMainInventoryWidget(TSubclassOf<UUserWidget> InvenClass);
@@ -87,16 +108,13 @@ public:
 
 	UFUNCTION()
 	void OnClickedBackBtn();
-
-private:
-	UFUNCTION()	void OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper);
-
 	UFUNCTION() void RefreshAllGrids();
 
-	UFUNCTION() void OnSearchChanged(const FText& Text);
-	UFUNCTION() void OnFilterChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
-	// 검색 칸·종류를 창고 격자에 넘긴다.
-	void ApplyFilter();
+private:
+	// Centralized initializer to avoid duplicate delegate bindings between Init variants.
+	void ApplyInit(UInventoryComponent* PlayerInv, UEquipComponent* PlayerEquip, UInventoryComponent* MainInv, bool bBindToInteractTargetFlag);
+	UFUNCTION()	void OnInventoryDataReceived(const FInventoryMapWrapper& InventoryMapWrapper);
+
 
 
 };
