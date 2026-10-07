@@ -10,13 +10,25 @@
 import csv
 import io
 import os
+import re
+import shutil
 import unreal
 
 TABLE = "/Game/PG/Table/ItemTable"
 FOLDER = "/Game/PG/UI/ItemIcons"
 CUSTOM_FOLDER = "/Game/PG/UI/ItemIcons_Custom"
 CUSTOM_SOURCE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icons_custom")
-SIZE = 128
+PIXELS_PER_CELL = 64   # 칸 하나당 픽셀. 4×2 칸 아이템 → 256×128 그림
+# 아이템별 손질(찍어 보고 방향만 틀렸을 때): flip_x 좌우, flip_y 위아래 뒤집기,
+# axis 1/2/3 = 메시 X/Y/Z 의 + 쪽에서 보기, -1/-2/-3 = 반대쪽에서 보기(0 자동)
+OVERRIDES = {
+    # 총구를 오른쪽으로 통일(AK·AR70 과 같게)
+    "1001": {"flip_x": True}, "1002": {"flip_x": True}, "1003": {"flip_x": True},
+    "1004": {"flip_x": True}, "1005": {"flip_x": True}, "1006": {"flip_x": True},
+    "1007": {"flip_x": True}, "1008": {"flip_x": True}, "1009": {"flip_x": True},
+    # 가방: 자동으로는 등판 쪽(은색 패드)이 찍혀서 앞(주머니 쪽)에서 찍는다
+    "5001": {"axis": -2},
+}
 
 
 def log(msg):
@@ -37,9 +49,14 @@ def import_custom(item_id):
     png = os.path.join(CUSTOM_SOURCE, "T_Icon_%s.png" % item_id)
     if not os.path.exists(png):
         return None
+    # 파일 이름 끝의 1001~1999 는 언리얼이 UDIM(타일 텍스처) 번호로 읽어 "T_Icon" 이라는 다른 에셋을 만든다(10/7 활 1016).
+    # → 숫자 뒤에 글자를 붙인 임시 사본으로 가져오고, 에셋 이름은 destination_name 으로 정한다.
+    staged = os.path.join(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_intermediate_dir()), "IconImport_%s_src.png" % item_id)
+    shutil.copyfile(png, staged)
     task = unreal.AssetImportTask()
-    task.set_editor_property("filename", png)
+    task.set_editor_property("filename", staged)
     task.set_editor_property("destination_path", CUSTOM_FOLDER)
+    task.set_editor_property("destination_name", "T_Icon_%s" % item_id)
     task.set_editor_property("replace_existing", True)
     task.set_editor_property("automated", True)
     task.set_editor_property("save", False)
@@ -57,8 +74,12 @@ def import_custom(item_id):
     return path
 
 
+# 10/7 UDIM 으로 잘못 가져와 생긴 에셋 정리
+if unreal.EditorAssetLibrary.does_asset_exist(CUSTOM_FOLDER + "/T_Icon"):
+    unreal.EditorAssetLibrary.delete_asset(CUSTOM_FOLDER + "/T_Icon")
+
 unknown = FOLDER + "/T_Icon_Unknown"
-if unreal.ItemIconTools.render_mesh_icon(unreal.load_asset("/Engine/BasicShapes/Cube"), unknown, SIZE) is None:
+if unreal.ItemIconTools.render_item_icon(unreal.load_asset("/Engine/BasicShapes/Cube"), unknown, unreal.IntPoint(1, 1), PIXELS_PER_CELL) is None:
     log("render failed")
 
 table = unreal.load_asset(TABLE)
@@ -67,6 +88,7 @@ rows = list(csv.reader(io.StringIO(text)))
 header = rows[0]
 icon_col = header.index("Icon")
 mesh_col = header.index("WorldMesh")
+grid_col = header.index("GridSize")
 made = 0
 for row in rows[1:]:
     if not row:
@@ -82,7 +104,11 @@ for row in rows[1:]:
         mesh_path = mesh_ref.split("'")[1] if "'" in mesh_ref else mesh_ref
         mesh = unreal.load_asset(mesh_path)
         target = "%s/T_Icon_%s" % (FOLDER, item_id)
-        if mesh is not None and unreal.ItemIconTools.render_mesh_icon(mesh, target, SIZE) is not None:
+        nums = [int(n) for n in re.findall(r"\d+", row[grid_col])] or [1, 1]
+        o = OVERRIDES.get(item_id, {})
+        if mesh is not None and unreal.ItemIconTools.render_item_icon(
+                mesh, target, unreal.IntPoint(nums[0], nums[1]), PIXELS_PER_CELL, 0.08,
+                o.get("flip_x", False), o.get("flip_y", False), o.get("axis", 0)) is not None:
             icon_path = target
             made += 1
         else:

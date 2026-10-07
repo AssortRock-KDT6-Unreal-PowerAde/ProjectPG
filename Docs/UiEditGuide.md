@@ -105,6 +105,9 @@
 - 아이콘 위치: `/Game/PG/UI/ItemIcons/T_Icon_<번호>` (바닥 모양을 위에서 찍은 것), `/Game/PG/UI/ItemIcons_Custom/` (손으로 만든 그림).
 - **아이콘 하나를 그림으로 바꾸기**: `Tools/icons_custom/T_Icon_<번호>.png`(배경 투명, 256×256 권장)를 넣고 아래 명령 실행.
   그림이 있으면 그림이 먼저 쓰인다(방탄조끼 2003 이 이렇게 들어감).
+- 찍은 아이콘은 그림 크기가 아이템 칸 비율과 같다(칸 하나 64픽셀, 4×2 → 256×128). 물건의 가장 얇은 쪽에서 찍는다(총은 옆모습).
+  방향만 틀리면 `make_item_icons.py` 맨 위 **OVERRIDES** 에 아이템 번호로 `flip_x`(좌우)·`flip_y`(위아래)·`axis`(보는 쪽)를 적고 다시 돌린다.
+- 모델이 없거나 찍어도 알아보기 힘든 것(활·물·전투식량·문서·레시피·희귀 재료·드래곤 비늘·절단기·가방·방탄조끼)은 그림(`Tools/icons_custom`)으로 들어가 있다.
 - **아이콘 전부 다시 찍기**(아이템을 추가했거나 바닥 모양을 바꿨을 때):
   ```
   UnrealEditor.exe <프로젝트>\ProjectPG.uproject -ExecutePythonScript="<프로젝트>/Tools/wbp/make_item_icons.py" -RenderOffScreen -unattended -nosplash
