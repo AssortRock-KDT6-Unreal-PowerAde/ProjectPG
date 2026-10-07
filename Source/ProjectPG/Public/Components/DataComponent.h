@@ -15,6 +15,10 @@ class PROJECTPG_API UDataComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	UDataComponent();
+
+	// Flush collected local data and send to server via InventorySubSystem
+	UFUNCTION(BlueprintCallable)
+	void FlushAndSendToServer();
 private:
 	UPROPERTY()
 	TMap<FGuid,FItemArrayWrapper> ItemData;

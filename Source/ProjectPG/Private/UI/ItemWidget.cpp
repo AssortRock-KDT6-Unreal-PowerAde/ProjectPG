@@ -59,6 +59,11 @@ void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& In
 	RefreshWidget();
 }
 
+void UItemWidget::SetOwnerInventoryComp(UInventoryComponent* InComp)
+{
+	 OwnerInventoryComp = InComp; 
+}
+
 void UItemWidget::SetContextWidget(UItemContextWidget* widget)
 {
 	_ContextWidget = widget;
@@ -69,22 +74,12 @@ FReply UItemWidget::NativeOnMouseButtonDown(
 	const FPointerEvent& InMouseEvent)
 {
 
-	UE_LOG(
-		LogTemp,
-		Error,
-		TEXT("[ItemWidget] CLICK %s GUID=%s"),
-		*InMouseEvent.GetEffectingButton().ToString(),
-		*ItemInstance.GUID.ToString()
-	);
+
 
 	if (InMouseEvent.GetEffectingButton() ==
 		EKeys::RightMouseButton)
 	{
-		UE_LOG(
-			LogTemp,
-			Error,
-			TEXT("[ItemWidget] RIGHT CLICK SUCCESS")
-		);
+	
 
 		UUIManagerSubSystem* Subsystem =
 			UUIManagerSubSystem::Get(GetWorld());
@@ -153,6 +148,7 @@ bool UItemWidget::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent
 {
 	SetRenderOpacity(1.0f);
 	return Super::NativeOnDrop(MyGeometry, InDragDropEvent, InOperation);
+
 }
 
 void UItemWidget::NativeOnDragDetected(
@@ -176,14 +172,9 @@ void UItemWidget::NativeOnDragDetected(
 	DragOp->WidgetReference = this;
 	DragOp->DraggedItem = ItemInstance;
 	DragOp->SourceInventoryGUID = OwnerInventoryGUID;
+	DragOp->SourceInventoryComp = OwnerInventoryComp;
 	DragOp->bCurrentRotated =
 		ItemInstance.bIsRotated;
-
-	// =========================================================
-	// ★ 모든 드래그의 공통 좌표 기준
-	//
-	// Mouse - Widget TopLeft
-	// =========================================================
 
 	const FVector2D MouseAbsolute =
 		InMouseEvent.GetScreenSpacePosition();

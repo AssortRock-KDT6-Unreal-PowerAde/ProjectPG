@@ -22,6 +22,10 @@ public:
 	TObjectPtr<class UDataComponent> DataComp;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<class UEquipComponent> EquipComp;
+
+
+
+
 private:
 	FGuid InventoryGuid;
 

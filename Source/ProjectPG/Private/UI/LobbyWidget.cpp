@@ -48,6 +48,12 @@ void ULobbyWidget::OnClickedCharacterButton()
 	UUserWidget* CharacterWidget = UISubsystem->OpenUI(EUIType::Character);
 	UInventoryWindow* Window = Cast<UInventoryWindow>(CharacterWidget);
 
+	// OpenUI가 이미 위젯 인스턴스를 반환하지만 뷰포트에 없을 수 있으니 강제 추가
+	if (CharacterWidget && !CharacterWidget->IsInViewport())
+	{
+		CharacterWidget->AddToViewport(100);
+	}
+
 	if (Window)
 	{
 		APlayerController* PC = GetOwningPlayer();
@@ -58,8 +64,8 @@ void ULobbyWidget::OnClickedCharacterButton()
 				UInventoryComponent* InvenComp = MyPS->GetComponentByClass<UInventoryComponent>();
 				UEquipComponent* EquipComp = MyPS->GetComponentByClass<UEquipComponent>();
 
-				// 1. 컴포넌트 초기화
-				Window->InitWidget(InvenComp, EquipComp);
+				// 1. 컴포넌트 초기화 (Lobby: show main inventory)
+				Window->InitForPlayer(InvenComp, EquipComp, true);
 
 				// 2. Main / Pocket 인벤토리 UI 생성 호출
 				TSubclassOf<UUserWidget> InvenClass = UISubsystem->GetUIClass(EUIType::Inventory);

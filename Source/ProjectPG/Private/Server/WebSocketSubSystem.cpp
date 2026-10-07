@@ -71,7 +71,7 @@ void UWebSocketSubSystem::ConnectToLobbyServer()
 	WebSocket->Connect();
 }
 
-void UWebSocketSubSystem::OnConnected() { UE_LOG(LogTemp, Log, TEXT("[WebSocket Subsystem] 로비 서버 연결 성공")); }
+void UWebSocketSubSystem::OnConnected() { UE_LOG(LogTemp, Log, TEXT("[WebSocket Subsystem] 로비 서버 연결 성공")); OnSocketConnected.Broadcast(); }
 void UWebSocketSubSystem::OnConnectionError(const FString& Error) { UE_LOG(LogTemp, Error, TEXT("[WebSocket Subsystem] 연결 에러: %s"), *Error); }
 void UWebSocketSubSystem::OnClosed(int32 StatusCode, const FString& Reason, bool bWasClean) { UE_LOG(LogTemp, Warning, TEXT("[WebSocket Subsystem] 연결 종료: %s"), *Reason); }
 
@@ -127,6 +127,7 @@ void UWebSocketSubSystem::HandleParsedMessage(const FString& Type, TSharedPtr<FJ
 		{
 			InvSub->HandleInventoryMessage(UpperType, PayloadObject);
 		}
+
 		return;
 	}
 }
@@ -141,13 +142,46 @@ void UWebSocketSubSystem::SendJsonMessage(const FString& Type, TSharedPtr<FJsonO
 	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
 	if (FJsonSerializer::Serialize(RootObject.ToSharedRef(), Writer))
 	{
+		// Defensive guard: if InventorySubSystem requests local-only handling, block
+		// outgoing MOVE/EQUIP requests regardless of caller.
+		// InventorySubSystem::IsLocalOnly()가 로컬/서버 분기의 단일 정책 지점이다.
+		// 주의: GET_INVENTORY(최초 조회 요청) 자체는 절대 차단하면 안 된다.
+		// RequestGetInventory()가 bWaitingForInitialInventory=true를 설정한 직후 이 메시지를 보내므로,
+		// 이 타입까지 막아버리면 서버 응답을 영원히 받지 못하는 자기잠금(deadlock) 상태가 된다.
+		if (UInventorySubSystem* InvSub = UInventorySubSystem::Get(GetWorld()))
+		{
+			const FString UpperType = Type.ToUpper();
+			const bool bIsGetInventoryRequest = UpperType.Contains(TEXT("GET_INVENTORY"));
+			const bool bIsMoveOrEquipRequest = UpperType.Contains(TEXT("REQ_MOVE")) || UpperType.Contains(TEXT("REQ_EQUIP"));
+			if (!bIsGetInventoryRequest && bIsMoveOrEquipRequest && InvSub->IsLocalOnly())
+			{
+				UE_LOG(LogTemp, Warning, TEXT("UWebSocketSubSystem::SendJsonMessage - Blocked inventory request Type=%s (IsLocalOnly=true)"), *Type);
+				return;
+			}
+		}
+
+		if (!WebSocket.IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UWebSocketSubSystem::SendJsonMessage - WebSocket is not valid, cannot send Type=%s"), *Type);
+			return;
+		}
+
+		if (!WebSocket->IsConnected())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UWebSocketSubSystem::SendJsonMessage - WebSocket is not connected, cannot send Type=%s"), *Type);
+			return;
+		}
+
 		WebSocket->Send(OutputString);
 	}
 }
 
 bool UWebSocketSubSystem::SendPayload(const FString& Type, TSharedPtr<FJsonObject> PayloadObject)
 {
-	if (!WebSocket.IsValid() || !WebSocket->IsConnected()) return false;
+	bool bConnected = WebSocket.IsValid() && WebSocket->IsConnected();
+	UE_LOG(LogTemp, Warning, TEXT("[WebSocketSubSystem] SendPayload: Type=%s Connected=%s"), *Type, bConnected ? TEXT("true") : TEXT("false"));
+	if (!bConnected) return false;
 	SendJsonMessage(Type, PayloadObject);
+	UE_LOG(LogTemp, Warning, TEXT("[WebSocketSubSystem] SendPayload: Type=%s Sent"), *Type);
 	return true;
 }

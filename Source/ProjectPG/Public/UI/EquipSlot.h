@@ -31,7 +31,12 @@ protected:
 	virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 private:
 	EEquipSlot Slot;
-	const FItemInstance* Item;
+	// 주의: UEquipComponent::Equipments(TMap)의 포인터를 직접 들고 있으면
+	// TMap Add/Remove 시 재해싱으로 인해 다른 슬롯 변경만으로도 댕글링 포인터가 되어
+	// 유령/스테일 아이템 데이터가 드래그 payload로 복사되는 문제가 있었다.
+	// 따라서 값(FItemInstance)으로 스냅샷을 보관한다.
+	bool bHasItem = false;
+	FItemInstance Item;
 
 	UPROPERTY()
 	TObjectPtr<class UEquipComponent> EquipComp;
@@ -44,6 +49,14 @@ public:
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 	UFUNCTION(BlueprintCallable)
 	bool RequestUnEquip();
+
+	// UI 드래그 롤백 등에서 원본 슬롯의 EquipComponent에 접근하기 위한 getter
+	class UEquipComponent* GetEquipComponent() const { return EquipComp; }
+	EEquipSlot GetSlot() const { return Slot; }
+
+	// 강제 클리어: 드래그 중에도 슬롯을 즉시 비우기 위해 사용
+	UFUNCTION(BlueprintCallable)
+	void ForceClear();
 
 	// 하이라이트 상태 설정 (InventoryGrid와 동일 방식)
 	UFUNCTION(BlueprintCallable)

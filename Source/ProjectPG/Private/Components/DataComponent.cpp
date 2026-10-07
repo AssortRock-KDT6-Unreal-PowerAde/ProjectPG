@@ -10,9 +10,37 @@ UDataComponent::UDataComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+void UDataComponent::FlushAndSendToServer()
+{
+	if (!GetWorld()) return;
+
+	if (UInventorySubSystem* InvSub = UInventorySubSystem::Get(GetWorld()))
+	{
+		FInventoryMapWrapper Wrapper;
+		// copy stored ItemData into Wrapper.InventoryMap
+		Wrapper.InventoryMap = ItemData;
+
+		// overwrite cached inventory inside subsystem
+		InvSub->CachedInventory.InventoryMap = Wrapper.InventoryMap;
+		InvSub->bHasCachedInventory = true;
+		InvSub->bHasLocalChanges = true;
+
+		UE_LOG(LogTemp, Warning, TEXT("[DataComponent] FlushAndSendToServer: invoking ForceSaveToServer"));
+		InvSub->ForceSaveToServer();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[DataComponent] FlushAndSendToServer: InventorySubSystem not found"));
+	}
+}
+
 void UDataComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	if (const UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>())
+	{
+		if (Inventory->IsServerManaged()) return;
+	}
 
 	
 		// [Client / Standalone] 로비 세션일 때는 기존처럼 WebSocketSubSystem 델리게이트 바인딩
@@ -25,6 +53,10 @@ void UDataComponent::BeginPlay()
 }
 void UDataComponent::LoadInventoryData(const FInventoryMapWrapper& ItemsWrapper)
 {
+	if (const UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>())
+	{
+		if (Inventory->IsServerManaged()) return;
+	}
 	ItemData = ItemsWrapper.InventoryMap;
 
 	if (UInventoryComponent* InvenComp = GetOwner() ? GetOwner()->FindComponentByClass<UInventoryComponent>() : nullptr)
