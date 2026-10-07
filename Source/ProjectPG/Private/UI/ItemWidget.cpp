@@ -7,6 +7,7 @@
 #include "Blueprint/WidgetBlueprintLibrary.h"
 
 #include "Components/SizeBox.h"
+#include "Components/ScaleBox.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/CanvasPanelSlot.h"
@@ -75,7 +76,8 @@ void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& In
 	{
 		if (UTexture2D* IconTex = InData.Icon)
 		{
-			ItemIcon->SetBrushFromTexture(IconTex);
+			// true = 그림 원래 크기를 브러시에 기록 → ScaleBox 가 그림 비율을 알고 늘리지 않고 맞춘다.
+			ItemIcon->SetBrushFromTexture(IconTex, true);
 		}
 	}
 
@@ -272,4 +274,22 @@ void UItemWidget::RefreshWidget()
 	FIntPoint GridSize = ItemInstance.GetCurrentGridSize(&CachedItemData);
 	RootSizeBox->SetWidthOverride(GridSize.X * TileSize);
 	RootSizeBox->SetHeightOverride(GridSize.Y * TileSize);
+
+	// 아이콘 자리 = 돌리기 전 칸 크기(여백 뺌). 돌린 아이템은 그 자리를 가운데 기준 90° 돌려 칸에 맞춘다.
+	// (ScaleBox 가 그림 비율을 지켜 자리 안에 맞춰 줄이므로 긴 총이 정사각형 칸에서도 찌그러지지 않는다.)
+	if (IconScale)
+	{
+		if (UCanvasPanelSlot* IconSlot = Cast<UCanvasPanelSlot>(IconScale->Slot))
+		{
+			const FIntPoint BaseSize = CachedItemData.GridSize;
+			IconSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+			IconSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+			IconSlot->SetPosition(FVector2D::ZeroVector);
+			IconSlot->SetSize(FVector2D(
+				FMath::Max(1.0f, BaseSize.X * TileSize - 2.0f * IconPadding),
+				FMath::Max(1.0f, BaseSize.Y * TileSize - 2.0f * IconPadding)));
+		}
+		IconScale->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
+		IconScale->SetRenderTransformAngle(ItemInstance.bIsRotated ? 90.0f : 0.0f);
+	}
 }

@@ -19,6 +19,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Tooltip", meta = (ClampMin = "0"))
 	float TooltipDelaySeconds = 1.0f;
 
+	// 아이콘과 칸 테두리 사이 여백(픽셀). WBP_ItemWidget 에서 고친다.
+	UPROPERTY(EditAnywhere, Category = "Icon", meta = (ClampMin = "0"))
+	float IconPadding = 3.0f;
+
 	UPROPERTY(BlueprintReadOnly)
 	FItemInstance ItemInstance;
 
@@ -30,6 +34,9 @@ protected:
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<class USizeBox> RootSizeBox;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<class UImage> ItemIcon;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<class UTextBlock> TextStackCount;
+	// 아이콘 비율 지키기(10/7): ItemIcon 을 감싼 ScaleBox(맞춰 줄이기). 캔버스 위에 있어서 돌린 아이템은 이걸 90° 돌린다.
+	// WBP 에 없으면 예전처럼 아이콘을 칸 크기로 늘려 붙인다.
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<class UScaleBox> IconScale;
 
 	FItemTableRow CachedItemData;
 

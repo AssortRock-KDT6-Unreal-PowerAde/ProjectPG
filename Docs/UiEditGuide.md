@@ -44,6 +44,7 @@
 | 뒤로가기 때 카메라 | `WBP_CharacterWidget` 의 **Lobby Camera** 칸 |
 | 장비 칸 9개 배치, 캐릭터 보이는 자리 | `WBP_Equip` (`CharacterView` = 캐릭터 자리, 지금 투명) |
 | 장비 칸 하나 모양 | `WBP_EquipSlot` |
+| 장비 칸 아이콘 여백 | `WBP_EquipSlot` 의 `IconScale` 슬롯 Padding(아이콘은 비율대로 맞춰 들어감) |
 
 ### 1-3. 아이템 칸
 | 고치고 싶은 것 | 어디 |
@@ -54,6 +55,7 @@
 | 칸·아이템을 어떤 WBP 로 만들지 | `WBP_InventoryGrid` 의 **Slot Widget Class**, **Item Widget Class** |
 | 검색에 안 맞는 아이템 흐림 정도 | `WBP_InventoryGrid` 의 **Filtered Out Opacity** (0 = 안 보임, 1 = 그대로) |
 | 칸 위의 아이템(그림·개수 글자) | `WBP_ItemWidget` (`ItemIcon`, `TextStackCount`) |
+| 아이콘 비율·여백 | 아이콘은 늘어나지 않고 칸 안에 비율대로 맞춰 들어간다(`IconCanvas` > `IconScale` > `ItemIcon`, 이름 바꾸지 말 것). 여백 = `WBP_ItemWidget` 의 **Icon Padding**, 돌린 아이템은 그림도 90° 돈다 |
 | 마우스 올리고 설명 창 뜨기까지 시간 | `WBP_ItemWidget` 의 **Tooltip Delay Seconds** (기획서 1초) |
 
 ### 1-4. 아이템 설명 창 (마우스 1초)
@@ -119,6 +121,7 @@
 | `Tools/wbp/restyle_inventory.py` | 캐릭터 화면·칸 색·우클릭 버튼·설명 창·로비 버튼을 기획서 모양으로 |
 | `Tools/wbp/setup_lobby_flow.py` | 시작 짐 표·화면 등록(BP_GameInstance) |
 | `Tools/level/build_title_level.py` | 타이틀 레벨(배경·카메라·캐릭터 자리) |
+| `Tools/wbp/icon_fit.py` | 아이템 칸·장비 칸 아이콘을 비율 지키게(늘어나지 않게) |
 | `Tools/wbp/check_bps.py` | PG 블루프린트 전부 다시 컴파일해 오류 확인 |
 
 실행: `UnrealEditor-Cmd.exe <프로젝트>\ProjectPG.uproject -run=pythonscript -script="<스크립트 경로>" -unattended -nosplash -nullrhi` (에디터 끈 상태).
