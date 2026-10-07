@@ -3,11 +3,13 @@
 #include "Components/Button.h"
 #include "Core/UIManagerSubSystem.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Server/MatchmakingSubSystem.h"
+#include "UI/Plan/MatchingWidget.h"
 #include "UI/Plan/OptionWidget.h"
 #include "UI/Plan/PlanScreenSubSystem.h"
 #include "UI/Plan/TitleStageSubSystem.h"
 
-// 옵션 화면은 로비 메뉴(100)보다 위, 알림 창(1000)보다 아래.
+// 옵션·매칭 화면은 로비 메뉴(100)보다 위, 알림 창(1000)보다 아래.
 static constexpr int32 PlanScreenZOrder = 500;
 
 UButton* ULobbyMenuWidget::FindButton(const TCHAR* Name) const
@@ -26,6 +28,13 @@ void ULobbyMenuWidget::NativeConstruct()
 		Button->OnClicked.AddDynamic(this, &ULobbyMenuWidget::HandleCharacter);
 	}
 
+	if (UButton* Button = FindButton(TEXT("GameStartBtn")))
+	{
+		// 형님 처리(알림 창 + 매칭 요청)를 떼고, 매칭 화면 + 같은 매칭 요청으로 바꾼다.
+		Button->OnClicked.RemoveDynamic(this, &ULobbyWidget::OnClickedGameStartButton);
+		Button->OnClicked.RemoveDynamic(this, &ULobbyMenuWidget::HandleGameStart);
+		Button->OnClicked.AddDynamic(this, &ULobbyMenuWidget::HandleGameStart);
+	}
 	if (UButton* Button = FindButton(TEXT("OptionBtn")))
 	{
 		Button->OnClicked.RemoveDynamic(this, &ULobbyMenuWidget::HandleOption);
@@ -67,6 +76,15 @@ void ULobbyMenuWidget::HandleCharacter()
 {
 	if (UTitleStageSubSystem* Stage = UTitleStageSubSystem::Get(this))
 		Stage->FocusCamera(CharacterCameraTag, CameraBlendSeconds);
+}
+
+void ULobbyMenuWidget::HandleGameStart()
+{
+	if (UPlanScreenSubSystem* Screens = UPlanScreenSubSystem::Get(this))
+		Screens->OpenScreen(MatchingScreenClass, PlanScreenZOrder);
+	// 매칭 요청은 형님 것 그대로.
+	if (UMatchmakingSubSystem* Match = UMatchmakingSubSystem::Get(GetWorld()))
+		Match->RequestGameStart();
 }
 
 void ULobbyMenuWidget::HandleOption()

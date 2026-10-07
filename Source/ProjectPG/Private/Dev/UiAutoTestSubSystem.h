@@ -19,6 +19,7 @@ class UFitIconItemWidget;
 //       Btn:이름       = 화면에 떠 있는 위젯 안의 그 이름 버튼을 누른다(CharacterBtn, GameStartBtn, OptionBtn, BackBtn, CancelButton, RotateButton 등)
 //       Combo:이름=번호 = 그 이름 고르기 칸에서 번호째를 고른다(FilterCombo=1 이면 무기)
 //       Tooltip / Context = 화면에서 가장 큰 아이템에 설명 창 / 우클릭(진짜 마우스 처리 함수로)
+//       FakeMatch:2/4 / FakeMatch:Starting / FakeMatch:Cancelled = 웹 서버 매칭 메시지를 흉내 내 형님 매칭 처리에 넣는다
 //   -PGShot=lobby@6+inventory@9        그 시각에 사진(UI 포함) -> Saved/UiShots/이름.png
 //   -PGQuitAt=12                       그 시각에 끄기
 UCLASS()

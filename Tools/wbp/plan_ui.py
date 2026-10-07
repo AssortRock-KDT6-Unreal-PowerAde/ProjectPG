@@ -154,7 +154,19 @@ def title():
     W.log("L_Title loaded=%s" % (world is not None))
 
 
-STEPS = {"tooltip": tooltip, "option": option, "inventory": inventory, "title": title}
+# ---------------- 5) 매칭 화면 ----------------
+def matching():
+    # "게임 시작" 때 띄울 매칭 화면(WBP_Matching: 파란 바탕, 상태 글자, 취소, 진행 막대).
+    set_default("WBP_Lobby", "matching_screen_class", unreal.load_class(None, cls_path("WBP_Matching")))
+    # 막대는 시작할 때 비어 있게(인원을 모르면 C++ 이 왔다 갔다 모양으로 바꾼다).
+    b = W.Builder(UI + "WBP_Matching")
+    bar = b.find("MatchProgress")
+    if bar is not None:
+        bar.set_percent(0.0)
+    b.finish()
+
+
+STEPS = {"tooltip": tooltip, "option": option, "inventory": inventory, "title": title, "matching": matching}
 
 wanted = [s.strip() for s in os.environ.get("PG_PLAN_STEPS", "").split(",") if s.strip()] or list(STEPS.keys())
 for name in wanted:

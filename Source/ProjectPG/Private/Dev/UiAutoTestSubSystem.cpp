@@ -5,6 +5,8 @@
 #include "Components/ComboBoxString.h"
 #include "Components/InventoryComponent.h"
 #include "Core/UIManagerSubSystem.h"
+#include "Dom/JsonObject.h"
+#include "Server/MatchmakingSubSystem.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "GameFramework/PlayerController.h"
@@ -118,6 +120,29 @@ void UUiAutoTestSubSystem::RunStep(const FString& Step)
 	else if (Step.StartsWith(TEXT("Btn:")))
 	{
 		PressButton(Step.Mid(4));
+	}
+	else if (Step.StartsWith(TEXT("FakeMatch:")))
+	{
+		// 웹 서버가 보내는 매칭 메시지를 흉내 내 형님 매칭 처리 함수(HandleMatchMessage)에 그대로 넣는다.
+		// 예: FakeMatch:2/4 = "WAITING_FOR_MATCH"(2명/4명), FakeMatch:Starting = "SERVER_STARTING", FakeMatch:Cancelled = "MATCH_CANCELLED"
+		const FString Arg = Step.Mid(10);
+		TSharedPtr<FJsonObject> Payload = MakeShared<FJsonObject>();
+		FString Type;
+		FString Current, Target;
+		if (Arg.Split(TEXT("/"), &Current, &Target))
+		{
+			Type = TEXT("WAITING_FOR_MATCH");
+			Payload->SetStringField(TEXT("message"), TEXT("waiting"));
+			Payload->SetNumberField(TEXT("currentQueueCount"), FCString::Atoi(*Current));
+			Payload->SetNumberField(TEXT("targetCount"), FCString::Atoi(*Target));
+		}
+		else
+		{
+			Type = Arg == TEXT("Starting") ? TEXT("SERVER_STARTING") : TEXT("MATCH_CANCELLED");
+			Payload->SetStringField(TEXT("message"), Arg);
+		}
+		if (UMatchmakingSubSystem* Match = UMatchmakingSubSystem::Get(World))
+			Match->HandleMatchMessage(Type, Payload);
 	}
 	else if (Step.StartsWith(TEXT("Combo:")))
 	{
