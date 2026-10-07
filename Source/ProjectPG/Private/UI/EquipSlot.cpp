@@ -12,7 +12,6 @@
 #include "Components/InventoryComponent.h"
 #include "Components/EquipComponent.h"
 #include "Server/WebSocketSubSystem.h"
-
 namespace
 {
 	void SafeRemoveWidget(UWidget* Widget)

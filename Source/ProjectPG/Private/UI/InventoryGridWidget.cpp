@@ -22,16 +22,14 @@
 #include <UI/EquipSlot.h>
 #include <Core/UIManagerSubSystem.h>
 #include <Server/InventorySubSystem.h>
-namespace
+static 	void SafeRemoveWidget(UWidget* Widget)
 {
-	void SafeRemoveWidget(UWidget* Widget)
+	if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
 	{
-		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
-		{
-			Widget->RemoveFromParent();
-		}
+		Widget->RemoveFromParent();
 	}
 }
+
 
 void UInventoryGridWidget::NativeConstruct()
 {
