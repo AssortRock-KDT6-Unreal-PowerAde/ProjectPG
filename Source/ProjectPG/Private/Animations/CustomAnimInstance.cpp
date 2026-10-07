@@ -3,8 +3,11 @@
 
 #include "Animations/CustomAnimInstance.h"
 
+#include "AbilitySystemComponent.h"
 #include "Characters/CustomCharacter.h"
 #include "Characters/CustomPlayerCharacter.h"
+#include "CustomGameplayTags.h"
+#include "Net/UnrealNetwork.h"
 
 UCustomAnimInstance::UCustomAnimInstance()
 {
@@ -19,32 +22,51 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		return;
 
 	bIsCrouched = character->IsCrouched();
+	bIsAiming = character->IsAiming();
 
-	USpringArmComponent* cameraArm = character->GetCameraArm();
-	if (!IsValid(cameraArm))
-		return;
+	if (character->IsLocallyControlled())
+	{
+		FRotator AimRotation = (character->GetControlRotation() - character->GetActorRotation()).GetNormalized();
+		AimRotation.Roll = 0.f;
+		SyncAim(AimRotation);
+		character->OnReq_SyncAimRotation({AimRotation.Yaw, AimRotation.Pitch});
+	}
+
+	const UAbilitySystemComponent* abilitySystemComp = character->GetAbilitySystemComponent();
+	bIsSprinting = IsValid(abilitySystemComp)
+		&& abilitySystemComp->HasMatchingGameplayTag(CustomGameplayTags::State_Sprinting);
 
 	UCharacterMovementComponent* movementComp = character->GetCharacterMovement();
 	if (!IsValid(movementComp))
 		return;
 
-	if (!movementComp->IsWalking())
-		return;
+	bWasJumping = character->bWasJumping;
+	bIsFalling = movementComp->IsFalling() && !character->bWasJumping;
 
-	UCharacterAttributeSet* characterAttributeSet = character->GetCharacterAttributeSet();
-	if (nullptr == characterAttributeSet)
-		return;
+	if (movementComp->IsWalking())
+	{
+		FRotator rotation = character->GetActorRotation();
+		FVector velocity = rotation.UnrotateVector(movementComp->Velocity);
+		velocity.Z = 0;
 
-	FRotator rotation = character->GetActorRotation();
-	FVector velocity = rotation.UnrotateVector(movementComp->Velocity);
-	velocity.Z = 0;
+		MovementDirection = velocity.Rotation().Yaw;
 
-	Direction = velocity.Rotation().Yaw;
-	Speed = velocity.Size() / characterAttributeSet->GetWalkSpeed();
+		// Keep the BlendSpace scale continuous when crouch/aim/sprint changes.
+		const float MaxSpeed = movementComp->MaxWalkSpeed;
+		NormalizedGroundSpeed = MaxSpeed > UE_KINDA_SMALL_NUMBER
+			                        ? velocity.Size() / MaxSpeed
+			                        : 0.f;
+	}
+}
 
-	FRotator cameraRotation = cameraArm->GetRelativeRotation();
-	Aim.X = cameraRotation.Yaw;
-	Aim.Y = cameraRotation.Pitch;
+void UCustomAnimInstance::SyncAim(FRotator rotation)
+{
+	AimOffset.X = rotation.Yaw;
+	AimOffset.Y = rotation.Pitch;
+}
 
-	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Blue, FString::Printf(TEXT("%f"), Speed));
+void UCustomAnimInstance::SyncAim(float Yaw, float Pitch)
+{
+	AimOffset.X = Yaw;
+	AimOffset.Y = Pitch;
 }
