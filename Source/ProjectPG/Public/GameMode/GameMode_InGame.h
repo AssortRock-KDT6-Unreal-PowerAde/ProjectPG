@@ -1,14 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
+#include "GameModes/GameModePG.h"  // 팀 합의(10/7): 맵 게임모드를 부모로
 #include "Common/GameData.h"
 #include "GameMode_InGame.generated.h"
 
 class UInventorySubSystem;
 
 UCLASS()
-class PROJECTPG_API AGameMode_InGame : public AGameModeBase
+class PROJECTPG_API AGameMode_InGame : public AGameModePG
 {
 	GENERATED_BODY()
 

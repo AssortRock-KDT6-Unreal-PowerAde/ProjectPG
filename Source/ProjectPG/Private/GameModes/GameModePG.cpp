@@ -18,6 +18,8 @@ AGameModePG::AGameModePG()
 void AGameModePG::BeginPlay()
 {
 	Super::BeginPlay();
+	if (!bBuildMapOnBeginPlay)
+		return;
 	_mapGenerator->Generate();
 	
 	// 논리용 빨간 타일은 숨기고, 보이는 맵은 MapBuilder 가 그린다.
