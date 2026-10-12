@@ -298,7 +298,6 @@ void APlayerController_InGame::SetupInputComponent()
 	if (InputComponent)
 	{
 		InputComponent->BindKey(EKeys::I, IE_Pressed, this, &APlayerController_InGame::OpenCharacterWidgetInGame);
-		InputComponent->BindKey(EKeys::E, IE_Pressed, this, &APlayerController_InGame::InteractPressed);
 		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &APlayerController_InGame::OnRotateKey);
 
 		UE_LOG(LogTemp, Log, TEXT("APlayerController_InGame::SetupInputComponent bound keys. NetMode=%d IsLocal=%d"), GetWorld() ? (int32)GetWorld()->GetNetMode() : -1, IsLocalController() ? 1 : 0);

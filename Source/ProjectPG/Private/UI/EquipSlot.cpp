@@ -14,7 +14,7 @@
 #include "Server/WebSocketSubSystem.h"
 namespace
 {
-	void SafeRemoveWidget(UWidget* Widget)
+	inline void SafeRemoveWidget(UWidget* Widget)
 	{
 		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
 		{
