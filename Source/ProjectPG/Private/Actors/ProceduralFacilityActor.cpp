@@ -77,7 +77,9 @@ AProceduralFacilityActor::AProceduralFacilityActor()
 		Socket->ArrowColor = Color;
 		Socket->ArrowSize = 1.5f;
 		Socket->SetHiddenInGame(true);
+#if WITH_EDITOR
 		Socket->SetIsVisualizationComponent(true);
+#endif
 		return Socket;
 	};
 	EntranceNorth = MakeSocket(TEXT("EntranceNorth"), FColor::Green);
