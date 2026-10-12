@@ -35,7 +35,7 @@ bool UTableSubSystem::LoadTable()
 
 	if (false == IsValid(_tablePath))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[TableData] Failed to load /Game/PG/Table/TableLoader. Include /Game/PG/Table in the cooked package and rebuild the server package."));
+		UE_LOG(LogTemp, Warning, TEXT("[TableData] Failed to load /Game/PG/Table/TableLoader. Include /Game/PG/Table in the cooked package and rebuild the server package."));
 		return false;
 	}
 
@@ -54,7 +54,7 @@ bool UTableSubSystem::LoadTable()
 			}
 			else 
 			{
-				UE_LOG(LogTemp, Error, TEXT("[TableData] Failed to load table %s: Path=%s. Verify the table is included in the cooked package."), *Key.ToString(), *Value.Path);
+				UE_LOG(LogTemp, Warning, TEXT("[TableData] Failed to load table %s: Path=%s. Verify the table is included in the cooked package."), *Key.ToString(), *Value.Path);
 				result = false;
 			}
 		}

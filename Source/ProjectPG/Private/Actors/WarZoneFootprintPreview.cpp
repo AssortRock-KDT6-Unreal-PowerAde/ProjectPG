@@ -1422,11 +1422,16 @@ void AWarZoneFootprintPreview::BuildGameplayPointMarkers()
 			SpawnParameters);
 		if (IsValid(Marker))
 		{
+#if WITH_EDITOR
 			Marker->SetActorLabel(Point.PointId.ToString());
-			Marker->Tags.AddUnique(TEXT("LevelDesignPoint"));
+			Marker->SetFolderPath(TEXT("RuntimeDesign/Points"));
+#endif
 			Marker->Tags.AddUnique(FName(Prefix));
 			Marker->Tags.AddUnique(Point.PointId);
+#if WITH_EDITOR
+
 			Marker->SetFolderPath(TEXT("RuntimeDesign/Points"));
+#endif
 		}
 	};
 
@@ -2615,7 +2620,7 @@ void AWarZoneFootprintPreview::VerifyTacticalLayoutQuality()
 		{
 			++OutOfBoundsComponents;
 			if (OverflowSamples.Num() < 12)
-				OverflowSamples.Add(Actor->GetActorLabel());
+				OverflowSamples.Add(Actor->GetActorNameOrLabel());
 		}
 
 		if (const ATacticalTileActor* TacticalTile = Cast<ATacticalTileActor>(Actor))
@@ -2677,7 +2682,7 @@ void AWarZoneFootprintPreview::VerifyTacticalLayoutQuality()
 					});
 				UnsafeAnchorSamples.Add(FString::Printf(TEXT("%s:%s/%s"),
 					*Point.PointId.ToString(),
-					Blocking && IsValid(Blocking->GetActor()) ? *Blocking->GetActor()->GetActorLabel() : TEXT("UnknownActor"),
+					Blocking && IsValid(Blocking->GetActor()) ? *Blocking->GetActor()->GetActorNameOrLabel() : TEXT("UnknownActor"),
 					Blocking && IsValid(Blocking->GetComponent()) ? *Blocking->GetComponent()->GetName() : TEXT("UnknownComponent")));
 			}
 		}
