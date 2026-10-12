@@ -14,9 +14,16 @@ class PROJECTPG_API AEquipActor : public AActor
 public:	
 	// Sets default values for this actor's properties
 	AEquipActor();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 protected:
-	UPROPERTY()
+	UPROPERTY(ReplicatedUsing = OnRep_OwnerCharacter)
 	TObjectPtr<ACharacter> OwnerCharacter;
+
+	UPROPERTY(ReplicatedUsing = OnRep_SocketName)
+	FName EquipSocketName;
+
+	UPROPERTY(ReplicatedUsing = OnRep_EquipMesh)
+	TObjectPtr<UStaticMesh> WorldMesh;
 
 	UPROPERTY()
 	TObjectPtr<USkeletalMeshComponent> OwnerMesh;   // 캐릭터 Mesh
@@ -32,12 +39,25 @@ protected:
 public:
 
 
-	void Equip(ACharacter* Character, FName SocketName);
+	void Equip(ACharacter* Character, FName InSocketName);
 
 	virtual void Unequip();
 
-	virtual void Attach(FName SocketName);
+	virtual void Attach(FName InSocketName);
 
 	virtual void Detach();
 	void SetWorldMesh(UStaticMesh* mesh);
+
+protected:
+	UFUNCTION()
+	void OnRep_OwnerCharacter();
+
+	UFUNCTION()
+	void OnRep_SocketName();
+
+	UFUNCTION()
+	void OnRep_EquipMesh();
+
+private:
+	void SyncVisual();
 };
