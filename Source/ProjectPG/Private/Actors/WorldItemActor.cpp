@@ -15,7 +15,7 @@ AWorldItemActor::AWorldItemActor()
 
 	// 모양은 부모(AInteractActor)의 MeshComp 를 그대로 쓴다(따로 메시 부품을 두지 않는다).
 	// 부딪힘: 사람(Pawn)은 그냥 지나가고(바닥 물건에 걸려 넘어지지 않게), 눈 선(Visibility)만 막는다.
-	// 왜 Visibility 를 막나: 형님 상호작용(E 키)이 Visibility 로 쏘는 선·구로 바라보는 물건을 찾아서.
+	// 왜 Visibility 를 막나: 형님 상호작용(F 키)이 Visibility 로 쏘는 선·구로 바라보는 물건을 찾아서.
 	MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	MeshComp->SetCollisionResponseToAllChannels(ECR_Ignore);
 	MeshComp->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
