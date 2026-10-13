@@ -2,13 +2,20 @@
 
 
 #include "Actor/EquipActor.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/Character.h"
+#include "Net/UnrealNetwork.h"
 
 // Sets default values
 AEquipActor::AEquipActor()
 {
     PrimaryActorTick.bCanEverTick = false;
+    bReplicates = true;
+    bNetUseOwnerRelevancy = true;
+
     EquipMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EquipMesh"));
     RootComponent = EquipMesh;
+    EquipMesh->SetMobility(EComponentMobility::Movable);
     EquipMesh->SetSimulatePhysics(false);
     EquipMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
@@ -18,14 +25,35 @@ AEquipActor::AEquipActor()
 void AEquipActor::BeginPlay()
 {
 	Super::BeginPlay();
-	
+    SyncVisual();
 }
 
-void AEquipActor::Equip(ACharacter* Character, FName SocketName)
+void AEquipActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(AEquipActor, OwnerCharacter);
+    DOREPLIFETIME(AEquipActor, EquipSocketName);
+    DOREPLIFETIME(AEquipActor, WorldMesh);
+}
+
+void AEquipActor::Equip(ACharacter* Character, FName InSocketName)
 {
 	OwnerCharacter = Character;
-	OwnerMesh = Character->GetMesh();
-	Attach(SocketName);
+    if (HasAuthority()) SetOwner(Character);
+    EquipSocketName = InSocketName;
+    OwnerMesh = Character ? Character->GetMesh() : nullptr;
+    SyncVisual();
+}
+
+void AEquipActor::OnRep_OwnerCharacter()
+{
+    OwnerMesh = OwnerCharacter ? OwnerCharacter->GetMesh() : nullptr;
+    SyncVisual();
+}
+
+void AEquipActor::OnRep_SocketName()
+{
+    SyncVisual();
 }
 
 void AEquipActor::Unequip()
@@ -34,9 +62,11 @@ void AEquipActor::Unequip()
 
 	OwnerCharacter = nullptr;
 	OwnerMesh = nullptr;
+    EquipSocketName = NAME_None;
+    if (HasAuthority()) ForceNetUpdate();
 }
 
-void AEquipActor::Attach(FName SocketName)
+void AEquipActor::Attach(FName InSocketName)
 {
     if (!IsValid(OwnerMesh))
         return;
@@ -45,7 +75,7 @@ void AEquipActor::Attach(FName SocketName)
         AttachToComponent(
             OwnerMesh,
             FAttachmentTransformRules::SnapToTargetIncludingScale,
-            SocketName);
+            InSocketName);
 
     if (!bSuccess)
     {
@@ -64,7 +94,29 @@ void AEquipActor::Detach()
 
 void AEquipActor::SetWorldMesh(UStaticMesh* mesh)
 {
-    if (EquipMesh) EquipMesh->SetStaticMesh(mesh);
+    WorldMesh = mesh;
+    SyncVisual();
+}
 
+void AEquipActor::OnRep_EquipMesh()
+{
+    SyncVisual();
+}
+
+void AEquipActor::SyncVisual()
+{
+    if (EquipMesh)
+    {
+        EquipMesh->SetStaticMesh(WorldMesh);
+    }
+    OwnerMesh = IsValid(OwnerCharacter) ? OwnerCharacter->GetMesh() : nullptr;
+    if (OwnerMesh)
+    {
+        Attach(EquipSocketName);
+    }
+    else
+    {
+        Detach();
+    }
 }
 

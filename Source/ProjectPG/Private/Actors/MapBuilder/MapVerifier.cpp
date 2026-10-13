@@ -319,7 +319,7 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 		{
 			++OutOfBoundsComponents;
 			if (OverflowSamples.Num() < 12)
-				OverflowSamples.Add(Actor->GetActorLabel());
+				OverflowSamples.Add(Actor->GetActorNameOrLabel());
 		}
 		// 길이 뚫린 방향 번호가 정상인가(틀리면 길이 담벼락에 막힘)
 		if (const ATacticalTileActor* TacticalTile = Cast<ATacticalTileActor>(Actor))
@@ -386,7 +386,7 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 					});
 				UnsafeAnchorSamples.Add(FString::Printf(TEXT("%s:%s/%s"),
 					*Point.PointId.ToString(),
-					Blocking && IsValid(Blocking->GetActor()) ? *Blocking->GetActor()->GetActorLabel() : TEXT("UnknownActor"),
+					Blocking && IsValid(Blocking->GetActor()) ? *Blocking->GetActor()->GetActorNameOrLabel() : TEXT("UnknownActor"),
 					Blocking && IsValid(Blocking->GetComponent()) ? *Blocking->GetComponent()->GetName() : TEXT("UnknownComponent")));
 			}
 		}

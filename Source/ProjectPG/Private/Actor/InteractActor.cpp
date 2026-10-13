@@ -7,6 +7,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/ActorChannel.h"
 #include "Net/UnrealNetwork.h"
+#include "Core/ItemSubSystem.h"
+#include <Core/TableSubSystem.h>
 AInteractActor::AInteractActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -18,6 +20,8 @@ AInteractActor::AInteractActor()
 
 }
 
+
+
 void AInteractActor::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
@@ -25,6 +29,12 @@ void AInteractActor::PostInitializeComponents()
 	{
 		MyActorGuid = FGuid::NewGuid();
 		InventoryComp->RegisterContainer(MyActorGuid, FIntPoint(10, 10));
+
+		FItemInstance item;
+		item.parent_inventory_guid = MyActorGuid;
+		item.ItemID = TEXT("1001");
+		InventoryComp->AddItemAt(item, FIntPoint(3, 3));
+		UE_LOG(LogTemp, Warning, TEXT("PostInitializeComponents"));
 	}
 }
 
@@ -38,7 +48,7 @@ void AInteractActor::Interact_Implementation(AActor* InteractingController)
 {
 	if (!InteractingController) return;
 	if (!InventoryComp || !MyActorGuid.IsValid()) return;
-	if (InventoryComp->IsServerManaged() && !InventoryComp->HasInitialInventory()) return;
+	//if (InventoryComp->IsServerManaged() && !InventoryComp->HasInitialInventory()) return;
 
 	if (UUIManagerSubSystem* UISub = UUIManagerSubSystem::Get(InteractingController))
 	{
