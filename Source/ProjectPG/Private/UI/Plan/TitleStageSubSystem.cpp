@@ -46,38 +46,36 @@ void UTitleStageSubSystem::SetupStage()
 		return;
 
 	SpawnTitleCharacter(Spot);
-	// 플레이어가 자기 몸(로비 기본 몸)에 붙은 뒤에 카메라를 바꿔야 덮어쓰이지 않는다 → 한 틱 뒤.
+	// 플레이어가 자기 몸(로비 기본 몸)에 붙은 뒤에 옮기고 카메라를 바꿔야 덮어쓰이지 않는다 → 한 틱 뒤.
 	TWeakObjectPtr<UTitleStageSubSystem> WeakThis(this);
-	World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
+	TWeakObjectPtr<AActor> WeakSpot(Spot);
+	World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis, WeakSpot]()
 	{
 		if (WeakThis.IsValid())
+		{
+			WeakThis->SpawnTitleCharacter(WeakSpot.Get());
 			WeakThis->FocusCamera(WeakThis->MenuCameraTag, 0.0f);
+		}
 	}));
 }
-
 void UTitleStageSubSystem::SpawnTitleCharacter(AActor* Spot)
 {
 	UWorld* World = GetWorld();
-	if (!World || TitleCharacter.IsValid())
-		return;
-	const UClass* GameModeClass = CharacterSourceGameMode.TryLoadClass<AGameModeBase>();
-	const AGameModeBase* GameModeDefaults = GameModeClass ? GameModeClass->GetDefaultObject<AGameModeBase>() : nullptr;
-	UClass* PawnClass = GameModeDefaults ? GameModeDefaults->DefaultPawnClass.Get() : nullptr;
-	if (!PawnClass)
+	APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+	if (!Pawn || !Spot)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[TitleStage] no character class from %s"), *CharacterSourceGameMode.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("[TitleStage] no player character to place"));
 		return;
 	}
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-	APawn* Pawn = World->SpawnActor<APawn>(PawnClass, Spot->GetActorTransform(), Params);
-	if (!Pawn)
-		return;
-	// 조종하는 사람은 없지만 AI 조종기를 붙여야 이동 부품이 돌아 바닥에 내려서고 서 있는 동작이 나온다(레벨에 놓았을 때와 같게).
-	Pawn->SpawnDefaultController();
+	// 캐릭터는 로비 게임모드(GM_InLobby)가 세운다. 여기서는 타이틀 자리로 옮기기만 한다.
+	Pawn->SetActorTransform(Spot->GetActorTransform(), false, nullptr, ETeleportType::TeleportPhysics);
+	PC->SetControlRotation(Spot->GetActorRotation());
 	TitleCharacter = Pawn;
-	UE_LOG(LogTemp, Display, TEXT("[TitleStage] character %s at %s"), *PawnClass->GetName(), *Spot->GetActorLocation().ToCompactString());
+	UE_LOG(LogTemp, Display, TEXT("[TitleStage] character %s at %s"), *Pawn->GetClass()->GetName(), *Spot->GetActorLocation().ToCompactString());
 }
+
+
 
 void UTitleStageSubSystem::FocusCamera(FName CameraTag, float BlendSeconds)
 {
