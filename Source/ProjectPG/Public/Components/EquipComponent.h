@@ -10,62 +10,70 @@ class UInventoryComponent;
 #include "EquipComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEquipmentChanged);
+
 UCLASS()
 class PROJECTPG_API UEquipComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
+public:
 	// Sets default values for this component's properties
 	UEquipComponent();
+
 private:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equip", meta = (AllowPrivateAccess = "true"))	TMap<EEquipSlot, FItemInstance> Equipments;
-	UPROPERTY()TMap < EEquipSlot, TObjectPtr<class AEquipActor>> EquipActors;
-	UPROPERTY()TMap<FGuid,EEquipSlot> EquipSlotGuids;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equip", meta = (AllowPrivateAccess = "true"))
+	TMap<EEquipSlot, FItemInstance> Equipments;
+	UPROPERTY()
+	TMap<EEquipSlot, TObjectPtr<class AEquipment>> EquipActors;
+	UPROPERTY()
+	TMap<FGuid, EEquipSlot> EquipSlotGuids;
 
 	// ★ local-only(InGame) 모드에서 최초 동기화 이후에는 스테일 캐시 재생으로 인한
 	// SetServerEquipData() 전체 재적용을 막기 위한 플래그 (InventoryComponent와 동일한 이유)
 	bool bHasReceivedInitialEquipSync = false;
+
 public:
 	FOnEquipmentChanged OnEquipmentChanged;
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
 public:
-	const TMap<EEquipSlot, TObjectPtr<class AEquipActor>>& GetEquipActors() const { return EquipActors; }
+	const TMap<EEquipSlot, TObjectPtr<class AEquipment>>& GetEquipActors() const { return EquipActors; }
 	bool Equip(const FItemInstance& Item);
 	bool Equip(const FItemInstance& Item, UInventoryComponent* SourceInventory);
 	bool UnEquip(const FItemInstance Item);
 	// 특정 위치로 해제할 때는 원본을 먼저 삭제하지 않고 UnEquipTo를 사용한다.
 	bool UnEquip(EEquipSlot slot, bool bRestoreToInventory = true);
-	bool UnEquipTo(EEquipSlot Slot, UInventoryComponent* TargetInventory, const FGuid& TargetGuid, FIntPoint Position, bool bRotated);
+	bool UnEquipTo(EEquipSlot Slot, UInventoryComponent* TargetInventory, const FGuid& TargetGuid, FIntPoint Position,
+	               bool bRotated);
 
 	bool Swap(EEquipSlot slot1, EEquipSlot slot2);
 
 	bool IsEquipped(const FGuid& Guid);
 	bool CanEquip(const FItemInstance& Item, EEquipSlot slot) const;
 
-	class AEquipActor* GetEquipActor(EEquipSlot slot) const;
+	class AEquipment* GetEquipActor(EEquipSlot slot) const;
 	const FItemInstance* GetEquipment(EEquipSlot slot) const;
-	
+
 	void CopyFrom(UEquipComponent* Other);
 	void RegisterGuid(EEquipSlot slottype, FGuid guid);
 	class UInventoryComponent* GetOwnerInventoryComponent() const;
+
 private:
 	UFUNCTION()
 	void RefreshFromInventory();
 
 	void SpawnEquipActor(EEquipSlot Slot, class UStaticMesh* Mesh);
 
+	void DestroyEquipActor(EEquipSlot Slot);
 
-		void DestroyEquipActor(EEquipSlot Slot);
+	//아이템의 타입에 따른 능력 적용(장비창관련)
+	void ApplyItemData(const FItemInstance& Item);
 
-		//아이템의 타입에 따른 능력 적용(장비창관련)
-		void ApplyItemData(const FItemInstance& Item);
+	void RemoveItemData(EEquipSlot slot);
 
-		void RemoveItemData(EEquipSlot slot);
-
-		UFUNCTION() void SetServerEquipData(const FInventoryMapWrapper& InWrapper);
-		
+	UFUNCTION()
+	void SetServerEquipData(const FInventoryMapWrapper& InWrapper);
 };

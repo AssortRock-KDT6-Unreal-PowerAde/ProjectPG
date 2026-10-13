@@ -22,5 +22,6 @@ public:
 	const FItemTableRow* GetItem(FName ItemID);
 	const FDropTableaRow* GetDrop(FName MonsterID);
 	const FEquipTableRow* GetEquip(FName ItemID);
+	const FWeaponTableRow* GetWeapon(FName ItemID);
 
 };

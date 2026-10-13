@@ -14,7 +14,7 @@
 #include <Server/InventorySubSystem.h>
 #include <GameMode/CustomPlayerState.h>
 #include <functional>
-static void SafeRemoveWidget(UWidget* Widget)
+inline static void SafeRemoveWidget(UWidget* Widget)
 {
 	if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
 	{

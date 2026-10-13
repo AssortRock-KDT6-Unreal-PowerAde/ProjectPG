@@ -7,7 +7,7 @@
 #include "Characters/CustomCharacter.h"
 #include "Characters/CustomPlayerCharacter.h"
 #include "CustomGameplayTags.h"
-#include "Net/UnrealNetwork.h"
+#include "Equipments/Equipment.h"
 
 UCustomAnimInstance::UCustomAnimInstance()
 {
@@ -16,6 +16,28 @@ UCustomAnimInstance::UCustomAnimInstance()
 void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
+	LeftHandIKTransform = FTransform::Identity;
+	LeftHandIKAlpha = 0.f;
+	// ABP가 장착 이후 교체되어도 현재 캐릭터의 IK 장비를 다시 찾습니다.
+	if (!LeftHandIKEquipment.IsValid())
+	{
+		if (AActor* Owner = GetOwningActor())
+		{
+			TArray<AActor*> AttachedActors;
+			Owner->GetAttachedActors(AttachedActors);
+			for (AActor* Actor : AttachedActors)
+			{
+				AEquipment* Equipment = Cast<AEquipment>(Actor);
+				if (Equipment && Equipment->GetLeftHandIKTarget(LeftHandIKTransform, LeftHandIKAlpha, LeftHandIKReferenceBone))
+				{
+					LeftHandIKEquipment = Equipment;
+					break;
+				}
+			}
+		}
+	}
+	if (LeftHandIKEquipment.IsValid())
+		LeftHandIKEquipment->GetLeftHandIKTarget(LeftHandIKTransform, LeftHandIKAlpha, LeftHandIKReferenceBone);
 
 	ACustomPlayerCharacter* character = Cast<ACustomPlayerCharacter>(TryGetPawnOwner());
 	if (!IsValid(character))
@@ -35,6 +57,9 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	const UAbilitySystemComponent* abilitySystemComp = character->GetAbilitySystemComponent();
 	bIsSprinting = IsValid(abilitySystemComp)
 		&& abilitySystemComp->HasMatchingGameplayTag(CustomGameplayTags::State_Sprinting);
+	// 질주와 몽타주에서는 원본 애니메이션의 왼손 동작을 유지합니다.
+	if (bIsSprinting || Montage_IsPlaying(nullptr))
+		LeftHandIKAlpha = 0.f;
 
 	UCharacterMovementComponent* movementComp = character->GetCharacterMovement();
 	if (!IsValid(movementComp))
@@ -56,6 +81,21 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		NormalizedGroundSpeed = MaxSpeed > UE_KINDA_SMALL_NUMBER
 			                        ? velocity.Size() / MaxSpeed
 			                        : 0.f;
+	}
+}
+
+void UCustomAnimInstance::SetLeftHandIKEquipment(AEquipment* Equipment)
+{
+	LeftHandIKEquipment = Equipment;
+}
+
+void UCustomAnimInstance::ClearLeftHandIKEquipment(const AEquipment* Equipment)
+{
+	if (LeftHandIKEquipment.Get() == Equipment)
+	{
+		LeftHandIKEquipment.Reset();
+		LeftHandIKTransform = FTransform::Identity;
+		LeftHandIKAlpha = 0.f;
 	}
 }
 
