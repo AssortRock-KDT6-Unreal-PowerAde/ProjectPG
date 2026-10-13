@@ -75,3 +75,8 @@ Plugins/**/Intermediate/*
 DerivedDataCache/*
 Content/*
 !Content/PG
+
+# Wwise: 플러그인(6GB)과 효과음 원본은 구글 드라이브로 공유, 이벤트 에셋은 올린다
+Plugins/Wwise*/
+ProjectPG_WwiseProject/Originals/
+!Content/WwiseAudio

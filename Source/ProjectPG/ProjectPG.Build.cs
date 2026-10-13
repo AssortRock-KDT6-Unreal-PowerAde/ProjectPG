@@ -26,10 +26,12 @@ public class ProjectPG : ModuleRules
 				"GeometryScriptingCore",
 				"GeometryScriptingEditor",
 				"EditorScriptingUtilities",
-				"UnrealEd"
+				"UnrealEd",
 			});
 		}
-		
+		// Wwise 이벤트” 타입이라, 서버 빌드에서 그 타입을 몰라 컴파일이 깨짐
+		// 링크는 하고, "서버에서는 소리 안 냄으로."
+		PrivateDependencyModuleNames.Add("AkAudio");
 		PrivateIncludePaths.Add(ModuleDirectory);
 
 		// Uncomment if you are using Slate UI

@@ -1,0 +1,6 @@
+Event	ID	Name			Wwise Object Path	Notes
+	1749424733	Play_UI_Click			\Default Work Unit\Play_UI_Click	
+
+In Memory Audio	ID	Name	Audio source file		Wwise Object Path	Notes	Data Size
+	288272094	click1	.cache\61\{614E7200-94DA-7159-7294-2CF88F805F91}.wem		\Containers\Default Work Unit\click1		16648
+
