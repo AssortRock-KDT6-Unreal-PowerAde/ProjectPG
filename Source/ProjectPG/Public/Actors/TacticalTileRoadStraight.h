@@ -1,4 +1,4 @@
-// Playable 20x20m straight-road tile prototype. Does not modify the team's generator.
+// 플레이 가능한 20x20m 일자 도로 타일 시제품. 팀의 생성기는 건드리지 않는다.
 
 #pragma once
 
@@ -24,8 +24,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tactical Tile")
 	int32 LocalSeed = 1337;
 
-	// 255 selects a stable variant from LocalSeed. Values 0..3 are written by
-	// the future TileManifest so server and clients construct the same cover.
+	// 255 면 LocalSeed 로 고정 변형을 고른다. 0..3 값은 나중 TileManifest 가 써 넣어서
+	// 서버와 클라이언트가 같은 엄폐물을 만든다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tactical Tile")
 	uint8 LayoutVariantOverride = 255;
 

@@ -1,4 +1,4 @@
-// Blueprint prop base for procedural tactical tiles.
+// 절차 전술 타일에 쓰는 블루프린트 소품의 부모 클래스.
 
 #include "Actors/TacticalPropActor.h"
 

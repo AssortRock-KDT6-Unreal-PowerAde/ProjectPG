@@ -23,7 +23,7 @@
 #include <Core/UIManagerSubSystem.h>
 #include <Server/InventorySubSystem.h>
 namespace {
-	inline void SafeRemoveWidget(UWidget* Widget)
+	inline void SafeRemoveWidget_InventoryGridWidget(UWidget* Widget)
 	{
 		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
 		{

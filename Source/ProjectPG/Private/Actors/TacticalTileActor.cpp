@@ -1,4 +1,4 @@
-// Runtime-spawnable 20x20m tactical tile family used by the procedural map visual layer.
+// 런타임에 스폰하는 20x20m 전술 타일 묶음. 절차 맵의 화면 단계가 쓴다.
 
 #include "Actors/TacticalTileActor.h"
 
@@ -60,9 +60,9 @@ ATacticalTileActor::ATacticalTileActor()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> FactoryPallet(TEXT("/Script/Engine.StaticMesh'/Game/Factory_Pack_V1/Meshes/SM_pallet.SM_pallet'"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> FactoryFence(TEXT("/Script/Engine.StaticMesh'/Game/Factory_Pack_V1/Meshes/SM_fence_2_a.SM_fence_2_a'"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> GroundMat(TEXT("/Script/Engine.MaterialInstanceConstant'/Game/PG/LevelDesign/Materials/MI_RoadStraight_Ground.MI_RoadStraight_Ground'"));
-	// Keep third-party materials untouched. This local instance uses Downtown's
-	// actual asphalt maps with puddles/blending disabled and a high roughness so
-	// procedural road slabs read as dry asphalt rather than leaf litter.
+	// 외부 팩 머티리얼은 건드리지 않는다. 이 프로젝트용 인스턴스는 Downtown 의 실제 아스팔트
+	// 텍스처를 쓰되 물웅덩이/섞기를 끄고 거칠기를 높여서, 절차 도로판이 낙엽 깔린 바닥이 아니라
+	// 마른 아스팔트로 보이게 한다.
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> RoadMat(TEXT("/Script/Engine.MaterialInstanceConstant'/Game/PG/LevelDesign/Materials/MI_RuntimeRoad_AsphaltClean.MI_RuntimeRoad_AsphaltClean'"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DirtMat(TEXT("/Script/Engine.MaterialInstanceConstant'/Game/Factory_Pack_V1/Materials/Instance/MI_Dirt_1_Inst.MI_Dirt_1_Inst'"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ExitMat(TEXT("/Script/Engine.Material'/Game/PG/LevelDesign/Materials/M_ExitRed.M_ExitRed'"));
@@ -75,9 +75,9 @@ ATacticalTileActor::ATacticalTileActor()
 	Ground = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Ground_20m"));
 	Ground->SetupAttachment(SceneRoot);
 	Ground->SetStaticMesh(Cube.Object);
-	// Packed LD tiles use SM_Floor_2x2 with a 20 cm top surface. Match that datum
-	// exactly so C++ nature tiles do not become shallow reflective depressions.
-	// The small XY overlap hides raster seams without changing the 20 m sockets.
+	// 담아 둔 LD 타일은 윗면 20 cm 인 SM_Floor_2x2 를 쓴다. 그 높이에 딱 맞춰야
+	// C++ 자연 타일이 얕게 꺼진 반짝이는 웅덩이처럼 보이지 않는다.
+	// XY 를 살짝 겹쳐서 그리기 이음새를 가리되, 20 m 연결 위치는 바꾸지 않는다.
 	Ground->SetRelativeTransform(TacticalTile::Box(FVector(0, 0, 5), FVector(2004, 2004, 30)));
 	Ground->SetCollisionProfileName(TEXT("BlockAll"));
 	if (GroundMat.Succeeded()) Ground->SetMaterial(0, GroundMat.Object);
@@ -89,8 +89,8 @@ ATacticalTileActor::ATacticalTileActor()
 		Component->SetStaticMesh(Mesh);
 		Component->SetCollisionEnabled(bCollision ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 		if (bCollision) Component->SetCollisionProfileName(TEXT("BlockAll"));
-		// Recast is fed by the dedicated NavigationFloor. Excluding thousands of
-		// runtime ISM instances prevents expensive/unsafe nav export during rebuild.
+		// Recast 는 전용 NavigationFloor 만 읽는다. 런타임 ISM 인스턴스 수천 개를 빼야
+		// rebuild 중에 무겁고 위험한 길찾기 내보내기가 일어나지 않는다.
 		Component->SetCanEverAffectNavigation(false);
 		return Component;
 	};
@@ -146,9 +146,9 @@ ATacticalTileActor::ATacticalTileActor()
 	FallenLogs = MakeISM(TEXT("FallenLogs"), Cylinder.Object, true);
 	FallenLogs->SetCullDistances(8000, 22000);
 	TerrainBerms = MakeISM(TEXT("TerrainBerms"), Cube.Object, true);
-	// Runtime tile rebuilding can occur after component registration.  Navigation
-	// export from mutable ISM instance buffers is unsafe at that point; the host's
-	// dedicated navigation floor remains the authoritative Recast source.
+	// 런타임 타일 rebuild 는 컴포넌트 등록 뒤에 일어날 수 있다. 그 시점에 바뀌는 ISM 인스턴스
+	// 버퍼에서 길찾기를 내보내는 건 위험하다. 호스트의 전용 길찾기 바닥이
+	// 계속 Recast 의 원본이다.
 	ElevationStairs = MakeISM(TEXT("ElevationStairs"), FactoryStair.Succeeded() ? FactoryStair.Object : Cube.Object, true);
 	ElevationStairs->SetCullDistances(10000, 26000);
 	MarkingPieces = MakeISM(TEXT("MarkingPieces"), Cube.Object, false);
@@ -261,13 +261,13 @@ void ATacticalTileActor::RebuildFromRuntimeSpec(int32 InSeed, uint8 InConnection
 void ATacticalTileActor::AddRoad(uint8 Mask, float Width)
 {
 	using namespace TacticalTile;
-	// Keep the whole slab clear of Ground_20m. The old bottom face was exactly
-	// coplanar with the ground and could flicker at grazing camera angles.
+	// 판 전체를 Ground_20m 에서 띄워 둔다. 예전 아랫면은 땅과 딱 같은 높이라
+	// 카메라가 낮게 비스듬히 볼 때 깜빡일 수 있었다.
 	constexpr float RoadCenterZ = 5.0f;
 	constexpr float RoadThickness = 8.0f;
 	RoadPieces->AddInstance(Box(FVector(0, 0, RoadCenterZ), FVector(Width, Width, RoadThickness)));
-	// Arms overlap the center patch but terminate exactly on the +/-1000cm tile
-	// edge. The old 1320cm arms extended to +/-1320cm and overlapped neighbors.
+	// 갈래는 가운데 판과 겹치지만 타일 가장자리 +/-1000cm 에서 딱 끝난다.
+	// 예전 1320cm 갈래는 +/-1320cm 까지 뻗어 이웃 칸과 겹쳤다.
 	const float ArmCenter = (1000.0f + Width * 0.5f) * 0.5f;
 	const float ArmLength = 1000.0f - Width * 0.5f;
 	if (Mask & North) RoadPieces->AddInstance(Box(FVector(0, ArmCenter, RoadCenterZ), FVector(Width, ArmLength, RoadThickness)));
@@ -275,9 +275,9 @@ void ATacticalTileActor::AddRoad(uint8 Mask, float Width)
 	if (Mask & South) RoadPieces->AddInstance(Box(FVector(0, -ArmCenter, RoadCenterZ), FVector(Width, ArmLength, RoadThickness)));
 	if (Mask & West) RoadPieces->AddInstance(Box(FVector(-ArmCenter, 0, RoadCenterZ), FVector(ArmLength, Width, RoadThickness)));
 
-	// Bevel the four possible inside corners with small 45-degree asphalt pieces.
-	// Logical sockets and the exact 6.5m edge width stay unchanged, but corner/T/
-	// cross tiles no longer read as square slabs meeting at a hard 90-degree notch.
+	// 안쪽 모서리 최대 네 곳을 작은 45도 아스팔트 조각으로 깎는다.
+	// 논리 연결 위치와 정확한 6.5m 가장자리 폭은 그대로지만, 모퉁이/T자/
+	// 사거리 타일이 직각으로 딱 꺾인 네모 판끼리 만난 것처럼 보이지 않는다.
 	constexpr float BevelOffset = 285.0f;
 	constexpr float BevelSize = 290.0f;
 	if ((Mask & North) && (Mask & East)) RoadPieces->AddInstance(Box(FVector(BevelOffset, BevelOffset, RoadCenterZ), FVector(BevelSize, BevelSize, RoadThickness), 45.0f));
@@ -292,10 +292,10 @@ void ATacticalTileActor::AddBrokenBoundary(uint8 OpenMask, int32 Density)
 	const float Steps[] = {-850, -550, -250, 250, 550, 850};
 	for (int32 Index = 0; Index < FMath::Clamp(Density * 2, 2, 6); ++Index)
 	{
-		// Road boundaries used to be opaque 3 m CQB wall panels.  Across hundreds
-		// of cells they formed the conspicuous white maze visible from ground and
-		// aerial views.  The Factory pack fence keeps the same deterministic broken
-		// boundary/collision function while preserving sight lines into the terrain.
+		// 도로 경계는 예전엔 불투명한 3 m CQB 벽 판이었다. 수백 칸에 걸쳐
+		// 땅에서도 하늘에서도 눈에 띄는 하얀 미로가 됐다. Factory 팩 울타리는
+		// 매번 똑같은 끊긴 경계/충돌 역할은 그대로 하면서
+		// 지형 쪽 시야는 열어 둔다.
 		const float Scale = 0.88f;
 		if (!(OpenMask & North) || FMath::Abs(Steps[Index]) > 390) FactoryFences->AddInstance(FTransform(FRotator(0, 0, 0), FVector(Steps[Index], 970, 0), FVector(Scale, 1, 1)));
 		if (!(OpenMask & South) || FMath::Abs(Steps[Index]) > 390) FactoryFences->AddInstance(FTransform(FRotator(0, 180, 0), FVector(Steps[Index] + 200, -970, 0), FVector(Scale, 1, 1)));
@@ -307,9 +307,9 @@ void ATacticalTileActor::AddBrokenBoundary(uint8 OpenMask, int32 Density)
 void ATacticalTileActor::AddRoadShoulderDressing(uint8 Mask, uint8 Variant, FRandomStream& Stream)
 {
 	using namespace TacticalTile;
-	// A thin dirt shoulder sits below the asphalt and above the shared terrain.
-	// Each arm is authored independently so a dead end or corner never paints a
-	// false road continuation into a neighbouring cell.
+	// 얇은 흙 갓길이 아스팔트 아래, 공통 지형 위에 깔린다.
+	// 갈래마다 따로 만들어서, 막다른 길이나 모퉁이가 이웃 칸으로
+	// 길이 이어지는 것처럼 잘못 칠하지 않게 한다.
 	auto AddArmShoulder = [this](const FVector& Center, const FVector& Size, float Yaw)
 	{
 		TerrainBerms->AddInstance(Box(Center, Size, Yaw));
@@ -341,9 +341,8 @@ void ATacticalTileActor::AddRoadShoulderDressing(uint8 Mask, uint8 Variant, FRan
 		AddArmShoulder(FVector(-ShoulderOffset, -ArmCenter, ShoulderZ), FVector(ShoulderWidth, ArmLength, ShoulderThickness), 0.0f);
 	}
 
-	// Scatter low dirt erosion pockets just outside the engineered shoulder. They
-	// visually stitch road and terrain without changing collision or the socket
-	// datum. The endpoint nearest the neighbour remains exact and obstruction-free.
+	// 만든 갓길 바로 바깥에 낮은 흙 패임을 흩뿌린다. 충돌이나 연결 높이는 바꾸지 않고
+	// 도로와 지형을 눈으로 이어 붙인다. 이웃 쪽 끝점은 정확하고 막힘없이 둔다.
 	auto AddErosionPocket = [this, &Stream](const FVector2D& Along, const FVector2D& Normal, float Distance, float Side)
 	{
 		const FVector2D Point = Along * Distance + Normal * Side;
@@ -377,10 +376,10 @@ void ATacticalTileActor::AddRoadShoulderDressing(uint8 Mask, uint8 Variant, FRan
 		AddErosionPocket(FVector2D(0, -1), FVector2D(1, 0), 800.0f, -PocketSide);
 	}
 
-	// Fill the non-road part of the cell instead of decorating only four corners.
-	// Patch meshes are instanced and later packed into shared HISMs, so this is
-	// substantially cheaper than spawning individual foliage actors.  The test
-	// also reserves the dirt shoulder around every connected road arm.
+	// 칸의 네 모서리만 꾸미지 않고 도로가 아닌 부분 전체를 채운다.
+	// 덩어리 메시는 인스턴스로 놓이고 나중에 같이 쓰는 HISM 에 담기므로,
+	// 풀 액터를 하나씩 스폰하는 것보다 훨씬 싸다.
+	// 이 검사는 이어진 모든 도로 갈래 둘레의 흙 갓길 자리도 비워 둔다.
 	auto IsRoadOrShoulder = [Mask](const FVector2D& Point)
 	{
 		constexpr float ClearHalfWidth = 500.0f;
@@ -428,8 +427,8 @@ void ATacticalTileActor::AddRoadShoulderDressing(uint8 Mask, uint8 Variant, FRan
 		}
 	}
 
-	// Extra irregular edge clumps cross the nominal cell boundary slightly so
-	// neighbouring road/nature cells do not reveal a clean 20 m square seam.
+	// 불규칙한 가장자리 덩어리를 더 놓아 칸 경계를 살짝 넘게 한다.
+	// 그래야 이웃한 도로/자연 칸 사이에 반듯한 20 m 네모 이음새가 안 보인다.
 	const FVector2D Corners[4] = {
 		FVector2D(-790, -790), FVector2D(-790, 790),
 		FVector2D(790, -790), FVector2D(790, 790)
@@ -472,10 +471,10 @@ void ATacticalTileActor::AddShelter(const FVector& Center, float Yaw, bool bDoor
 
 void ATacticalTileActor::AddGrass(int32 Count, FRandomStream& Stream)
 {
-	// Nature cells are intended to read as waist-high abandoned terrain rather
-	// than green floor plates with a few decorative tufts. These are foliage
-	// *patch* meshes packed into shared HISM components, so ~100 instances per
-	// 20 m cell produces dense cover without creating thousands of actors.
+	// 자연 칸은 초록 바닥판에 장식 풀 몇 포기가 아니라, 허리 높이까지 자란 버려진 땅으로 보여야 한다.
+	// 이것들은 같이 쓰는 HISM 에 담기는 풀 *덩어리* 메시라서,
+	// 20 m 칸마다 약 100 개를 놓아도 액터 수천 개가 생기지 않고
+	// 빽빽한 엄폐가 된다.
 	const bool bDenseNature = TileKind == ETacticalTileKind::NatureMeadow
 		|| TileKind == ETacticalTileKind::NatureForestSparse
 		|| TileKind == ETacticalTileKind::NatureForestDense
@@ -493,9 +492,9 @@ void ATacticalTileActor::AddGrass(int32 Count, FRandomStream& Stream)
 		ScaledCount = FMath::Max(ScaledCount, WeightedMinimum);
 	}
 
-	// Sixteen irregular centres plus a 1.2 m overlap break the square silhouette
-	// where adjacent 20 m cells meet. Nature tiles deliberately do not reserve a
-	// ruler-straight empty trail; navigation is supplied by the underlying floor.
+	// 불규칙한 중심 16 개와 1.2 m 겹침으로, 이웃 20 m 칸이 만나는 곳의 네모 윤곽을 깬다.
+	// 자연 타일은 일부러 자로 잰 듯한 빈 오솔길을 비워 두지 않는다.
+	// 길찾기는 아래 바닥이 맡는다.
 	FVector2D PatchCenters[16];
 	for (FVector2D& PatchCenter : PatchCenters)
 	{
@@ -511,9 +510,8 @@ void ATacticalTileActor::AddGrass(int32 Count, FRandomStream& Stream)
 		FVector2D Point;
 		if (bDenseNature)
 		{
-			// A jittered grid guarantees that a nature cell is actually covered.
-			// Pure random clusters repeatedly left metre-wide bald patches and made
-			// the 20 m square visible from player height.
+			// 흔든 격자를 쓰면 자연 칸이 실제로 다 덮인다. 순수 무작위 덩어리는
+			// 1 m 넓이의 맨땅을 자꾸 남겨서, 플레이어 눈높이에서 20 m 네모가 보였다.
 			const int32 GridX = Index % DenseGridSide;
 			const int32 GridY = Index / DenseGridSide;
 			Point = FVector2D(
@@ -545,9 +543,9 @@ void ATacticalTileActor::AddGrass(int32 Count, FRandomStream& Stream)
 		const float Choice = Stream.FRand();
 		if (Choice > 0.55f) GrassComponent = GrassDressingB;
 		if (Choice > 0.80f) GrassComponent = GrassDressingC;
-		// Select the target world height independently from the source mesh. This
-		// gives each tile a deterministic short/medium/tall mixture rather than three
-		// meshes that all end at exactly the same silhouette.
+		// 목표 높이를 원본 메시와 따로 고른다. 그래야 타일마다 매번 똑같은
+		// 작은/중간/큰 섞임이 생기고, 메시 세 개가 모두 같은 높이로
+		// 똑같이 끝나는 실루엣이 되지 않는다.
 		const float HeightChoice = Stream.FRand();
 		const float TargetHeight = HeightChoice < 0.15f
 			? Stream.FRandRange(48.0f, 65.0f)
@@ -584,8 +582,8 @@ void ATacticalTileActor::AddTree(
 	float CanopyRadius,
 	FRandomStream& Stream)
 {
-	// Keep the industrial combat core readable. Trees are permitted in the outer
-	// buffer, but not repeated on every core/mid WarZone cell.
+	// 공업 전투 중심은 잘 보이게 둔다. 나무는 바깥 완충 띠에는 두지만,
+	// 중심/중간 WarZone 칸마다 반복하지는 않는다.
 	if (Tags.Contains(TEXT("WarZone_Core")) || Tags.Contains(TEXT("WarZone_Mid")))
 		return;
 
@@ -599,10 +597,9 @@ void ATacticalTileActor::AddTree(
 	const FVector MeshSize = MeshBounds.GetSize().ComponentMax(FVector(1.0f));
 	const float HorizontalScale = FMath::Clamp((CanopyRadius * 2.0f) / FMath::Max(MeshSize.X, MeshSize.Y), 0.35f, 2.5f);
 	const float VerticalScale = FMath::Clamp(Height / MeshSize.Z, 0.35f, 2.5f);
-	// The runtime tile actor itself is already spawned at the shared +20 cm
-	// walkable datum. Rural tree roots curve upward around the pivot, so matching
-	// the pivot to the surface can still look as if the tree is floating. Sink the
-	// trunk collar slightly; the mesh already extends below its pivot.
+	// 런타임 타일 액터 자체는 이미 공통 +20 cm 걷는 높이에 스폰된다. 시골 나무 뿌리는
+	// 중심점 주변에서 위로 휘어 있어서, 중심점을 땅에 맞춰도 나무가 떠 보일 수 있다.
+	// 줄기 밑동을 살짝 묻는다. 메시는 원래 중심점 아래까지 내려가 있다.
 	constexpr float GroundedZ = -30.0f;
 	const FVector SafeLocation(
 		FMath::Clamp(Location.X, -640.0f, 640.0f),
@@ -625,8 +622,8 @@ void ATacticalTileActor::AddRock(const FVector& Location, const FVector& Size, f
 	const FBox MeshBounds = RockMesh->GetBoundingBox();
 	const FVector MeshSize = MeshBounds.GetSize().ComponentMax(FVector(1.0f));
 	const FVector InstanceScale(Size.X / MeshSize.X, Size.Y / MeshSize.Y, Size.Z / MeshSize.Z);
-	// Rounded rocks rarely touch the floor at their bounding-box minimum. Sink
-	// that minimum 18 cm below the shared surface so the visible mass is planted.
+	// 둥근 바위는 범위 상자 최저점에서 바닥에 닿는 일이 거의 없다. 그 최저점을 공통 표면보다
+	// 18 cm 아래로 묻어서 보이는 덩어리가 땅에 박혀 보이게 한다.
 	const float GroundedZ = -MeshBounds.Min.Z * InstanceScale.Z - 18.0f;
 	TargetRock->AddInstance(FTransform(
 		FRotator(0.0f, Yaw, 0.0f),
@@ -672,8 +669,8 @@ void ATacticalTileActor::AddFallenLog(
 	float Length,
 	float Radius)
 {
-	// Cylinder blockout removed. Retain the composition call sites so a proper
-	// log mesh can replace this implementation without redesigning every tile.
+	// 원기둥 임시 모양은 뺐다. 호출 위치는 남겨 둬서, 나중에 제대로 된 통나무 메시가
+	// 타일을 다시 설계하지 않고 이 구현을 대신할 수 있게 한다.
 	(void)Location;
 	(void)Yaw;
 	(void)Length;
@@ -776,14 +773,13 @@ void ATacticalTileActor::AddNatureLayout(
 
 	case ETacticalTileKind::NatureDitch:
 		AddGrass(260, Stream);
-		// Broken low banks. Four crossovers remain walkable, while the alternating
-		// heights create genuine crouch/stand elevation changes inside the 20m tile.
+		// 군데군데 끊긴 낮은 둑. 넘어갈 수 있는 곳 네 군데는 걸을 수 있고,
+		// 번갈아 바뀌는 높이가 20m 타일 안에 진짜로 앉기/서기 높이 차이를 만든다.
 		//
-		// These were engine cube instances with a dirt material, which on open grass
-		// read as loose rectangular slabs dropped on the field rather than as ground
-		// forming a ditch - eight of them per tile across every NatureDitch cell.
-		// Rock outcrops carry the same footprint, height and cover value while
-		// actually looking like terrain.
+		// 예전엔 흙 머티리얼을 입힌 엔진 큐브 인스턴스였는데, 트인 풀밭에선 땅이 파인 도랑이 아니라
+		// 들판에 떨어뜨린 네모 판처럼 보였다 - NatureDitch 칸마다 타일당 여덟 개씩.
+		// 바위 노두는 차지 면적, 높이, 엄폐 효과는 같으면서
+		// 실제로 지형처럼 보인다.
 		for (int32 Bank = 0; Bank < 4; ++Bank)
 		{
 			const float Y = -690.0f + Bank * 460.0f;
@@ -812,18 +808,18 @@ void ATacticalTileActor::AddLowWall(const FVector& Location, float Yaw, float Le
 
 void ATacticalTileActor::AddOpenGroundLayout(uint8 Variant, FRandomStream& Stream)
 {
-	// These are four different combat rhythms, not four cosmetic scatters:
-	// ridge = lateral cover, ditch = staggered approach, wreck = hard landmark,
-	// scrub = mostly open long sightline with only emergency cover.
+	// 이 넷은 겉모양만 다른 흩뿌리기가 아니라 서로 다른 전투 리듬이다:
+	// 능선 = 옆 방향 엄폐, 도랑 = 엇갈린 접근, 잔해 = 단단한 랜드마크,
+	// 덤불 = 비상 엄폐만 있는 대체로 트인 긴 시야.
 	switch (Variant % 4)
 	{
-	case 0: // low rubble ridge, two flanks remain open
+	case 0: // 낮은 잔해 능선, 양옆 두 방향은 트여 있음
 		AddLowWall(FVector(-320, 80, 0), 18, 1.5f);
 		AddLowWall(FVector(80, -40, 0), 18, 1.25f);
 		QuarterWalls->AddInstance(FTransform(FRotator(0, 70, 0), FVector(530, -410, 0), FVector(1.0f, 1.0f, 1.2f)));
 		AddGrass(120, Stream);
 		break;
-	case 1: // staggered ditch / approach cover
+	case 1: // 엇갈린 도랑 / 접근용 엄폐
 		for (int32 Index = 0; Index < 3; ++Index)
 		{
 			const float Yaw = Index % 2 == 0 ? -32.0f : 34.0f;
@@ -832,43 +828,43 @@ void ATacticalTileActor::AddOpenGroundLayout(uint8 Variant, FRandomStream& Strea
 		BarrelCover->AddInstance(FTransform(FRotator::ZeroRotator, FVector(650, 500, 0), FVector::OneVector));
 		AddGrass(140, Stream);
 		break;
-	case 2: // recognizable wreck/loot landmark with offset counter-cover
+	case 2: // 눈에 띄는 잔해/전리품 랜드마크와 비켜 놓은 맞엄폐물
 		ConcreteCover->AddInstance(FTransform(FRotator(0, 28, 0), FVector(480, -330, 8), FVector(1.45f)));
 		AddLowWall(FVector(-500, 370, 0), -18, 1.35f);
 		UtilityProps->AddInstance(FTransform(FRotator(0, 110, 0), FVector(-120, -520, 0), FVector(0.8f)));
 		AddGrass(110, Stream);
 		break;
-	default: // long sightline tile; keep center deliberately readable
+	default: // 긴 시야 타일, 가운데는 일부러 잘 보이게 비움
 		QuarterWalls->AddInstance(FTransform(FRotator(0, 90, 0), FVector(-760, 520, 0), FVector(1.0f, 1.0f, 1.2f)));
 		QuarterWalls->AddInstance(FTransform(FRotator(0, -90, 0), FVector(720, -540, 0), FVector(1.0f, 1.0f, 1.2f)));
-		// A low lateral berm breaks 200m+ exposed runs while preserving the long
-		// sightline above crouch height.
+		// 낮은 옆 방향 둑으로 200m 넘게 노출된 구간을 끊되,
+		// 앉은 높이 위로는 긴 시야를 남긴다.
 		AddLowWall(FVector(0, Variant % 2 == 0 ? 620 : -620, 0), 90, 1.15f);
 		AddGrass(160, Stream);
 		break;
 	}
 	if ((Variant % 4) != 3)
 	{
-		// Every otherwise-open 20m traversal cell gets one knee-height bailout
-		// position. Alternating the side preserves broad sightlines without
-		// producing repeated 140m+ completely exposed runs.
+		// 그 밖에 트인 20m 이동 칸마다 무릎 높이 피신 자리를 하나씩 준다.
+		// 좌우를 번갈아 두면 넓은 시야는 남기면서
+		// 140m 넘게 완전히 노출되는 구간이 반복되지 않는다.
 		AddLowWall(FVector(0, Variant % 2 == 0 ? 720 : -720, 0), 90, 0.85f);
 	}
 }
 
 void ATacticalTileActor::AddRuinsLayout(uint8 Variant, FRandomStream& Stream)
 {
-	// Keep every ruin cluster inside the tile instead of sealing all four borders.
-	// This avoids the dense checkerboard wall pattern seen in the first full-map pass.
+	// 폐허 덩어리는 네 면을 다 막지 않고 타일 안쪽에만 둔다.
+	// 첫 전체 맵 시도에서 보인 빽빽한 바둑판 벽 무늬를 피하기 위해서다.
 	switch (Variant % 4)
 	{
-	case 0: // L-shaped collapsed room, two clear approaches
+	case 0: // L자로 무너진 방, 트인 진입로 두 개
 		for (int32 Index = 0; Index < 4; ++Index)
 			SolidWalls->AddInstance(FTransform(FRotator(0, 90, 0), FVector(-550 + Index * 200, 520, 0), FVector::OneVector));
 		HalfWalls->AddInstance(FTransform(FRotator::ZeroRotator, FVector(-550, 320, 0), FVector(1, 1.6f, 1)));
 		QuarterWalls->AddInstance(FTransform(FRotator(0, 35, 0), FVector(220, 130, 0), FVector(1.2f)));
 		break;
-	case 1: // parallel broken lanes with a cross-angle firing gap
+	case 1: // 나란한 무너진 통로 두 줄과 비스듬한 사격 틈
 		for (int32 Index = 0; Index < 3; ++Index)
 		{
 			HalfWalls->AddInstance(FTransform(FRotator(0, 18, 0), FVector(-500 + Index * 260, -280, 0), FVector::OneVector));
@@ -876,7 +872,7 @@ void ATacticalTileActor::AddRuinsLayout(uint8 Variant, FRandomStream& Stream)
 		}
 		ShootingWalls->AddInstance(FTransform(FRotator(0, 90, 0), FVector(-610, 350, 0), FVector::OneVector));
 		break;
-	case 2: // compact courtyard; 2.4m doors remain on opposite diagonals
+	case 2: // 작은 안마당. 2.4m 출입구가 서로 반대 대각선에 남는다
 		for (int32 Index = -2; Index <= 2; ++Index)
 		{
 			if (Index != 0) SolidWalls->AddInstance(FTransform(FRotator(0, 90, 0), FVector(Index * 200, 610, 0), FVector::OneVector));
@@ -884,7 +880,7 @@ void ATacticalTileActor::AddRuinsLayout(uint8 Variant, FRandomStream& Stream)
 		}
 		AddLowWall(FVector(-590, 0, 0), 0, 1.8f);
 		break;
-	default: // diagonal rubble spine, useful as cover without becoming a maze wall
+	default: // 대각선 잔해 줄기. 엄폐물로 쓰이되 미로 벽이 되지는 않음
 		for (int32 Index = 0; Index < 5; ++Index)
 			HalfWalls->AddInstance(FTransform(FRotator(0, 42, 0), FVector(-520 + Index * 250, -480 + Index * 220, 0), FVector::OneVector));
 		ConcreteCover->AddInstance(FTransform(FRotator(0, -42, 0), FVector(420, -430, 8), FVector(1.35f)));
@@ -897,7 +893,7 @@ void ATacticalTileActor::AddRoadTacticalCover(uint8 Mask, uint8 Variant, FRandom
 {
 	using namespace TacticalTile;
 	if ((Variant % 4) == 3 && !bIsAccessRoad)
-		return; // an intentionally clean/open road segment is also necessary
+		return; // 일부러 깨끗하게 트인 도로 구간도 필요하다
 
 	const bool bHorizontal = (Mask & (East | West)) != 0;
 	const float Side = (Variant % 2 == 0) ? 1.0f : -1.0f;
@@ -911,9 +907,9 @@ void ATacticalTileActor::AddRoadTacticalCover(uint8 Mask, uint8 Variant, FRandom
 
 	if (bIsAccessRoad)
 	{
-		// A connector can run for hundreds of metres. Alternate one true
-		// crouch-height bailout position between shoulders and mix in vegetation;
-		// this breaks lethal 200m+ exposure without recreating a wall tunnel.
+		// 연결로는 수백 미터 이어질 수 있다. 양쪽 갓길에 번갈아 진짜 앉은 높이 피신 자리를
+		// 하나씩 두고 풀/나무를 섞는다. 그러면 치명적인 200m+ 노출 구간을 끊으면서도
+		// 벽으로 된 터널을 다시 만들지 않는다.
 		const FVector ShoulderCover = bHorizontal
 			? FVector(0.0f, -Side * 690.0f, 0.0f)
 			: FVector(-Side * 690.0f, 0.0f, 0.0f);
@@ -961,8 +957,8 @@ void ATacticalTileActor::ApplyDynamicProps(FRandomStream& Stream)
 void ATacticalTileActor::RebuildTile()
 {
 	using namespace TacticalTile;
-	// Existing Nature Blueprints serialize component defaults, so runtime terrain
-	// explicitly restores the three proven-visible Rural grass variants.
+	// 기존 Nature 블루프린트는 컴포넌트 기본값을 저장하고 있으므로, 런타임 지형에서
+	// 잘 보이는 것이 확인된 Rural 풀 세 종류로 직접 되돌린다.
 	static UStaticMesh* GrassPatchA = LoadObject<UStaticMesh>(nullptr,
 		TEXT("/Game/PG/LevelDesign/RuntimeOptimized/SM_GrassPatch_2_Runtime.SM_GrassPatch_2_Runtime"));
 	static UStaticMesh* GrassPatchB = LoadObject<UStaticMesh>(nullptr,
@@ -976,27 +972,27 @@ void ATacticalTileActor::RebuildTile()
 	if (IsValid(GrassPatchA)) GrassDressing->SetStaticMesh(GrassPatchA);
 	if (IsValid(GrassPatchB)) GrassDressingB->SetStaticMesh(GrassPatchB);
 	if (IsValid(GrassPatchLong)) GrassDressingC->SetStaticMesh(GrassPatchLong);
-	// Keep the first dense pass static. A packed-HISM-safe interaction material
-	// can be added separately after visibility and performance are validated.
+	// 처음의 빽빽한 버전은 움직이지 않게 둔다. 담아 둔 HISM 에서도 안전한 상호작용 머티리얼은
+	// 보이는 것과 성능을 확인한 뒤 따로 추가할 수 있다.
 	GrassDressing->SetEvaluateWorldPositionOffset(false);
 	GrassDressingB->SetEvaluateWorldPositionOffset(false);
 	GrassDressingC->SetEvaluateWorldPositionOffset(false);
 	BushDressing->SetEvaluateWorldPositionOffset(false);
 	BushDressingB->SetEvaluateWorldPositionOffset(false);
-	// Older Blueprint children serialized the tiny Rural Rock_1 component mesh.
-	// Reassert real-world Downtown rock dimensions before AddRock computes scale;
-	// otherwise a requested 3 m boulder becomes a visibly oversized 8x instance.
+	// 예전 블루프린트 자식은 아주 작은 Rural Rock_1 컴포넌트 메시를 저장해 두었다.
+	// AddRock 이 크기를 계산하기 전에 Downtown 바위의 실제 크기를 다시 넣는다.
+	// 안 그러면 3 m 바위를 요청해도 눈에 띄게 8배 큰 인스턴스가 된다.
 	if (IsValid(DowntownRockLarge)) RockCover->SetStaticMesh(DowntownRockLarge);
 	if (IsValid(DowntownRockMedium)) RockCoverB->SetStaticMesh(DowntownRockMedium);
-	// The Rural pine branch material animates its full HISM bounds vertically in
-	// this packed runtime layout. Disable WPO on trees so trunks remain planted.
+	// Rural 소나무 가지 머티리얼은 이 담아 둔 런타임 배치에서 HISM 범위 전체를 위아래로 움직인다.
+	// 나무의 WPO 를 꺼서 줄기가 땅에 박혀 있게 한다.
 	TreeTrunks->SetEvaluateWorldPositionOffset(false);
 	TreeCanopies->SetEvaluateWorldPositionOffset(false);
 
 	static UMaterialInterface* UnifiedGround = LoadObject<UMaterialInterface>(nullptr,
 		TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_NatureUnified.MI_RuntimeGround_NatureUnified"));
-	// Preserve the Rural asset materials. The old runtime tint made grass appear
-	// chalk-white under the level's bright directional light.
+	// Rural 에셋 머티리얼은 그대로 둔다. 예전 런타임 색 입히기는
+	// 레벨의 밝은 직사광 아래서 풀을 분필처럼 하얗게 보이게 했다.
 	if (IsValid(GrassPatchA) && IsValid(GrassPatchA->GetMaterial(0)))
 		GrassDressing->SetMaterial(0, GrassPatchA->GetMaterial(0));
 	if (IsValid(GrassPatchB) && IsValid(GrassPatchB->GetMaterial(0)))
@@ -1004,25 +1000,25 @@ void ATacticalTileActor::RebuildTile()
 	if (IsValid(GrassPatchLong) && IsValid(GrassPatchLong->GetMaterial(0)))
 		GrassDressingC->SetMaterial(0, GrassPatchLong->GetMaterial(0));
 
-	// Every tile starts from one dry, matte underlay. Roads and authored facility
-	// floors are layered above it, so their shoulders no longer expose a random
-	// per-Blueprint material or the reflective Diorama_Ground water blend.
+	// 모든 타일은 마르고 반사 없는 밑판 하나에서 시작한다. 도로와 손작업 시설 바닥은
+	// 그 위에 겹쳐 놓이므로, 갓길에 블루프린트마다 다른 무작위 머티리얼이나
+	// 반짝이는 Diorama_Ground 물 섞기가 더는 드러나지 않는다.
 	if (IsValid(UnifiedGround)) Ground->SetMaterial(0, UnifiedGround);
-	// Native nature/facility tiles and packed LD tiles must share the same +20 cm
-	// walkable surface. Blueprint-derived native components may retain old CDO
-	// offsets, so enforce the datum every rebuild rather than relying on defaults.
+	// 기본 자연/시설 타일과 담아 둔 LD 타일은 같은 +20 cm 걷는 면을 써야 한다.
+	// 블루프린트에서 온 기본 컴포넌트는 예전 CDO 오프셋을 들고 있을 수 있으므로,
+	// 기본값에 기대지 말고 rebuild 할 때마다 높이를 강제로 맞춘다.
 	FVector GroundLocation = Ground->GetRelativeLocation();
 	GroundLocation.Z = 5.0f;
 	Ground->SetRelativeLocation(GroundLocation);
-	// Keep the underlay UV direction identical even when a road/facility tile is
-	// rotated to satisfy its connection mask. The square mesh is orientation
-	// independent, while a rotated texture makes the 20 m boundary conspicuous.
+	// 도로/시설 타일이 연결 마스크에 맞춰 회전해도 밑판 UV 방향은 똑같이 유지한다.
+	// 네모 메시는 방향과 상관없지만, 텍스처가 돌아가면
+	// 20 m 경계가 눈에 띈다.
 	Ground->SetWorldRotation(FRotator::ZeroRotator);
 	const bool bWarZoneCore = Tags.Contains(TEXT("WarZone_Core"));
 	const bool bWarZoneMid = Tags.Contains(TEXT("WarZone_Mid"));
-	// WarZone uses the same terrain underlay as the surrounding map. Its identity
-	// comes from structures, industrial props, cover density and hazard markings;
-	// a different 1x1 ground material inevitably exposes the procedural grid.
+	// WarZone 은 주변 맵과 같은 지형 밑판을 쓴다. WarZone 다운 느낌은 구조물, 공업 소품,
+	// 엄폐물 밀도, 위험 표시에서 나온다.
+	// 1x1 땅 머티리얼을 다르게 쓰면 절차 격자가 그대로 드러날 수밖에 없다.
 
 	for (UInstancedStaticMeshComponent* Component : {
 		RoadPieces, SolidWalls, HalfWalls, QuarterWalls, ShootingWalls,
@@ -1086,13 +1082,13 @@ void ATacticalTileActor::RebuildTile()
 	case ETacticalTileKind::ExitCheckpoint:
 		AddBrokenBoundary(Mask, 2);
 		AddShelter(FVector(100, Variant % 2 == 0 ? 650 : -650, 0), Variant % 2 == 0 ? -90 : 90, true);
-		// One clean forward arrow: rectangular shaft and two non-overlapping heads.
-		// The previous texture-style marking produced intersecting red planes.
+		// 깔끔한 앞쪽 화살표 하나: 네모 몸통과 겹치지 않는 머리 두 개.
+		// 예전 텍스처식 표시는 서로 교차하는 빨간 면들을 만들었다.
 		MarkingPieces->AddInstance(Box(FVector(180, 0, 9), FVector(430, 105, 2)));
 		MarkingPieces->AddInstance(Box(FVector(465, 105, 9), FVector(300, 95, 2), 35));
 		MarkingPieces->AddInstance(Box(FVector(465, -105, 9), FVector(300, 95, 2), -35));
-		// Two red threshold bars identify the trigger half of the tile from a
-		// distance without requiring replicated text or a billboard actor.
+		// 빨간 경계 막대 두 개로 타일의 발동 절반을 멀리서도 알아보게 한다.
+		// 복제되는 글자나 빌보드 액터가 필요 없다.
 		MarkingPieces->AddInstance(Box(FVector(650, 285, 9), FVector(70, 300, 2)));
 		MarkingPieces->AddInstance(Box(FVector(650, -285, 9), FVector(70, 300, 2)));
 		break;
@@ -1119,9 +1115,9 @@ void ATacticalTileActor::RebuildTile()
 		AddNatureLayout(TileKind, Variant, Stream); break;
 	case ETacticalTileKind::WarZoneYard:
 		AddBrokenBoundary(Mask, Variant % 2 == 0 ? 2 : 1);
-		// A single dominant Fab prop per cell replaces the previous repeated pair
-		// of CQB shelters. Variants read as container lane, tank service bay,
-		// pallet yard or broken fence court while preserving a central combat lane.
+		// 칸마다 눈에 띄는 Fab 소품 하나가 예전의 반복되는 CQB 쉼터 한 쌍을 대신한다.
+		// 변형은 컨테이너 통로, 탱크 정비장, 팔레트 마당, 무너진 울타리 마당으로 보이고,
+		// 가운데 전투 통로는 남겨 둔다.
 		if (Variant == 0)
 		{
 			FactoryContainers->AddInstance(FTransform(FRotator(0, 90, 0), FVector(-620, -250, 5), FVector(0.72f)));
@@ -1144,8 +1140,8 @@ void ATacticalTileActor::RebuildTile()
 		}
 		for (int32 Index = 0; Index < 3 + Variant % 2; ++Index)
 			ConcreteCover->AddInstance(FTransform(FRotator(0, Stream.FRandRange(0, 180), 0), FVector(Stream.FRandRange(-680, 680), Stream.FRandRange(-680, 680), 8), FVector(Stream.FRandRange(1.15f, 1.65f))));
-		// Short broken hazard bars identify the combat district at player height
-		// without drawing a square outline around the 20 m cell.
+		// 짧게 끊긴 위험 표시 막대로 플레이어 높이에서 전투 구역임을 알려 준다.
+		// 20 m 칸 둘레에 네모 테두리를 그리지 않는다.
 		MarkingPieces->AddInstance(Box(FVector(-760, -760, 9), FVector(260, 32, 2), 18));
 		MarkingPieces->AddInstance(Box(FVector(720, 690, 9), FVector(220, 32, 2), -24));
 		AddGrass(150 + Variant * 18, Stream);
@@ -1153,11 +1149,11 @@ void ATacticalTileActor::RebuildTile()
 		break;
 	case ETacticalTileKind::WarZoneWarehouse:
 		AddBrokenBoundary(Mask, 2);
-		// A 1x1 warehouse annex occupies two corners and leaves a readable central
-		// movement cross. The full enclosed warehouse remains the authored 2x2 POI.
+		// 1x1 창고 별채가 두 모서리를 차지하고, 가운데에 잘 보이는 십자 이동로를 남긴다.
+		// 완전히 막힌 창고는 손작업 2x2 POI 로 남는다.
 		AddShelter(FVector(Variant % 2 == 0 ? -610 : 610, 570, 0), Variant % 2 == 0 ? 0 : 180, true);
-		// Factory container/tank forms the service annex on the opposite corner;
-		// this avoids repeating two identical shelters on every warehouse cell.
+		// 반대쪽 모서리에는 Factory 컨테이너/탱크가 정비용 별채를 이룬다.
+		// 창고 칸마다 똑같은 쉼터 두 개가 반복되지 않게 한다.
 		if (Variant % 2 == 0)
 			FactoryContainers->AddInstance(FTransform(FRotator(0, 0, 0), FVector(360, -690, 5), FVector(0.62f)));
 		else
@@ -1170,9 +1166,9 @@ void ATacticalTileActor::RebuildTile()
 		break;
 	}
 
-	// Carry the industrial language across otherwise-natural/open core cells so
-	// WarZone reads as one district without painting every grid square black.
-	// Sparse deterministic placement avoids the previous repeated domino pattern.
+	// 원래 자연/트인 중심 칸에도 공업 느낌을 이어 줘서, 격자 칸을 전부 검게 칠하지 않고도
+	// WarZone 이 하나의 구역으로 보이게 한다.
+	// 듬성듬성 매번 똑같이 놓아서 예전의 도미노 같은 반복 무늬를 피한다.
 	if (bWarZoneCore
 		&& TileKind != ETacticalTileKind::WarZoneYard
 		&& TileKind != ETacticalTileKind::WarZoneWarehouse
@@ -1200,9 +1196,9 @@ void ATacticalTileActor::RebuildTile()
 				FVector(Stream.FRandRange(-620.0f, 620.0f), Stream.FRandRange(-620.0f, 620.0f), 12.0f),
 				FVector(Stream.FRandRange(0.9f, 1.2f))));
 		}
-		// Weeds gather around industrial clutter instead of stopping at the
-		// 20 m cell edge.  The small irregular pockets soften the WarZone band
-		// without turning the main firefight lanes into an opaque meadow.
+		// 잡초가 20 m 칸 가장자리에서 끊기지 않고 공업 잡동사니 주변에 모인다.
+		// 작고 불규칙한 덤불 자리로 WarZone 띠 경계를 부드럽게 하되,
+		// 주요 교전 통로를 앞이 안 보이는 풀밭으로 만들지는 않는다.
 		if (IndustrialVariant >= 7)
 		{
 			const float EdgeX = Variant % 2 == 0 ? 900.0f : -900.0f;
@@ -1213,8 +1209,8 @@ void ATacticalTileActor::RebuildTile()
 	}
 	else if (bWarZoneMid && FMath::Abs(LocalSeed) % 3 != 1)
 	{
-		// Irregular shrub pockets form a soft visual transition around the combat
-		// district. They deliberately cross the cell edge to hide the radial band.
+		// 불규칙한 덤불 자리가 전투 구역 둘레에 부드러운 시각적 전환을 만든다.
+		// 둥근 띠 경계를 가리려고 일부러 칸 가장자리를 넘는다.
 		const float EdgeX = Variant % 2 == 0 ? 930.0f : -930.0f;
 		const float EdgeY = Variant < 2 ? 760.0f : -760.0f;
 		AddBushCluster(FVector(EdgeX, EdgeY, 0.0f), 7, 330.0f, Stream);
