@@ -40,7 +40,7 @@ void UInteractComponent::BeginInteract(AActor* Target)
 	CurrentTarget = Target;
 
 }
-
+ 
 void UInteractComponent::EndInteract()
 {
 	CurrentTarget = nullptr;

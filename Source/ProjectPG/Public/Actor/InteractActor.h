@@ -31,6 +31,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interact")
 	virtual void Interact_Implementation(AActor* actor) override;
 
-	
+	void RandomItemSetting();
 
 };
