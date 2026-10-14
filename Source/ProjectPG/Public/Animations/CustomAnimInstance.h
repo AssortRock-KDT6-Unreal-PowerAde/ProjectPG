@@ -19,6 +19,18 @@ public:
 	UCustomAnimInstance();
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|IK")
+	FTransform LeftHandIKTransform = FTransform::Identity;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|IK")
+	float LeftHandIKAlpha = 0.f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|IK")
+	FName LeftHandIKReferenceBone = TEXT("hand_r");
+
+	UPROPERTY()
+	TWeakObjectPtr<class AEquipment> LeftHandIKEquipment;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	FVector2D AimOffset;
 
@@ -44,6 +56,11 @@ protected:
 	uint8 bIsSprinting : 1;
 
 public:
+	UFUNCTION(BlueprintCallable, Category = "Weapon|IK")
+	void SetLeftHandIKEquipment(class AEquipment* Equipment);
+
+	void ClearLeftHandIKEquipment(const class AEquipment* Equipment);
+
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
 	void SyncAim(FRotator rotation);

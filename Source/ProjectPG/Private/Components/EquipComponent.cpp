@@ -3,15 +3,17 @@
 
 #include "Components/EquipComponent.h"
 #include "Components/InventoryComponent.h"
-#include "Actor/EquipActor.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Core/ItemSubSystem.h"
+#include "Equipments/Equipment.h"
 #include "Core/TableSubSystem.h"
 #include "Core/UIManagerSubSystem.h"
 
 #include <Server/WebSocketSubSystem.h>
+
 #include "GameFramework/PlayerState.h"
-#include "GameFramework/PlayerController.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
 #include <Server/InventorySubSystem.h>
 
 // Sets default values for this component's properties
@@ -19,7 +21,6 @@ UEquipComponent::UEquipComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
-
 }
 
 
@@ -103,8 +104,6 @@ bool UEquipComponent::Equip(const FItemInstance& Item, UInventoryComponent* Sour
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] 장착 이동 실패: GUID=%s"), *SourceItem.GUID.ToString());
 		return false;
-	
-	
 	}
 	FItemInstance EquippedItem = SourceItem;
 	EquippedItem.parent_inventory_guid = TargetSlotGuid;
@@ -174,7 +173,6 @@ bool UEquipComponent::UnEquipTo(EEquipSlot Slot, UInventoryComponent* TargetInve
 	RemoveItemData(Slot);
 	DestroyEquipActor(Slot);
 	Equipments.Remove(Slot);
-
 	if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld()))
 	{
 		if (!Subsystem->IsLocalOnly()) Subsystem->RequestEquipItem(ItemGuid, TargetGuid, false);
@@ -218,9 +216,9 @@ bool UEquipComponent::CanEquip(const FItemInstance& Item, EEquipSlot slot) const
 	return Data && slot != EEquipSlot::MAX && Data->EquipSlotType == slot;
 }
 
-AEquipActor* UEquipComponent::GetEquipActor(EEquipSlot slot) const
+AEquipment* UEquipComponent::GetEquipActor(EEquipSlot slot) const
 {
-	const TObjectPtr<AEquipActor>* Found = EquipActors.Find(slot);
+	const TObjectPtr<AEquipment>* Found = EquipActors.Find(slot);
 	if (Found && IsValid(*Found))
 	{
 		return *Found;
@@ -314,19 +312,17 @@ void UEquipComponent::RefreshFromInventory()
 		{
 			const FItemInstance* Current = Equipments.Find(Pair.Key);
 			if (!Current || Current->GUID != Pair.Value.GUID || Current->ItemID != Pair.Value.ItemID)
-			{
 				DestroyEquipActor(Pair.Key);
-			}
 		}
 		RefreshAppearance();
 	}
 	OnEquipmentChanged.Broadcast();
 }
-
 void UEquipComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (APlayerState* State = Cast<APlayerState>(GetOwner())) State->OnPawnSet.RemoveDynamic(this, &UEquipComponent::HandlePawnSet);
 	if (UInventoryComponent* Inventory = GetOwnerInventoryComponent()) Inventory->OnInventoryUpdated.RemoveDynamic(this, &UEquipComponent::RefreshFromInventory);
+	if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld())) Subsystem->OnEquipReceived.RemoveDynamic(this, &UEquipComponent::SetServerEquipData);
 	TArray<EEquipSlot> Slots;
 	EquipActors.GetKeys(Slots);
 	for (EEquipSlot Slot : Slots) DestroyEquipActor(Slot);
@@ -346,24 +342,17 @@ void UEquipComponent::HandlePawnSet(APlayerState* Player, APawn* NewPawn, APawn*
 
 void UEquipComponent::RefreshAppearance()
 {
-	const UInventoryComponent* Inventory = GetOwnerInventoryComponent();
-	if (!Inventory || (Inventory->IsServerManaged() && !GetOwner()->HasAuthority())) return;
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
 	ACharacter* Character = GetEquipmentCharacter();
 	TArray<EEquipSlot> Slots;
 	EquipActors.GetKeys(Slots);
 	for (EEquipSlot Slot : Slots)
 	{
-		const AEquipActor* Actor = GetEquipActor(Slot);
+		const AEquipment* Actor = GetEquipActor(Slot);
 		if (!IsValid(Character) || !Equipments.Contains(Slot) || (IsValid(Actor) && Actor->GetOwner() != Character)) DestroyEquipActor(Slot);
 	}
 	if (!IsValid(Character)) return;
-	for (const auto& Pair : Equipments)
-	{
-		if (const FItemTableRow* Data = Inventory->GetItemData(Pair.Value.ItemID))
-		{
-			if (Data->WorldMesh) SpawnEquipActor(Pair.Key, Data->WorldMesh);
-		}
-	}
+	for (const auto& Pair : Equipments) SpawnEquipActor(Pair.Key, nullptr);
 }
 
 const FEquipTableRow* UEquipComponent::GetEquipData(FName ItemID) const
@@ -374,36 +363,32 @@ const FEquipTableRow* UEquipComponent::GetEquipData(FName ItemID) const
 
 void UEquipComponent::SpawnEquipActor(EEquipSlot Slot, UStaticMesh* Mesh)
 {
-	const UInventoryComponent* Inventory = GetOwnerInventoryComponent();
-	if (Inventory && Inventory->IsServerManaged() && !GetOwner()->HasAuthority()) return;
-	ACharacter* OwnerCharacter = GetEquipmentCharacter();
-	if (!IsValid(OwnerCharacter) || !Mesh) return;
+	// Equipment uses its table-defined parts rather than the inventory's WorldMesh.
+	if (!GetOwner() || !GetOwner()->HasAuthority() || IsValid(GetEquipActor(Slot))) return;
+	ACharacter* Character = GetEquipmentCharacter();
+	if (!IsValid(Character) || !IsValid(Character->GetMesh()) || !Character->GetMesh()->GetSkeletalMeshAsset()) return;
 	const FItemInstance* Item = Equipments.Find(Slot);
 	if (!Item) return;
 	const FEquipTableRow* ItemData = GetEquipData(Item->ItemID);
-	if (!ItemData || !ItemData->EquipActorClass)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[EquipmentVisual] Missing EquipTable row or actor class: ItemID=%s"), *Item->ItemID.ToString());
-		return;
-	}
-	if (IsValid(GetEquipActor(Slot))) return;
+	if (!ItemData || !ItemData->EquipActorClass) return;
+
 	FActorSpawnParameters Params;
-	Params.Owner = OwnerCharacter;
+	Params.Owner = Character;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AEquipActor* EquipItem = GetWorld()->SpawnActor<AEquipActor>(ItemData->EquipActorClass, OwnerCharacter->GetActorTransform(), Params);
+	AEquipment* EquipItem = GetWorld()->SpawnActor<AEquipment>(ItemData->EquipActorClass, Character->GetActorTransform(), Params);
 	if (!EquipItem) return;
 	EquipItem->SetReplicates(true);
 	EquipItem->bOnlyRelevantToOwner = false;
-	EquipItem->SetWorldMesh(Mesh);
-	EquipItem->Equip(OwnerCharacter, ItemData->SocketName);
+	EquipItem->InitializeEquipment(Item->ItemID);
+	EquipItem->Equip(Character);
 	EquipItem->ForceNetUpdate();
+
 	EquipActors.Add(Slot, EquipItem);
-	UE_LOG(LogTemp, Log, TEXT("[EquipmentVisual] Spawned ItemID=%s Actor=%s Character=%s Authority=%d"), *Item->ItemID.ToString(), *EquipItem->GetName(), *OwnerCharacter->GetName(), GetOwner()->HasAuthority());
 }
 
 void UEquipComponent::DestroyEquipActor(EEquipSlot Slot)
 {
-	TObjectPtr<AEquipActor> EquipActor = EquipActors.FindRef(Slot);
+	TObjectPtr<AEquipment> EquipActor = EquipActors.FindRef(Slot);
 	EquipActors.Remove(Slot);
 
 	if (!IsValid(EquipActor))
@@ -412,40 +397,27 @@ void UEquipComponent::DestroyEquipActor(EEquipSlot Slot)
 	EquipActor->Unequip();
 	EquipActor->Destroy();
 
-	EquipActors.Remove(Slot);
 }
 
 void UEquipComponent::ApplyItemData(const FItemInstance& Item)
 {
-	UTableSubSystem* subsystem = UTableSubSystem::Get(GetWorld());
-	UInventoryComponent* Inventory = GetOwnerInventoryComponent();
-	const FItemTableRow* ItemData = Inventory ? Inventory->GetItemData(Item.ItemID) : nullptr;
-	UE_LOG(LogTemp, Warning, TEXT("ApplyItemData"));
 	if (Item.type == EItemType::Bag)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] ApplyItemData for Bag called: ItemGUID=%s ItemID=%s"), *Item.GUID.ToString(), *Item.ItemID.ToString());
+		UTableSubSystem* subsystem = UTableSubSystem::Get(GetWorld());
 		if (!IsValid(subsystem)) return;
 
-		const FItemBackpackTable* BackPackdata = subsystem->FindTableRow<FItemBackpackTable>(TEXT("BackpackTable"), *Item.ItemID.ToString());
-		if (!BackPackdata) return;
+		const FItemBackpackTable* data = subsystem->FindTableRow<FItemBackpackTable>(TEXT("BackpackTable"), *Item.ItemID.ToString());
+		if (!data) return;
 
 		// InventoryComponent에 가방 컨테이너 등록
 		if (UInventoryComponent* InvenComp = GetOwnerInventoryComponent())
 		{
-			InvenComp->RegisterContainer(Item.GUID, FIntPoint(BackPackdata->SlotSize.X, BackPackdata->SlotSize.Y));
+			InvenComp->RegisterContainer(Item.GUID, FIntPoint(data->SlotSize.X, data->SlotSize.Y));
 		}
 	}
-
-	const bool bShouldSpawnAppearance =
-		(Item.type == EItemType::Bag || Item.type == EItemType::Armor || Item.type == EItemType::Weapon);
-	if (!bShouldSpawnAppearance) return;
-	if (!ItemData || !ItemData->WorldMesh) return;
-
-	if (UInventoryComponent* InventoryComp = GetOwnerInventoryComponent())
-	{
-		if (InventoryComp->IsServerManaged() && !GetOwner()->HasAuthority()) return;
-	}
-	SpawnEquipActor(ItemData->EquipSlotType, ItemData->WorldMesh);
+	if (const FEquipTableRow* EquipmentData = GetEquipData(Item.ItemID))
+		SpawnEquipActor(EquipmentData->EquipType, nullptr);
 }
 
 void UEquipComponent::RemoveItemData( EEquipSlot slot)
@@ -536,4 +508,3 @@ void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 	}
 	OnEquipmentChanged.Broadcast();
 }
-

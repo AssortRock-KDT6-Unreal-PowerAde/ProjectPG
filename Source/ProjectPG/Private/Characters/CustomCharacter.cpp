@@ -126,17 +126,19 @@ void ACustomCharacter::Fire()
 	// TODO : Muzzle을 찾고 이펙트, 레이캐스트
 }
 
-bool ACustomCharacter::ApplyWeaponAnimation(EWeaponType NewWeaponType)
+bool ACustomCharacter::ApplyWeaponAnimation(EWeaponType NewWeaponType, TSubclassOf<UCustomAnimInstance> AnimClass)
 {
 	USkeletalMeshComponent* MeshComponent = GetMesh();
 	if (!IsValid(MeshComponent))
 		return false;
 
 	const FWeaponAnimationSet* AnimationSet = FindWeaponAnimationSet(NewWeaponType);
-	if (!AnimationSet || !AnimationSet->AnimInstanceClass)
+	if (!AnimClass && AnimationSet) AnimClass = AnimationSet->AnimInstanceClass;
+	if (!AnimClass)
 		return false;
 
-	MeshComponent->SetAnimInstanceClass(AnimationSet->AnimInstanceClass);
+	if (MeshComponent->GetAnimClass() != AnimClass.Get())
+		MeshComponent->SetAnimInstanceClass(AnimClass);
 	CurrentWeaponType = NewWeaponType;
 	return true;
 }
@@ -205,6 +207,7 @@ void ACustomCharacter::BeginPlay()
 	if (!IsValid(characterRow->SkeletalMesh))
 		return;
 	meshComponent->SetSkeletalMesh(characterRow->SkeletalMesh.Get());
+	meshComponent->SetRelativeTransform(characterRow->RootMeshTransform);
 
 	TArray<USceneComponent*> childrenMeshComps;
 	meshComponent->GetChildrenComponents(false, childrenMeshComps);
@@ -223,7 +226,7 @@ void ACustomCharacter::BeginPlay()
 			USkeletalMeshComponent* childMeshComp = Cast<USkeletalMeshComponent>(childComp);
 			childMeshComp->SetSkeletalMesh(characterRow->ChildSkeletalMeshes[compName]);
 			childMeshComp->SetLeaderPoseComponent(meshComponent);
-			
+
 			appliedChildrenMeshFNames.Add(compName);
 		}
 	}
@@ -235,13 +238,13 @@ void ACustomCharacter::BeginPlay()
 
 		USkeletalMeshComponent* newMeshComp = NewObject<USkeletalMeshComponent>(this, Key);
 		newMeshComp->SetSkeletalMesh(NewMesh);
-		
+
 		newMeshComp->SetupAttachment(meshComponent);
 		newMeshComp->RegisterComponent();
 
 		newMeshComp->SetLeaderPoseComponent(meshComponent);
 	}
-	
+
 	ApplyWeaponAnimation(CurrentWeaponType);
 }
 

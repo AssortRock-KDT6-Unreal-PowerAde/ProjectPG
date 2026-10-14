@@ -42,6 +42,13 @@ const FDropTableaRow* UItemSubSystem::GetDrop(FName MonsterID)
 	return ItemRow;
 }
 
+const FWeaponTableRow* UItemSubSystem::GetWeapon(FName ItemID)
+{
+	const UTableSubSystem* Tables = UTableSubSystem::Get(this);
+	UDataTable* Table = Tables ? Tables->FindTable(TEXT("WeaponTable")).Get() : nullptr;
+	return Table ? Table->FindRow<FWeaponTableRow>(ItemID, TEXT("Weapon data"), false) : nullptr;
+}
+
 const FEquipTableRow* UItemSubSystem::GetEquip(FName ItemID)
 {
 	UTableSubSystem* subSystem = UTableSubSystem::Get(GetWorld());

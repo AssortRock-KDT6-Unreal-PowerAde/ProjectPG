@@ -52,7 +52,7 @@ public:
 
 	virtual void Fire();
 
-	bool ApplyWeaponAnimation(EWeaponType NewWeaponType);
+	bool ApplyWeaponAnimation(EWeaponType NewWeaponType, TSubclassOf<class UCustomAnimInstance> AnimClass = nullptr);
 	const FWeaponAnimationSet* GetCurrentWeaponAnimationSet() const;
 
 	void SetAiming(bool bNewAiming);
