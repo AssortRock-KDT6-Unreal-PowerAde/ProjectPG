@@ -4,6 +4,7 @@
 #include "Core/UIManagerSubSystem.h"
 #include "Blueprint/UserWidget.h"
 #include <Kismet/GameplayStatics.h>
+#include "Core/SoundSubSystem.h"
 
 void UUIManagerSubSystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -76,6 +77,7 @@ UUserWidget* UUIManagerSubSystem::OpenDynamicUI(
 			int32 ZOrder = 200;
 
 			NewWidget->AddToViewport(ZOrder);
+			USoundSubSystem::PlayUISound(this, TEXT("UI_Open"));
 
 			UpdateInputMode();
 
@@ -97,6 +99,7 @@ void UUIManagerSubSystem::CloseDynamicUI(FGuid guid)
 			if ((*FoundWidget)->IsInViewport())
 			{
 				(*FoundWidget)->RemoveFromParent();
+				USoundSubSystem::PlayUISound(this, TEXT("UI_Close"));
 			}
 		}
 
@@ -196,6 +199,7 @@ UUserWidget* UUIManagerSubSystem::OpenUI(EUIType UIType)
 			TargetWidget->AddToViewport(ZOrder);
 			// 뷰포트로 복원할 때 가시성도 확실히 설정
 			TargetWidget->SetVisibility(ESlateVisibility::Visible);
+			if (UIType != EUIType::ItemContext) USoundSubSystem::PlayUISound(this, TEXT("UI_Open"));
 		}
 
 		UpdateInputMode();
@@ -232,6 +236,7 @@ UUserWidget* UUIManagerSubSystem::OpenUI(EUIType UIType)
 				}
 				TargetWidget->AddToViewport(ZOrder);
 				TargetWidget->SetVisibility(ESlateVisibility::Visible);
+				if (UIType != EUIType::ItemContext) USoundSubSystem::PlayUISound(this, TEXT("UI_Open"));
 			}
 	}
 
@@ -264,6 +269,7 @@ void UUIManagerSubSystem::CloseUI(EUIType UIType)
 			if ((*FoundWidget)->IsInViewport())
 			{
 				(*FoundWidget)->RemoveFromParent();
+				if (UIType != EUIType::ItemContext) USoundSubSystem::PlayUISound(this, TEXT("UI_Close"));
 			}
 		}
 	}

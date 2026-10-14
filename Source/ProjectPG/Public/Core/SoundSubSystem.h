@@ -18,7 +18,10 @@ class PROJECTPG_API USoundSubSystem : public UGameInstanceSubsystem
 	
 public:
 	static USoundSubSystem* Get(const UObject* worldContext);
-	
+
+	// 다른 코드에서 한 줄로 UI 소리를 낼 때 쓴다. 창구를 못 찾으면 조용히 넘어간다.
+	static void PlayUISound(const UObject* worldContext, FName soundName);
+
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	

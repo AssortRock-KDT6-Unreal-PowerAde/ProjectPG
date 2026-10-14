@@ -22,6 +22,7 @@
 #include <UI/EquipSlot.h>
 #include <Core/UIManagerSubSystem.h>
 #include <Server/InventorySubSystem.h>
+#include "Core/SoundSubSystem.h"
 namespace {
 	inline void SafeRemoveWidget_InventoryGridWidget(UWidget* Widget)
 	{
@@ -666,6 +667,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 			ItemDragOp->WidgetReference
 				->SetRenderOpacity(1.0f);
 		}
+		USoundSubSystem::PlayUISound(this, TEXT("UI_ItemFail"));
 		return false;
 	}
 
@@ -679,6 +681,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 		UEquipComponent* Equipment = pSlot ? pSlot->GetEquipComponent() : nullptr;
 		const bool bRequested = Equipment && Equipment->UnEquipTo(pSlot->GetSlot(), TargetInventoryComp, InventoryGUID, TargetTile, TempInstance.bIsRotated);
 		if (ItemDragOp->WidgetReference) ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
+		USoundSubSystem::PlayUISound(this, bRequested ? TEXT("UI_ItemDrop") : TEXT("UI_ItemFail"));
 		return bRequested;
 	}
 
@@ -721,6 +724,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 			->SetRenderOpacity(1.0f);
 	}
 
+	USoundSubSystem::PlayUISound(this, bMoved ? TEXT("UI_ItemDrop") : TEXT("UI_ItemFail"));
 	return bMoved;
 }
 

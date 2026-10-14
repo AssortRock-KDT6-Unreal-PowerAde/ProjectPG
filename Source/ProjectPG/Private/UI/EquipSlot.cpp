@@ -12,6 +12,7 @@
 #include "Components/InventoryComponent.h"
 #include "Components/EquipComponent.h"
 #include "Server/WebSocketSubSystem.h"
+#include "Core/SoundSubSystem.h"
 namespace
 {
 	inline void SafeRemoveWidget(UWidget* Widget)
@@ -176,6 +177,7 @@ bool UEquipSlot::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 			if (ItemOp->WidgetReference)
 				ItemOp->WidgetReference->SetRenderOpacity(1.0f);
 
+			USoundSubSystem::PlayUISound(this, TEXT("UI_ItemFail"));
 			return false;
 		}
 
@@ -185,6 +187,7 @@ bool UEquipSlot::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 			ItemOp->SourceInventoryComp.IsValid() ? ItemOp->SourceInventoryComp.Get() : nullptr);
 		if (ItemOp->WidgetReference)
 			ItemOp->WidgetReference->SetRenderOpacity(1.0f);
+		USoundSubSystem::PlayUISound(this, bResult ? TEXT("UI_ItemDrop") : TEXT("UI_ItemFail"));
 
 		if (const UInventoryComponent* Inventory = EquipComp->GetOwnerInventoryComponent())
 		{
@@ -370,6 +373,7 @@ void UEquipSlot::NativeOnDragDetected(
 		DragOp->bFromEquip ? 1 : 0
 	);
 
+	USoundSubSystem::PlayUISound(this, TEXT("UI_ItemPick"));
 	OutOperation = DragOp;
 }
 

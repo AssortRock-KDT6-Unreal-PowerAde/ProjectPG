@@ -25,6 +25,138 @@
 						<ActiveSource Name="click1" ID="{E404F89B-D062-414E-B7ED-172EC75ED126}" Platform="Linked"/>
 					</ActiveSourceList>
 				</Sound>
+				<Sound Name="rollover2" ID="{70829AB2-2509-4680-91CA-25D0CD436C93}" ShortID="663067531">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="rollover2" ID="{38D3BAEF-752B-45DE-8AEE-1C25845636CD}">
+							<Language>SFX</Language>
+							<AudioFile>rollover2.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="261854415"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="rollover2" ID="{38D3BAEF-752B-45DE-8AEE-1C25845636CD}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<Sound Name="UI_Open" ID="{C6A67545-1742-4B86-B51A-40860B1DFD7E}" ShortID="980737899">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="switch2" ID="{F85C5192-732C-4DBA-ACEE-D6342D2FF45D}">
+							<Language>SFX</Language>
+							<AudioFile>switch2.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="643642400"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="switch2" ID="{F85C5192-732C-4DBA-ACEE-D6342D2FF45D}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<Sound Name="UI_ItemPick" ID="{6E3E0047-7FC9-4E1E-AA2E-D4085D23EA99}" ShortID="684085418">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="switch10" ID="{A3A24E68-FDE1-4300-A9FD-078519EDC99C}">
+							<Language>SFX</Language>
+							<AudioFile>switch10.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="665228962"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="switch10" ID="{A3A24E68-FDE1-4300-A9FD-078519EDC99C}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<Sound Name="UI_Close" ID="{4761B3F8-DAF5-422B-AEB4-07934FB95054}" ShortID="990271631">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="switch5" ID="{379424B0-C22D-4808-9F8A-53AF1651F41C}">
+							<Language>SFX</Language>
+							<AudioFile>switch5.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="68563229"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="switch5" ID="{379424B0-C22D-4808-9F8A-53AF1651F41C}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<Sound Name="UI_ItemFail" ID="{D3D03A44-36EC-4CEE-94D5-788D8A8BD135}" ShortID="344096734">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="switch37" ID="{673D038F-5001-4C36-A1C2-AFB6628267E6}">
+							<Language>SFX</Language>
+							<AudioFile>switch37.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="483126779"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="switch37" ID="{673D038F-5001-4C36-A1C2-AFB6628267E6}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<Sound Name="UI_ItemDrop" ID="{CE0F738C-273A-4C11-86EC-63E490FD08A1}" ShortID="44842949">
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="switch24" ID="{2DD86110-0E34-4319-A137-59AAAD9793FE}">
+							<Language>SFX</Language>
+							<AudioFile>switch24.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="360577992"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="switch24" ID="{2DD86110-0E34-4319-A137-59AAAD9793FE}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
 			</ChildrenList>
 		</WorkUnit>
 	</Containers>

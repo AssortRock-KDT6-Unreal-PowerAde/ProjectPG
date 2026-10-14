@@ -1,6 +1,18 @@
 Event	ID	Name			Wwise Object Path	Notes
+	1339559671	Play_UI_Hover			\Default Work Unit\Play_UI_Hover	
+	1615497897	Play_UI_Close			\Default Work Unit\Play_UI_Close	
 	1749424733	Play_UI_Click			\Default Work Unit\Play_UI_Click	
+	3090606341	Play_UI_ItemPick			\Default Work Unit\Play_UI_ItemPick	
+	3487221937	Play_UI_ItemDrop			\Default Work Unit\Play_UI_ItemDrop	
+	3524346506	Play_UI_ItemFail			\Default Work Unit\Play_UI_ItemFail	
+	3905148667	Play_UI_Open			\Default Work Unit\Play_UI_Open	
 
 In Memory Audio	ID	Name	Audio source file		Wwise Object Path	Notes	Data Size
+	68563229	UI_Close	.cache\71\{710F86EC-74B7-458C-A24A-925F9491C46B}.wem		\Containers\Default Work Unit\UI_Close		55608
+	261854415	rollover2	.cache\F6\{F6BFED42-4545-7140-946A-CE021A0A7BAF}.wem		\Containers\Default Work Unit\rollover2		10208
 	288272094	click1	.cache\61\{614E7200-94DA-7159-7294-2CF88F805F91}.wem		\Containers\Default Work Unit\click1		16648
+	360577992	UI_ItemDrop	.cache\EB\{EB698D7D-0D6C-9A51-BD6F-2729A4F5AABD}.wem		\Containers\Default Work Unit\UI_ItemDrop		49784
+	483126779	UI_ItemFail	.cache\84\{84F43480-F6BB-5471-B07C-5752D7228AF0}.wem		\Containers\Default Work Unit\UI_ItemFail		54304
+	643642400	UI_Open	.cache\77\{77B3A42E-B321-24F1-0E40-10055C8C1D5B}.wem		\Containers\Default Work Unit\UI_Open		52524
+	665228962	UI_ItemPick	.cache\6B\{6B7860E4-BAA4-3F70-2781-8C9DF6BEC699}.wem		\Containers\Default Work Unit\UI_ItemPick		64860
 

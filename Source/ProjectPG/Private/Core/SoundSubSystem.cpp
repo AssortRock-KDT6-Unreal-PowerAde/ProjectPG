@@ -33,20 +33,45 @@ public:
 		return false;
 	}
 
+	// 마우스가 움직일 때마다 밑의 버튼을 보고, 새 버튼에 들어선 순간에만 올리기 소리를 낸다.
+	virtual bool HandleMouseMoveEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override
+	{
+		TSharedPtr<SWidget> button = FindGameButtonUnderMouse(SlateApp, MouseEvent);
+		if (button != _hoveredButton.Pin())
+		{
+			_hoveredButton = button;
+			if (button.IsValid() && _owner.IsValid())
+			{
+				_owner->PlaySound2D(TEXT("UI_Hover"));
+			}
+		}
+		return false;
+	}
+
 private:
 	void PlayIfOnButton(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent)
 	{
 		if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton) return;
-		if (false == _owner.IsValid()) return;
+
+		if (FindGameButtonUnderMouse(SlateApp, MouseEvent).IsValid())
+		{
+			_owner->PlaySound2D(TEXT("UI_Click"));
+		}
+	}
+
+	// 마우스 밑에 있는 게임 화면의 켜진 버튼을 돌려준다. 없으면 빈 값.
+	TSharedPtr<SWidget> FindGameButtonUnderMouse(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) const
+	{
+		if (false == _owner.IsValid()) return nullptr;
 
 		// 게임 화면 위젯. 에디터 툴바 같은 게임 밖 버튼을 걸러 내는 데 쓴다.
 		UGameViewportClient* viewportClient = _owner->GetGameInstance()->GetGameViewportClient();
 		TSharedPtr<SViewport> gameViewport = viewportClient ? viewportClient->GetGameViewportWidget() : nullptr;
-		if (false == gameViewport.IsValid()) return;
+		if (false == gameViewport.IsValid()) return nullptr;
 
 		// 마우스 밑에 깔린 위젯들을 바깥(창)부터 안쪽 순서로 받아 온다.
 		FWidgetPath path = SlateApp.LocateWindowUnderMouse(MouseEvent.GetScreenSpacePosition(), SlateApp.GetInteractiveTopLevelWindows());
-		if (false == path.IsValid() || false == path.ContainsWidget(gameViewport.Get())) return;
+		if (false == path.IsValid() || false == path.ContainsWidget(gameViewport.Get())) return nullptr;
 
 		static const FName buttonType(TEXT("SButton"));
 		for (int32 i = path.Widgets.Num() - 1; i >= 0; --i)
@@ -54,17 +79,18 @@ private:
 			const TSharedRef<SWidget>& widget = path.Widgets[i].Widget;
 			if (widget->GetType() == buttonType)
 			{
-				// 꺼진(회색) 버튼은 눌러도 소리가 안 난다.
-				if (widget->IsEnabled())
-				{
-					_owner->PlaySound2D(TEXT("UI_Click"));
-				}
-				return;
+				// 꺼진(회색) 버튼은 소리가 안 난다.
+				if (widget->IsEnabled()) return widget;
+				return nullptr;
 			}
 		}
+		return nullptr;
 	}
 
 	TWeakObjectPtr<USoundSubSystem> _owner;
+
+	// 직전에 마우스가 올라가 있던 버튼. 같은 버튼 위에서 소리가 반복되지 않게 기억해 둔다.
+	TWeakPtr<SWidget> _hoveredButton;
 };
 
 USoundSubSystem* USoundSubSystem::Get(const UObject* worldContext)
@@ -74,6 +100,14 @@ USoundSubSystem* USoundSubSystem::Get(const UObject* worldContext)
 	UGameInstance* inst = UGameplayStatics::GetGameInstance(worldContext);
 	if (nullptr == inst) return nullptr;
 	return inst ->GetSubsystem<USoundSubSystem>();
+}
+
+void USoundSubSystem::PlayUISound(const UObject* worldContext, FName soundName)
+{
+	if (USoundSubSystem* soundSubSystem = Get(worldContext))
+	{
+		soundSubSystem->PlaySound2D(soundName);
+	}
 }
 void USoundSubSystem::Initialize(FSubsystemCollectionBase& Collection)
 {

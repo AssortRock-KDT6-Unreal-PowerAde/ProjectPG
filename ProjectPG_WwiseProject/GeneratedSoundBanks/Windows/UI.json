@@ -10,11 +10,27 @@
     "Type": "User",
     "GUID": "{1AA37AA7-E336-4596-80B5-F86CFFC07772}",
     "Language": "SFX",
-    "Hash": "{84E97A14-4ECF-19EF-4DC3-55873AD46909}",
+    "Hash": "{EDC7F9C2-839B-5FA7-32A3-257D0D3CF5C7}",
     "ObjectPath": "\\SoundBanks\\Default Work Unit\\UI",
     "ShortName": "UI",
     "Path": "UI.bnk",
     "Media": [
+     {
+      "Id": "68563229",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "switch5.wav",
+      "CachePath": "71/{710F86EC-74B7-458C-A24A-925F9491C46B}.wem"
+     },
+     {
+      "Id": "261854415",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "rollover2.wav",
+      "CachePath": "F6/{F6BFED42-4545-7140-946A-CE021A0A7BAF}.wem"
+     },
      {
       "Id": "288272094",
       "Language": "SFX",
@@ -22,6 +38,38 @@
       "Location": "Memory",
       "ShortName": "click1.wav",
       "CachePath": "61/{614E7200-94DA-7159-7294-2CF88F805F91}.wem"
+     },
+     {
+      "Id": "360577992",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "switch24.wav",
+      "CachePath": "EB/{EB698D7D-0D6C-9A51-BD6F-2729A4F5AABD}.wem"
+     },
+     {
+      "Id": "483126779",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "switch37.wav",
+      "CachePath": "84/{84F43480-F6BB-5471-B07C-5752D7228AF0}.wem"
+     },
+     {
+      "Id": "643642400",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "switch2.wav",
+      "CachePath": "77/{77B3A42E-B321-24F1-0E40-10055C8C1D5B}.wem"
+     },
+     {
+      "Id": "665228962",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "switch10.wav",
+      "CachePath": "6B/{6B7860E4-BAA4-3F70-2781-8C9DF6BEC699}.wem"
      }
     ],
     "Events": [
@@ -38,10 +86,94 @@
         "Id": "288272094"
        }
       ]
+     },
+     {
+      "Id": "1615497897",
+      "Name": "Play_UI_Close",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_UI_Close",
+      "GUID": "{BF8391CD-157A-42B3-B8E7-55732EFE950A}",
+      "DurationType": "OneShot",
+      "DurationMin": "0.31469387",
+      "DurationMax": "0.31469387",
+      "MediaRefs": [
+       {
+        "Id": "68563229"
+       }
+      ]
+     },
+     {
+      "Id": "1339559671",
+      "Name": "Play_UI_Hover",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_UI_Hover",
+      "GUID": "{AE78043C-7E55-43BF-BA73-FF065901D2D0}",
+      "DurationType": "OneShot",
+      "DurationMin": "0.057324264",
+      "DurationMax": "0.057324264",
+      "MediaRefs": [
+       {
+        "Id": "261854415"
+       }
+      ]
+     },
+     {
+      "Id": "3487221937",
+      "Name": "Play_UI_ItemDrop",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_UI_ItemDrop",
+      "GUID": "{B24B8A27-BEF4-4DAA-8475-12C346E55CF5}",
+      "DurationType": "OneShot",
+      "DurationMin": "0.281678",
+      "DurationMax": "0.281678",
+      "MediaRefs": [
+       {
+        "Id": "360577992"
+       }
+      ]
+     },
+     {
+      "Id": "3524346506",
+      "Name": "Play_UI_ItemFail",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_UI_ItemFail",
+      "GUID": "{6BC869F0-D30E-4FB8-969F-CBB79A97C82A}",
+      "DurationType": "OneShot",
+      "DurationMin": "0.30730158",
+      "DurationMax": "0.30730158",
+      "MediaRefs": [
+       {
+        "Id": "483126779"
+       }
+      ]
+     },
+     {
+      "Id": "3090606341",
+      "Name": "Play_UI_ItemPick",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_UI_ItemPick",
+      "GUID": "{B7B71C83-120F-4407-97FD-8E8081FB7E15}",
+      "DurationType": "OneShot",
+      "DurationMin": "0.36714286",
+      "DurationMax": "0.36714286",
+      "MediaRefs": [
+       {
+        "Id": "665228962"
+       }
+      ]
+     },
+     {
+      "Id": "3905148667",
+      "Name": "Play_UI_Open",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_UI_Open",
+      "GUID": "{5FF2A300-9327-4514-9B10-168CFD0A43C7}",
+      "DurationType": "OneShot",
+      "DurationMin": "0.29721087",
+      "DurationMax": "0.29721087",
+      "MediaRefs": [
+       {
+        "Id": "643642400"
+       }
+      ]
      }
     ]
    }
   ],
-  "FileHash": "{CC540596-5CA4-3987-E4BD-266231C24A1D}"
+  "FileHash": "{F3B111EE-F2A6-D89D-F194-B59671FC10A9}"
  }
 }

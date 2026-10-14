@@ -16,6 +16,7 @@
 
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Core/UIManagerSubSystem.h"
+#include "Core/SoundSubSystem.h"
 #include <Blueprint/SlateBlueprintLibrary.h>
 
 void UItemWidget::InitWidget(const FItemInstance InItem, const FItemTableRow& InData, const FGuid& InInvenGUID, float InTileSize)
@@ -214,6 +215,7 @@ void UItemWidget::NativeOnDragDetected(
 		EDragPivot::MouseDown;
 
 	SetRenderOpacity(0.5f);
+	USoundSubSystem::PlayUISound(this, TEXT("UI_ItemPick"));
 
 	OutOperation = DragOp;
 }
