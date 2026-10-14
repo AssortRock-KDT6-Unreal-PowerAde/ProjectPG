@@ -14,14 +14,12 @@
 #include <Server/InventorySubSystem.h>
 #include <GameMode/CustomPlayerState.h>
 #include <functional>
-
-namespace {
-	inline void SafeRemoveWidget(UWidget* Widget)
+// 이름에 파일 이름을 붙임(10/7): EquipSlot·InventoryGridWidget 에도 같은 이름 함수가 있어, 언리얼이 .cpp 를 묶어 컴파일할 때(유니티 빌드) "이미 정의됨" 오류가 났다.
+static void SafeRemoveWidget_InventoryWindow(UWidget* Widget)
+{
+	if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
 	{
-		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
-		{
-			Widget->RemoveFromParent();
-		}
+		Widget->RemoveFromParent();
 	}
 }
 
@@ -328,7 +326,7 @@ void UInventoryWindow::SetChildMainInvenOverlay(UUserWidget* ChildWidget)
 {
 	if (MainInventoryOverlay && ChildWidget)
 	{
-		SafeRemoveWidget(ChildWidget);
+		SafeRemoveWidget_InventoryWindow(ChildWidget);
 		MainInventoryOverlay->ClearChildren();
 
 		if (UOverlaySlot* OverlaySlot = MainInventoryOverlay->AddChildToOverlay(ChildWidget))
@@ -344,7 +342,7 @@ void UInventoryWindow::SetChildSubInvenOverlay(UUserWidget* childWidget)
 {
 	if (SubInventoryOverlay && childWidget)
 	{
-		SafeRemoveWidget(childWidget);
+		SafeRemoveWidget_InventoryWindow(childWidget);
 		SubInventoryOverlay->ClearChildren();
 
 		if (UOverlaySlot* OverlaySlot = SubInventoryOverlay->AddChildToOverlay(childWidget))
@@ -360,7 +358,7 @@ void UInventoryWindow::SetChildEquipOverlay(UUserWidget* childWidget)
 {
 	if (EquipOverlay && childWidget)
 	{
-		SafeRemoveWidget(childWidget);
+		SafeRemoveWidget_InventoryWindow(childWidget);
 		EquipOverlay->ClearChildren();
 		EquipOverlay->AddChild(childWidget);
 	}
@@ -370,7 +368,7 @@ void UInventoryWindow::SetChildBackpackInvenOverlay(UUserWidget* childWidget)
 {
 	if (BackPackInvenOverlay && childWidget)
 	{
-		SafeRemoveWidget(childWidget);
+		SafeRemoveWidget_InventoryWindow(childWidget);
 		BackPackInvenOverlay->ClearChildren();
 		BackPackInvenOverlay->AddChild(childWidget);
 	}
@@ -380,7 +378,7 @@ void UInventoryWindow::SetChildMainCanvas(UUserWidget* childWidget)
 {
 	if (MainCanvas && childWidget)
 	{
-		SafeRemoveWidget(childWidget);
+		SafeRemoveWidget_InventoryWindow(childWidget);
 		MainCanvas->ClearChildren();
 		MainCanvas->AddChild(childWidget);
 	}

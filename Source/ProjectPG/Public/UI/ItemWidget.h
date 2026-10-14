@@ -49,6 +49,7 @@ public:
 	virtual bool NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
 
-	void RefreshWidget();
+	// virtual: 자식 위젯(예: UFitIconItemWidget)이 크기 갱신 뒤에 아이콘 배치를 덧붙일 수 있게.
+	virtual void RefreshWidget();
 	const FItemTableRow* GetCachedItemData() const { return &CachedItemData; }
 };

@@ -17,12 +17,14 @@
 #include "Components/OverlaySlot.h"
 
 #include "Core/TableSubSystem.h"
-#include "UI/EquipSlot.h"
 #include "Core/UIManagerSubSystem.h"
+#include "UI/EquipSlot.h"
+#include "UI/InventoryWindow.h"
+#include "Server/WebSocketSubSystem.h"
+#include "Server/InventorySubSystem.h"
 
-namespace
-{
-	inline void SafeRemoveWidget(UWidget* Widget)
+namespace {
+	inline void SafeRemoveWidget_InventoryGridWidget(UWidget* Widget)
 	{
 		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
 		{
