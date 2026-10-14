@@ -3,10 +3,12 @@
 
 #include "Components/EquipComponent.h"
 #include "Components/InventoryComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Core/ItemSubSystem.h"
 #include "Equipments/Equipment.h"
 #include "Core/TableSubSystem.h"
 #include "Core/UIManagerSubSystem.h"
+
 #include <Server/WebSocketSubSystem.h>
 
 #include "GameFramework/PlayerState.h"
@@ -18,6 +20,7 @@
 UEquipComponent::UEquipComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	SetIsReplicatedByDefault(true);
 }
 
 
@@ -25,6 +28,10 @@ UEquipComponent::UEquipComponent()
 void UEquipComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	if (APlayerState* State = Cast<APlayerState>(GetOwner()))
+	{
+		State->OnPawnSet.AddDynamic(this, &UEquipComponent::HandlePawnSet);
+	}
 	if (UInventoryComponent* Inventory = GetOwnerInventoryComponent())
 	{
 		if (Inventory->IsServerManaged())
@@ -55,6 +62,7 @@ bool UEquipComponent::Equip(const FItemInstance& Item)
 
 bool UEquipComponent::Equip(const FItemInstance& Item, UInventoryComponent* SourceInventory)
 {
+	UE_LOG(LogTemp, Warning, TEXT("장착"));
 	UInventoryComponent* Inventory = GetOwnerInventoryComponent();
 	UInventoryComponent* Source = SourceInventory ? SourceInventory : Inventory;
 	if (!Inventory || !IsValid(Source)) return false;
@@ -64,12 +72,13 @@ bool UEquipComponent::Equip(const FItemInstance& Item, UInventoryComponent* Sour
 	const FItemTableRow* ItemData = Inventory->GetItemData(SourceItem.ItemID);
 	if (!ItemData || ItemData->EquipSlotType == EEquipSlot::MAX) return false;
 	const EEquipSlot Slot = ItemData->EquipSlotType;
+
 	if (Inventory->IsServerManaged())
 	{
 		const FGuid* SlotGuid = Inventory->GetEquipSlotIDs().Find(Slot);
-		return SlotGuid && Inventory->TransferItemFrom(Source, SourceItem.GUID, *SlotGuid, FIntPoint::ZeroValue,
-		                                               SourceItem.bIsRotated);
+		return SlotGuid && Inventory->TransferItemFrom(Source, SourceItem.GUID, *SlotGuid, FIntPoint::ZeroValue, SourceItem.bIsRotated);
 	}
+
 	if (IsEquipped(SourceItem.GUID)) return true;
 	FGuid TargetSlotGuid;
 	for (const auto& Pair : EquipSlotGuids)
@@ -83,18 +92,15 @@ bool UEquipComponent::Equip(const FItemInstance& Item, UInventoryComponent* Sour
 
 	if (!TargetSlotGuid.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[EquipComponent] 장착 실패: 슬롯 타입(%d)에 해당하는 유효한 TargetSlotGuid를 찾지 못했습니다!"),
-		       (int32)Slot);
+		UE_LOG(LogTemp, Error, TEXT("[EquipComponent] 장착 실패: 슬롯 타입(%d)에 해당하는 유효한 TargetSlotGuid를 찾지 못했습니다!"), (int32)Slot);
 		return false;
 	}
 	Inventory->RegisterEquipSlot(Slot, TargetSlotGuid);
 	const FItemInstance* Previous = GetEquipment(Slot);
 	const FGuid IgnoreGuid = Previous ? Previous->GUID : SourceItem.GUID;
-	if (!Inventory->CanPlaceItemByGuid(TargetSlotGuid, SourceItem.ItemID, FIntPoint::ZeroValue, SourceItem.bIsRotated,
-	                                   IgnoreGuid)) return false;
+	if (!Inventory->CanPlaceItemByGuid(TargetSlotGuid, SourceItem.ItemID, FIntPoint::ZeroValue, SourceItem.bIsRotated, IgnoreGuid)) return false;
 	if (Previous && !UnEquip(Slot)) return false;
-	if (!Inventory->TransferItemFrom(Source, SourceItem.GUID, TargetSlotGuid, FIntPoint::ZeroValue,
-	                                 SourceItem.bIsRotated))
+	if (!Inventory->TransferItemFrom(Source, SourceItem.GUID, TargetSlotGuid, FIntPoint::ZeroValue, SourceItem.bIsRotated))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] 장착 이동 실패: GUID=%s"), *SourceItem.GUID.ToString());
 		return false;
@@ -104,9 +110,8 @@ bool UEquipComponent::Equip(const FItemInstance& Item, UInventoryComponent* Sour
 	EquippedItem.Position = FIntPoint::ZeroValue;
 	EquippedItem.bEquip = true;
 	EquippedItem.type = ItemData->ItemType;
-	Equipments.Add(Slot, EquippedItem);
+	Equipments.FindOrAdd(Slot, EquippedItem);
 	ApplyItemData(EquippedItem);
-	SpawnEquipActor(Slot, ItemData->WorldMesh);
 
 	if (UInventorySubSystem* InvenSub = UInventorySubSystem::Get(GetWorld()))
 	{
@@ -139,7 +144,7 @@ bool UEquipComponent::UnEquip(EEquipSlot slot, bool bRestoreToInventory /*= true
 	const FItemInstance* Item = GetEquipment(slot);
 	if (!Inventory || !Item || !bRestoreToInventory) return false;
 	const FItemInstance EquippedItem = *Item;
-	const FGuid Targets[] = {Inventory->GetPocketInventoryID(), Inventory->GetStashInventoryID()};
+	const FGuid Targets[] = { Inventory->GetPocketInventoryID(), Inventory->GetStashInventoryID() };
 	for (const FGuid& Target : Targets)
 	{
 		const FIntPoint Size = Inventory->GetInventorySizeByGuid(Target);
@@ -147,8 +152,7 @@ bool UEquipComponent::UnEquip(EEquipSlot slot, bool bRestoreToInventory /*= true
 		{
 			for (int32 X = 0; X < Size.X; ++X)
 			{
-				if (Inventory->CanPlaceItemByGuid(Target, EquippedItem.ItemID, FIntPoint(X, Y), EquippedItem.bIsRotated,
-				                                  EquippedItem.GUID))
+				if (Inventory->CanPlaceItemByGuid(Target, EquippedItem.ItemID, FIntPoint(X, Y), EquippedItem.bIsRotated, EquippedItem.GUID))
 				{
 					return UnEquipTo(slot, Inventory, Target, FIntPoint(X, Y), EquippedItem.bIsRotated);
 				}
@@ -158,8 +162,7 @@ bool UEquipComponent::UnEquip(EEquipSlot slot, bool bRestoreToInventory /*= true
 	return false;
 }
 
-bool UEquipComponent::UnEquipTo(EEquipSlot Slot, UInventoryComponent* TargetInventory, const FGuid& TargetGuid,
-                                FIntPoint Position, bool bRotated)
+bool UEquipComponent::UnEquipTo(EEquipSlot Slot, UInventoryComponent* TargetInventory, const FGuid& TargetGuid, FIntPoint Position, bool bRotated)
 {
 	UInventoryComponent* Inventory = GetOwnerInventoryComponent();
 	const FItemInstance* Item = GetEquipment(Slot);
@@ -241,10 +244,7 @@ void UEquipComponent::CopyFrom(UEquipComponent* Other)
 	for (auto& Pair : EquipActors)
 	{
 		if (Pair.Value)
-		{
-			Pair.Value->Unequip();
 			Pair.Value->Destroy();
-		}
 	}
 
 	EquipActors.Empty();
@@ -297,7 +297,7 @@ void UEquipComponent::RefreshFromInventory()
 {
 	const UInventoryComponent* Inventory = GetOwnerInventoryComponent();
 	if (!Inventory || !Inventory->HasInitialInventory()) return;
-	const TMap<EEquipSlot, FItemInstance> PreviousEquipments = Equipments;
+	const TMap<EEquipSlot, FItemInstance> Previous = Equipments;
 	Equipments.Empty();
 	EquipSlotGuids.Empty();
 	for (const auto& Slot : Inventory->GetEquipSlotIDs())
@@ -306,50 +306,82 @@ void UEquipComponent::RefreshFromInventory()
 		const TArray<FItemInstance>& Items = Inventory->GetItems(Slot.Value);
 		if (!Items.IsEmpty()) Equipments.Add(Slot.Key, Items[0]);
 	}
-	for (const auto& Previous : PreviousEquipments)
+	if (GetOwner()->HasAuthority())
 	{
-		const FItemInstance* Current = Equipments.Find(Previous.Key);
-		if (!Current || Current->GUID != Previous.Value.GUID) DestroyEquipActor(Previous.Key);
-	}
-	for (const auto& Current : Equipments)
-	{
-		if (!GetEquipActor(Current.Key)) SpawnEquipActor(Current.Key, nullptr);
+		for (const auto& Pair : Previous)
+		{
+			const FItemInstance* Current = Equipments.Find(Pair.Key);
+			if (!Current || Current->GUID != Pair.Value.GUID || Current->ItemID != Pair.Value.ItemID)
+				DestroyEquipActor(Pair.Key);
+		}
+		RefreshAppearance();
 	}
 	OnEquipmentChanged.Broadcast();
+}
+void UEquipComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (APlayerState* State = Cast<APlayerState>(GetOwner())) State->OnPawnSet.RemoveDynamic(this, &UEquipComponent::HandlePawnSet);
+	if (UInventoryComponent* Inventory = GetOwnerInventoryComponent()) Inventory->OnInventoryUpdated.RemoveDynamic(this, &UEquipComponent::RefreshFromInventory);
+	if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld())) Subsystem->OnEquipReceived.RemoveDynamic(this, &UEquipComponent::SetServerEquipData);
+	TArray<EEquipSlot> Slots;
+	EquipActors.GetKeys(Slots);
+	for (EEquipSlot Slot : Slots) DestroyEquipActor(Slot);
+	Super::EndPlay(EndPlayReason);
+}
+
+ACharacter* UEquipComponent::GetEquipmentCharacter() const
+{
+	if (APlayerState* State = Cast<APlayerState>(GetOwner())) return Cast<ACharacter>(State->GetPawn());
+	return Cast<ACharacter>(GetOwner());
+}
+
+void UEquipComponent::HandlePawnSet(APlayerState* Player, APawn* NewPawn, APawn* OldPawn)
+{
+	RefreshAppearance();
+}
+
+void UEquipComponent::RefreshAppearance()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+	ACharacter* Character = GetEquipmentCharacter();
+	TArray<EEquipSlot> Slots;
+	EquipActors.GetKeys(Slots);
+	for (EEquipSlot Slot : Slots)
+	{
+		const AEquipment* Actor = GetEquipActor(Slot);
+		if (!IsValid(Character) || !Equipments.Contains(Slot) || (IsValid(Actor) && Actor->GetOwner() != Character)) DestroyEquipActor(Slot);
+	}
+	if (!IsValid(Character)) return;
+	for (const auto& Pair : Equipments) SpawnEquipActor(Pair.Key, nullptr);
+}
+
+const FEquipTableRow* UEquipComponent::GetEquipData(FName ItemID) const
+{
+	UItemSubSystem* Subsystem = UItemSubSystem::Get(GetWorld());
+	return Subsystem ? Subsystem->GetEquip(ItemID) : nullptr;
 }
 
 void UEquipComponent::SpawnEquipActor(EEquipSlot Slot, UStaticMesh* Mesh)
 {
+	// Equipment uses its table-defined parts rather than the inventory's WorldMesh.
+	if (!GetOwner() || !GetOwner()->HasAuthority() || IsValid(GetEquipActor(Slot))) return;
+	ACharacter* Character = GetEquipmentCharacter();
+	if (!IsValid(Character) || !IsValid(Character->GetMesh()) || !Character->GetMesh()->GetSkeletalMeshAsset()) return;
 	const FItemInstance* Item = Equipments.Find(Slot);
+	if (!Item) return;
+	const FEquipTableRow* ItemData = GetEquipData(Item->ItemID);
+	if (!ItemData || !ItemData->EquipActorClass) return;
 
-	if (!Item)
-		return;
-
-	UItemSubSystem* subSystem = UItemSubSystem::Get(GetWorld());
-	if (nullptr == subSystem) return;
-
-	const FEquipTableRow* ItemData =
-		subSystem->GetEquip(Item->ItemID);
-
-	if (!ItemData)
-		return;
-
-	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	if (!Character)
-	{
-		if (APlayerState* PlayerState = Cast<APlayerState>(GetOwner()))
-			Character = Cast<ACharacter>(PlayerState->GetPawn());
-	}
-	if (!IsValid(Character) || !ItemData->EquipActorClass) return;
-
-	DestroyEquipActor(Slot);
-	AEquipment* EquipItem =
-		GetWorld()->SpawnActor<AEquipment>(
-			ItemData->EquipActorClass);
-	if (!EquipItem)
-		return;
+	FActorSpawnParameters Params;
+	Params.Owner = Character;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AEquipment* EquipItem = GetWorld()->SpawnActor<AEquipment>(ItemData->EquipActorClass, Character->GetActorTransform(), Params);
+	if (!EquipItem) return;
+	EquipItem->SetReplicates(true);
+	EquipItem->bOnlyRelevantToOwner = false;
 	EquipItem->InitializeEquipment(*ItemData);
 	EquipItem->Equip(Character);
+	EquipItem->ForceNetUpdate();
 
 	EquipActors.Add(Slot, EquipItem);
 }
@@ -357,6 +389,7 @@ void UEquipComponent::SpawnEquipActor(EEquipSlot Slot, UStaticMesh* Mesh)
 void UEquipComponent::DestroyEquipActor(EEquipSlot Slot)
 {
 	TObjectPtr<AEquipment> EquipActor = EquipActors.FindRef(Slot);
+	EquipActors.Remove(Slot);
 
 	if (!IsValid(EquipActor))
 		return;
@@ -364,20 +397,17 @@ void UEquipComponent::DestroyEquipActor(EEquipSlot Slot)
 	EquipActor->Unequip();
 	EquipActor->Destroy();
 
-	EquipActors.Remove(Slot);
 }
 
 void UEquipComponent::ApplyItemData(const FItemInstance& Item)
 {
 	if (Item.type == EItemType::Bag)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] ApplyItemData for Bag called: ItemGUID=%s ItemID=%s"),
-		       *Item.GUID.ToString(), *Item.ItemID.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("[EquipComponent] ApplyItemData for Bag called: ItemGUID=%s ItemID=%s"), *Item.GUID.ToString(), *Item.ItemID.ToString());
 		UTableSubSystem* subsystem = UTableSubSystem::Get(GetWorld());
 		if (!IsValid(subsystem)) return;
 
-		const FItemBackpackTable* data = subsystem->FindTableRow<FItemBackpackTable>(
-			TEXT("BackpackTable"), *Item.ItemID.ToString());
+		const FItemBackpackTable* data = subsystem->FindTableRow<FItemBackpackTable>(TEXT("BackpackTable"), *Item.ItemID.ToString());
 		if (!data) return;
 
 		// InventoryComponent에 가방 컨테이너 등록
@@ -386,9 +416,11 @@ void UEquipComponent::ApplyItemData(const FItemInstance& Item)
 			InvenComp->RegisterContainer(Item.GUID, FIntPoint(data->SlotSize.X, data->SlotSize.Y));
 		}
 	}
+	if (const FEquipTableRow* EquipmentData = GetEquipData(Item.ItemID))
+		SpawnEquipActor(EquipmentData->EquipType, nullptr);
 }
 
-void UEquipComponent::RemoveItemData(EEquipSlot slot)
+void UEquipComponent::RemoveItemData( EEquipSlot slot)
 {
 	const FItemInstance* Item = GetEquipment(slot);
 	if (!Item) return;
@@ -414,11 +446,7 @@ void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 	for (const auto& Pair : Equipments) RemoveItemData(Pair.Key);
 	for (const auto& Pair : EquipActors)
 	{
-		if (IsValid(Pair.Value))
-		{
-			Pair.Value->Unequip();
-			Pair.Value->Destroy();
-		}
+		if (IsValid(Pair.Value)) Pair.Value->Destroy();
 	}
 	Equipments.Empty();
 	EquipSlotGuids.Empty();
@@ -426,14 +454,14 @@ void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 
 	// 1. 각 장비 슬롯 GUID 매핑 등록
 	if (InWrapper.MainWeapon.IsValid()) EquipSlotGuids.Add(InWrapper.MainWeapon, EEquipSlot::MainWeapon);
-	if (InWrapper.SubWeapon.IsValid()) EquipSlotGuids.Add(InWrapper.SubWeapon, EEquipSlot::SubWeapon);
-	if (InWrapper.HelMet.IsValid()) EquipSlotGuids.Add(InWrapper.HelMet, EEquipSlot::HelMet);
-	if (InWrapper.Cloth.IsValid()) EquipSlotGuids.Add(InWrapper.Cloth, EEquipSlot::Cloth);
-	if (InWrapper.Pants.IsValid()) EquipSlotGuids.Add(InWrapper.Pants, EEquipSlot::Pants);
-	if (InWrapper.Shose.IsValid()) EquipSlotGuids.Add(InWrapper.Shose, EEquipSlot::Shose);
-	if (InWrapper.BackPack.IsValid()) EquipSlotGuids.Add(InWrapper.BackPack, EEquipSlot::BackPack);
-	if (InWrapper.Accuracy1.IsValid()) EquipSlotGuids.Add(InWrapper.Accuracy1, EEquipSlot::Accuracy1);
-	if (InWrapper.Accuracy2.IsValid()) EquipSlotGuids.Add(InWrapper.Accuracy2, EEquipSlot::Accuracy2);
+	if (InWrapper.SubWeapon.IsValid())	EquipSlotGuids.Add(InWrapper.SubWeapon, EEquipSlot::SubWeapon);
+	if (InWrapper.HelMet.IsValid())		EquipSlotGuids.Add(InWrapper.HelMet, EEquipSlot::HelMet);
+	if (InWrapper.Cloth.IsValid())		EquipSlotGuids.Add(InWrapper.Cloth, EEquipSlot::Cloth);
+	if (InWrapper.Pants.IsValid())		EquipSlotGuids.Add(InWrapper.Pants, EEquipSlot::Pants);
+	if (InWrapper.Shose.IsValid())		EquipSlotGuids.Add(InWrapper.Shose, EEquipSlot::Shose);
+	if (InWrapper.BackPack.IsValid())	EquipSlotGuids.Add(InWrapper.BackPack, EEquipSlot::BackPack);
+	if (InWrapper.Accuracy1.IsValid())	EquipSlotGuids.Add(InWrapper.Accuracy1, EEquipSlot::Accuracy1);
+	if (InWrapper.Accuracy2.IsValid())	EquipSlotGuids.Add(InWrapper.Accuracy2, EEquipSlot::Accuracy2);
 
 	if (InWrapper.InventoryMap.Num() <= 0)
 	{
@@ -456,8 +484,7 @@ void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 
 		UE_LOG(LogTemp, Warning, TEXT("SetServerEquipData 슬롯 확인: %s"), *guid.ToString());
 
-		if (!EquipSlotGuids.Contains(guid))
-		{
+		if (!EquipSlotGuids.Contains(guid)) {
 			UE_LOG(LogTemp, Warning, TEXT("슬롯에 해당하는 guid를 EquipSlotGuids에서 찾을 수 없습니다: %s"), *guid.ToString());
 			continue;
 		}
@@ -477,7 +504,6 @@ void UEquipComponent::SetServerEquipData(const FInventoryMapWrapper& InWrapper)
 			TargetItem.bEquip = true;
 			Equipments.Add(EquipSlotGuids.FindChecked(guid), TargetItem);
 			ApplyItemData(TargetItem);
-			SpawnEquipActor(EquipSlotGuids.FindChecked(guid), nullptr);
 		}
 	}
 	OnEquipmentChanged.Broadcast();

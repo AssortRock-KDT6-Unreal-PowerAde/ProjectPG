@@ -38,6 +38,8 @@ public:
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual const struct FEquipTableRow* GetEquipData(FName ItemID) const;
 
 public:
 	const TMap<EEquipSlot, TObjectPtr<class AEquipment>>& GetEquipActors() const { return EquipActors; }
@@ -64,6 +66,10 @@ public:
 private:
 	UFUNCTION()
 	void RefreshFromInventory();
+	UFUNCTION()
+	void HandlePawnSet(class APlayerState* Player, class APawn* NewPawn, class APawn* OldPawn);
+	void RefreshAppearance();
+	class ACharacter* GetEquipmentCharacter() const;
 
 	void SpawnEquipActor(EEquipSlot Slot, class UStaticMesh* Mesh);
 

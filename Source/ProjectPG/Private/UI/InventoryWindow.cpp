@@ -14,11 +14,13 @@
 #include <Server/InventorySubSystem.h>
 #include <GameMode/CustomPlayerState.h>
 #include <functional>
-inline static void SafeRemoveWidget(UWidget* Widget)
-{
-	if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
+namespace {
+	inline void SafeRemoveWidget(UWidget* Widget)
 	{
-		Widget->RemoveFromParent();
+		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
+		{
+			Widget->RemoveFromParent();
+		}
 	}
 }
 

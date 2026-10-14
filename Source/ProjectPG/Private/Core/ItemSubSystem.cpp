@@ -61,3 +61,5 @@ const FEquipTableRow* UItemSubSystem::GetEquip(FName ItemID)
 	}
 	return ItemRow;
 }
+
+

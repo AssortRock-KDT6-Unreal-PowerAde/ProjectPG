@@ -1,7 +1,17 @@
 #include "EquipmentTestInventory.h"
+#include "EquipmentVisualTestComponent.h"
+#include "Equipments/Equipment.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/EquipComponent.h"
 #include "Engine/World.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/SkeletalMesh.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerState.h"
+#include "GameMode/GameMode_InGame.h"
+#include "UObject/UnrealType.h"
 #include "Misc/AutomationTest.h"
 
 void UEquipmentTestInventory::ObserveEquipmentChanged()
@@ -39,7 +49,7 @@ namespace
 			Inventory = NewObject<UEquipmentTestInventory>(Owner);
 			Owner->AddInstanceComponent(Inventory);
 			Inventory->RegisterComponent();
-			Equipment = NewObject<UEquipComponent>(Owner);
+			Equipment = NewObject<UEquipmentVisualTestComponent>(Owner);
 			Owner->AddInstanceComponent(Equipment);
 			Equipment->RegisterComponent();
 			Equipment->OnEquipmentChanged.AddDynamic(Inventory, &UEquipmentTestInventory::ObserveEquipmentChanged);
@@ -149,6 +159,78 @@ bool FEquipmentFailurePreservesStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Equipment slot retains original"), Inventory->GetItems(Fixture.HelmetSlot).Num(), 1);
 	TestEqual(TEXT("Failures do not clear equipment UI"), Inventory->EquipmentChangeCount, 1);
 	TestEqual(TEXT("Failures retain exactly one item"), Fixture.CountItem(Fixture.Helmet.GUID), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEquipmentActorReplicationSetupTest, "ProjectPG.Inventory.Equipment.ActorReplicationSetup", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FEquipmentActorReplicationSetupTest::RunTest(const FString& Parameters)
+{
+	FEquipmentFixture Fixture;
+	if (!TestNotNull(TEXT("Equipment component"), Fixture.Equipment)) return false;
+	UEquipmentTestInventory* Inventory = Fixture.Inventory;
+	UEquipComponent* Equipment = Fixture.Equipment;
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (!TestNotNull(TEXT("Visual mesh fixture"), Mesh)) return false;
+	Inventory->TestItems.FindChecked(TEXT("TestHelmet")).WorldMesh = Mesh;
+	FEquipTableRow Row{};
+	Row.EquipType = EEquipSlot::HelMet;
+	Row.EquipActorClass = AEquipment::StaticClass();
+	Row.StaticMeshes.FindOrAdd(TEXT("root")).Mesh = Mesh;
+	CastChecked<UEquipmentVisualTestComponent>(Equipment)->TestEquipment.Add(TEXT("TestHelmet"), Row);
+	AGameStateBase* State = Fixture.World->SpawnActor<AGameStateBase>();
+	if (!TestNotNull(TEXT("Server-managed world state"), State)) return false;
+	State->GameModeClass = AGameMode_InGame::StaticClass();
+	Fixture.World->SetGameState(State);
+	FInventorySnapshot Snapshot = Inventory->MakeSnapshot();
+	Snapshot.bInitialized = true;
+	FItemInstance InitialItem = Fixture.Helmet;
+	InitialItem.parent_inventory_guid = Fixture.HelmetSlot;
+	for (FInventoryContainerSnapshot& Container : Snapshot.Containers)
+	{
+		if (Container.Guid == Fixture.HelmetSlot) Container.Items.Add(InitialItem);
+	}
+	if (!TestTrue(TEXT("Initialize equipped server inventory"), Inventory->InitializeFromSnapshot(Snapshot))) return false;
+	Inventory->GetOwner()->DispatchBeginPlay();
+	TestNull(TEXT("No unattached actor before pawn is ready"), Equipment->GetEquipActor(EEquipSlot::HelMet));
+	ACharacter* Character = Fixture.World->SpawnActor<ACharacter>();
+	if (!TestNotNull(TEXT("Wearing character"), Character)) return false;
+	USkeletalMesh* CharacterMesh = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/PG/Characters/NormalWeight/Meshes/m_tal_nrw_body.m_tal_nrw_body"));
+	if (!TestNotNull(TEXT("Wearing skeletal mesh"), CharacterMesh)) return false;
+	Character->GetMesh()->SetSkeletalMesh(CharacterMesh);
+	Character->SetPlayerState(CastChecked<APlayerState>(Inventory->GetOwner()));
+	AEquipment* Actor = Equipment->GetEquipActor(EEquipSlot::HelMet);
+	if (!TestNotNull(TEXT("Pawn arrival creates initial equipment visual"), Actor)) return false;
+	TestTrue(TEXT("Actor replicated to non-owners"), Actor->GetIsReplicated() && !Actor->bOnlyRelevantToOwner);
+	TestTrue(TEXT("Actor uses wearing character ownership"), Actor->GetOwner() == Character);
+	TestTrue(TEXT("Actor attached to character mesh"), Actor->GetRootComponent()->GetAttachParent() == Character->GetMesh());
+	TestTrue(TEXT("World mesh assigned"), Actor->FindComponentByClass<UStaticMeshComponent>()->GetStaticMesh() == Mesh);
+	Inventory->OnInventoryUpdated.Broadcast();
+	TestTrue(TEXT("Repeated refresh does not duplicate actor"), Equipment->GetEquipActor(EEquipSlot::HelMet) == Actor);
+	TestTrue(TEXT("Server RPC movement path unequips"), Inventory->TransferItemFrom(Inventory, Fixture.Helmet.GUID, Fixture.Pocket, FIntPoint::ZeroValue, false));
+	TestNull(TEXT("Server event removes appearance"), Equipment->GetEquipActor(EEquipSlot::HelMet));
+	TestTrue(TEXT("Old actor is destroyed"), Actor->IsActorBeingDestroyed());
+	TestTrue(TEXT("Server RPC movement path equips"), Inventory->TransferItemFrom(Inventory, Fixture.Helmet.GUID, Fixture.HelmetSlot, FIntPoint::ZeroValue, false));
+	if (!TestNotNull(TEXT("Server event creates appearance without client Equip call"), Equipment->GetEquipActor(EEquipSlot::HelMet))) return false;
+	Character->SetPlayerState(nullptr);
+	TestNull(TEXT("Pawn removal clears visual"), Equipment->GetEquipActor(EEquipSlot::HelMet));
+	Character->SetPlayerState(CastChecked<APlayerState>(Inventory->GetOwner()));
+	TestNotNull(TEXT("Pawn return restores visual"), Equipment->GetEquipActor(EEquipSlot::HelMet));
+
+	// The current Equipment actor has table-defined parts, not the removed
+	// EquipActor's WorldMesh / OwnerCharacter / EquipSocketName RepNotify fields.
+	// This checks local setup; actual client replication requires a PIE net test.
+	AEquipment* DetachedEquipment = Fixture.World->SpawnActor<AEquipment>();
+	if (!TestNotNull(TEXT("Table-defined equipment fixture"), DetachedEquipment)) return false;
+	DetachedEquipment->InitializeEquipment(Row);
+	DetachedEquipment->Equip(Character);
+	UStaticMeshComponent* Part = DetachedEquipment->FindComponentByClass<UStaticMeshComponent>();
+	if (!TestNotNull(TEXT("Table-defined static part"), Part)) return false;
+	TestTrue(TEXT("Part attaches to character root bone"), Part->GetAttachParent() == Character->GetMesh() && Part->GetAttachSocketName() == TEXT("root"));
+	TestTrue(TEXT("Part replication enabled"), Part->GetIsReplicated());
+	DetachedEquipment->Unequip();
+	TestNull(TEXT("Unequip detaches equipment root"), DetachedEquipment->GetRootComponent()->GetAttachParent());
+	TestFalse(TEXT("Unequip hides part"), Part->IsVisible());
 	return true;
 }
 

@@ -163,7 +163,7 @@ USpringArmComponent* ACustomPlayerCharacter::GetCameraArm() const
 
 void ACustomPlayerCharacter::Interact()
 {
-	if (InteractComp) InteractComp->Interact();
+	if (InteractComp) InteractComp->Interact(); 
 }
 void ACustomPlayerCharacter::PlayMontage(UAnimMontage* Montage)
 {

@@ -15,7 +15,7 @@ bool UNA_Interact::ShouldRegisterTriggerEvent(ETriggerEvent TriggerEvent) const
 void UNA_Interact::Started(const FInputActionValue& InputActionValue, ACustomPlayerCharacter* PlayerCharacter)
 {
 	Super::Started(InputActionValue, PlayerCharacter);
-
+	UE_LOG(LogTemp, Warning, TEXT("Interact Started"));
 	PlayerCharacter->Interact();
 	
 

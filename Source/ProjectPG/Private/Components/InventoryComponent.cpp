@@ -256,7 +256,7 @@ void UInventoryComponent::SetStashInventoryID(const FGuid& InGuid)
 
 bool UInventoryComponent::AddItemAt(FItemInstance NewItem, FIntPoint TargetPos)
 {
-	if (!CanMutateInventory()) return false;
+	//if (!CanMutateInventory()) return false;
 	const FGuid TargetGuid = NewItem.parent_inventory_guid;
 	if (!TargetGuid.IsValid()) return false;
 
@@ -299,6 +299,7 @@ bool UInventoryComponent::AddItemAt(FItemInstance NewItem, FIntPoint TargetPos)
 	}
 	RebuildGridMapByGuid(TargetGuid);
 	OnInventoryUpdated.Broadcast();
+	UE_LOG(LogTemp, Warning, TEXT("아이템 추가"));
 	return true;
 }
 

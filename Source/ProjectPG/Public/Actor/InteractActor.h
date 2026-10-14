@@ -20,6 +20,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components")
 	class UStaticMeshComponent* MeshComp;
 
+	// Inventory component that holds this actor's items
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UInventoryComponent> InventoryComp;
 
 public:
 	AInteractActor();
@@ -28,8 +31,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interact")
 	virtual void Interact_Implementation(AActor* actor) override;
 
-	// Inventory component that holds this actor's items
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<UInventoryComponent> InventoryComp;
+	
 
 };
