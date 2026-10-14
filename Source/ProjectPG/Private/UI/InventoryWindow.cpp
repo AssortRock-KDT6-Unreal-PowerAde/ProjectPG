@@ -14,6 +14,7 @@
 #include <Server/InventorySubSystem.h>
 #include <GameMode/CustomPlayerState.h>
 #include <functional>
+
 namespace {
 	inline void SafeRemoveWidget(UWidget* Widget)
 	{
@@ -23,8 +24,6 @@ namespace {
 		}
 	}
 }
-
-
 
 void UInventoryWindow::NativeConstruct()
 {

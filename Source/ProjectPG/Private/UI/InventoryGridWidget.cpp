@@ -16,13 +16,12 @@
 #include "Components/EquipComponent.h"
 #include "Components/OverlaySlot.h"
 
-#include "Server/WebSocketSubSystem.h"
-#include <Core/TableSubSystem.h>
-#include <UI/InventoryWindow.h>
-#include <UI/EquipSlot.h>
-#include <Core/UIManagerSubSystem.h>
-#include <Server/InventorySubSystem.h>
-namespace {
+#include "Core/TableSubSystem.h"
+#include "UI/EquipSlot.h"
+#include "Core/UIManagerSubSystem.h"
+
+namespace
+{
 	inline void SafeRemoveWidget(UWidget* Widget)
 	{
 		if (Widget && (Widget->GetParent() || Widget->IsInViewport()))
@@ -36,8 +35,6 @@ namespace {
 void UInventoryGridWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-
-
 }
 
 void UInventoryGridWidget::RefreshGrid(UInventoryComponent* InComp, const FGuid& InvenGuid)
@@ -269,7 +266,6 @@ void UInventoryGridWidget::CreateBackGroundGrid(int32 Columns, int32 Rows)
 
 				GridSlot->SetVerticalAlignment(
 					EVerticalAlignment::VAlign_Fill);
-
 			}
 		}
 	}
@@ -278,7 +274,8 @@ void UInventoryGridWidget::CreateBackGroundGrid(int32 Columns, int32 Rows)
 
 void UInventoryGridWidget::RefreshGridUI()
 {
-	if (!TargetInventoryComp) {
+	if (!TargetInventoryComp)
+	{
 		UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: TargetInventoryComp none"));
 		return;
 	}
@@ -288,7 +285,8 @@ void UInventoryGridWidget::RefreshGridUI()
 		InventoryGUID = TargetInventoryComp->GetStashInventoryID();
 	}
 
-	if (!InventoryGUID.IsValid()) {
+	if (!InventoryGUID.IsValid())
+	{
 		UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: InventoryGuid none"));
 		return;
 	}
@@ -298,7 +296,8 @@ void UInventoryGridWidget::RefreshGridUI()
 	int32 GridRows =
 		TargetInventoryComp->GetRows(InventoryGUID);
 
-	UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: GUID=%s GridCols=%d GridRows=%d"), *InventoryGUID.ToString(), GridColumns, GridRows);
+	UE_LOG(LogTemp, Warning, TEXT("RefreshGridUI: GUID=%s GridCols=%d GridRows=%d"), *InventoryGUID.ToString(),
+	       GridColumns, GridRows);
 
 	if (GridColumns <= 0 || GridRows <= 0)
 	{
@@ -357,6 +356,7 @@ void UInventoryGridWidget::RefreshGridUI()
 	CreateBackGroundGrid(GridColumns, GridRows);
 	RenderItems();
 }
+
 void UInventoryGridWidget::RenderItems()
 {
 	if (!ItemCanvas ||
@@ -438,6 +438,7 @@ void UInventoryGridWidget::RenderItems()
 		CanvasSlot->SetZOrder(10);
 	}
 }
+
 USlotWidget* UInventoryGridWidget::GetSlotWidgetAt(int32 TileX, int32 TileY)
 {
 	if (!BackGroundGrid || !TargetInventoryComp || !InventoryGUID.IsValid()) return nullptr;
@@ -535,7 +536,8 @@ FReply UInventoryGridWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const 
 {
 	if (InKeyEvent.GetKey() == EKeys::R)
 	{
-		if (UItemDragDropOperation* DragOp = Cast<UItemDragDropOperation>(UWidgetBlueprintLibrary::GetDragDroppingContent()))
+		if (UItemDragDropOperation* DragOp = Cast<UItemDragDropOperation>(
+			UWidgetBlueprintLibrary::GetDragDroppingContent()))
 		{
 			// 회전 상태 반전
 			DragOp->bCurrentRotated = !DragOp->bCurrentRotated;
@@ -551,6 +553,7 @@ FReply UInventoryGridWidget::NativeOnKeyDown(const FGeometry& MyGeometry, const 
 	}
 	return Super::NativeOnKeyDown(MyGeometry, InKeyEvent);
 }
+
 FReply UInventoryGridWidget::NativeOnMouseButtonDown(
 	const FGeometry& InGeometry,
 	const FPointerEvent& InMouseEvent)
@@ -571,6 +574,7 @@ FReply UInventoryGridWidget::NativeOnMouseButtonDown(
 		InMouseEvent
 	);
 }
+
 bool UInventoryGridWidget::NativeOnDrop(
 	const FGeometry& MyGeometry,
 	const FDragDropEvent& InDragDropEvent,
@@ -643,7 +647,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 		if (ItemDragOp->WidgetReference)
 		{
 			ItemDragOp->WidgetReference
-				->SetRenderOpacity(1.0f);
+			          ->SetRenderOpacity(1.0f);
 		}
 
 		return false;
@@ -664,7 +668,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 		if (ItemDragOp->WidgetReference)
 		{
 			ItemDragOp->WidgetReference
-				->SetRenderOpacity(1.0f);
+			          ->SetRenderOpacity(1.0f);
 		}
 		return false;
 	}
@@ -677,7 +681,8 @@ bool UInventoryGridWidget::NativeOnDrop(
 	{
 		UEquipSlot* pSlot = Cast<UEquipSlot>(ItemDragOp->WidgetReference);
 		UEquipComponent* Equipment = pSlot ? pSlot->GetEquipComponent() : nullptr;
-		const bool bRequested = Equipment && Equipment->UnEquipTo(pSlot->GetSlot(), TargetInventoryComp, InventoryGUID, TargetTile, TempInstance.bIsRotated);
+		const bool bRequested = Equipment && Equipment->UnEquipTo(pSlot->GetSlot(), TargetInventoryComp, InventoryGUID,
+		                                                          TargetTile, TempInstance.bIsRotated);
 		if (ItemDragOp->WidgetReference) ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
 		return bRequested;
 	}
@@ -718,7 +723,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 	if (ItemDragOp->WidgetReference)
 	{
 		ItemDragOp->WidgetReference
-			->SetRenderOpacity(1.0f);
+		          ->SetRenderOpacity(1.0f);
 	}
 
 	return bMoved;
@@ -810,8 +815,8 @@ bool UInventoryGridWidget::NativeOnDragOver(
 
 	const EBorderHighlightState HighlightState =
 		bCanPlace
-		? EBorderHighlightState::Valid
-		: EBorderHighlightState::Invalid;
+			? EBorderHighlightState::Valid
+			: EBorderHighlightState::Invalid;
 
 	// ---------------------------------------------------------
 	// 하이라이트

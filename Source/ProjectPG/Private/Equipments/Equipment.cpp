@@ -14,6 +14,8 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
+#include "Net/UnrealNetwork.h"
+#include "TimerManager.h"
 
 AEquipment::AEquipment()
 {
@@ -24,9 +26,22 @@ AEquipment::AEquipment()
 	SetRootComponent(root);
 }
 
-void AEquipment::InitializeEquipment(const FEquipTableRow& Data)
+void AEquipment::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-	Unequip();
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AEquipment, EquipmentState);
+}
+
+void AEquipment::InitializeEquipment(FName ItemID)
+{
+	UItemSubSystem* ItemSubsystem = UItemSubSystem::Get(this);
+	const FEquipTableRow* Data = ItemSubsystem->GetEquip(ItemID);
+	if (!Data)
+		return;
+
+	// Client reconstruction is local presentation work, not an unequip RPC.
+	if (HasAuthority()) UnequipInternal();
+	else Detach();
 
 	for (auto& [Socket, MeshComp] : StaticMeshesBySocket)
 		if (IsValid(MeshComp)) MeshComp->DestroyComponent();
@@ -41,10 +56,11 @@ void AEquipment::InitializeEquipment(const FEquipTableRow& Data)
 	BlueprintsBySocket.Reset();
 
 	SocketItemTypes.Reset();
-	EquipmentItemID = FName(*FString::FromInt(Data.ItemID));
+	EquipmentItemID = ItemID.IsNone() ? FName(*FString::FromInt(Data->ItemID)) : ItemID;
+	BuiltItemID = EquipmentItemID;
 	LeftHandIKData = FWeaponHandIKData();
 
-	for (auto& [Socket, MeshData] : Data.StaticMeshes)
+	for (auto& [Socket, MeshData] : Data->StaticMeshes)
 	{
 		if (!MeshData.Mesh
 			|| Socket.IsNone()
@@ -58,14 +74,15 @@ void AEquipment::InitializeEquipment(const FEquipTableRow& Data)
 		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		MeshComp->SetStaticMesh(MeshData.Mesh);
 
-		MeshComp->SetIsReplicated(GetIsReplicated());
+		// Every peer builds these cosmetic parts from replicated equipment state.
+		MeshComp->SetIsReplicated(false);
 
 		MeshComp->RegisterComponent();
 		MeshComp->SetVisibility(false);
 		SocketItemTypes.Add(Socket, EEquipType::Static);
 	}
 
-	for (auto& [Socket, MeshData] : Data.SkeletalMeshes)
+	for (auto& [Socket, MeshData] : Data->SkeletalMeshes)
 	{
 		if (!MeshData.Mesh
 			|| Socket.IsNone()
@@ -79,15 +96,15 @@ void AEquipment::InitializeEquipment(const FEquipTableRow& Data)
 		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		MeshComp->SetSkeletalMesh(MeshData.Mesh);
 
-		MeshComp->SetIsReplicated(GetIsReplicated());
+		MeshComp->SetIsReplicated(false);
 
 		MeshComp->RegisterComponent();
 		MeshComp->SetVisibility(false);
 		SocketItemTypes.Add(Socket, EEquipType::Skeletal);
-		if (Socket == TEXT("Holster") && Data.HolsterPistolMaterial)
+		if (Socket == TEXT("Holster") && Data->HolsterPistolMaterial)
 		{
 			const int32 Slot = MeshComp->GetMaterialIndex(TEXT("M_Pistol"));
-			if (Slot != INDEX_NONE) MeshComp->SetMaterial(Slot, Data.HolsterPistolMaterial);
+			if (Slot != INDEX_NONE) MeshComp->SetMaterial(Slot, Data->HolsterPistolMaterial);
 		}
 	}
 
@@ -95,7 +112,7 @@ void AEquipment::InitializeEquipment(const FEquipTableRow& Data)
 	if (!IsValid(World))
 		return;
 
-	for (auto& [Socket, ActorData] : Data.ActorEquipments)
+	for (auto& [Socket, ActorData] : Data->ActorEquipments)
 	{
 		if (!ActorData.Blueprint || Socket.IsNone() || SocketItemTypes.Contains(Socket)) continue;
 		FActorSpawnParameters Params;
@@ -112,7 +129,7 @@ void AEquipment::InitializeEquipment(const FEquipTableRow& Data)
 		Actor->GetRootComponent()->SetRelativeTransform(ActorData.RelativeTransform);
 		Actor->SetActorHiddenInGame(true);
 
-		Actor->SetReplicates(GetIsReplicated());
+		Actor->SetReplicates(false);
 
 		BlueprintsBySocket.Add(Socket, Actor);
 
@@ -204,6 +221,9 @@ void AEquipment::Attach()
 		if (BoundAnimInstance.IsValid())
 			BoundAnimInstance->SetLeftHandIKEquipment(this);
 	}
+	UE_LOG(LogTemp, Display, TEXT("[EquipmentAnimation] ItemID=%s Character=%s AnimClass=%s Authority=%d"),
+	       *EquipmentItemID.ToString(), *GetNameSafe(OwnerCharacter), *GetNameSafe(OwnerMesh->GetAnimClass()),
+	       HasAuthority());
 }
 
 void AEquipment::Detach()
@@ -257,6 +277,10 @@ void AEquipment::EquipInternal(ACharacter* Character)
 	// Attach 관계와 별개로 RPC를 보낼 플레이어의 네트워크 소유권을 설정합니다.
 	SetOwner(Character);
 	Attach();
+	EquipmentState.ItemID = EquipmentItemID;
+	EquipmentState.Character = Character;
+	EquipmentState.bEquipped = true;
+	ForceNetUpdate();
 }
 
 void AEquipment::Unequip()
@@ -275,6 +299,9 @@ void AEquipment::UnequipInternal()
 	Detach();
 	OwnerCharacter = nullptr;
 	OwnerMesh = nullptr;
+	EquipmentState.Character = nullptr;
+	EquipmentState.bEquipped = false;
+	ForceNetUpdate();
 }
 
 void AEquipment::Req_Equip_Implementation(ACharacter* Character)
@@ -306,6 +333,49 @@ void AEquipment::Req_Unequip_Implementation()
 void AEquipment::BeginPlay()
 {
 	Super::BeginPlay();
+	if (!HasAuthority()) OnRep_EquipmentState();
+}
+
+void AEquipment::OnRep_EquipmentState()
+{
+	EquipmentStateRetryCount = 0;
+	ApplyReplicatedEquipmentState();
+}
+
+void AEquipment::ApplyReplicatedEquipmentState()
+{
+	if (HasAuthority()) return;
+	if (!EquipmentState.bEquipped)
+	{
+		GetWorldTimerManager().ClearTimer(EquipmentStateRetryTimer);
+		Detach();
+		OwnerCharacter = nullptr;
+		OwnerMesh = nullptr;
+		return;
+	}
+	ACharacter* Character = EquipmentState.Character;
+	UItemSubSystem* Items = UItemSubSystem::Get(this);
+	const FEquipTableRow* Data = Items && !EquipmentState.ItemID.IsNone()
+		                             ? Items->GetEquip(EquipmentState.ItemID)
+		                             : nullptr;
+	if (!IsValid(Character) || !IsValid(Character->GetMesh()) || !Character->GetMesh()->GetSkeletalMeshAsset() || !Data)
+	{
+		if (++EquipmentStateRetryCount <= 100)
+			GetWorldTimerManager().SetTimer(EquipmentStateRetryTimer, this, &AEquipment::ApplyReplicatedEquipmentState,
+			                                0.1f, false);
+		else
+			UE_LOG(LogTemp, Warning, TEXT("[EquipmentReplication] Presentation not ready: ItemID=%s Character=%s"),
+		       *EquipmentState.ItemID.ToString(), *GetNameSafe(Character));
+		return;
+	}
+	GetWorldTimerManager().ClearTimer(EquipmentStateRetryTimer);
+	if (BuiltItemID != EquipmentState.ItemID) InitializeEquipment(EquipmentState.ItemID);
+	OwnerCharacter = Character;
+	OwnerMesh = Character->GetMesh();
+	Attach();
+	UE_LOG(LogTemp, Display, TEXT("[EquipmentReplication] Applied ItemID=%s Character=%s AnimClass=%s Parts=%d"),
+	       *EquipmentItemID.ToString(), *Character->GetName(), *GetNameSafe(OwnerMesh->GetAnimClass()),
+	       SocketItemTypes.Num());
 }
 
 USceneComponent* AEquipment::FindEquipmentPart(FName PartName) const
@@ -340,6 +410,7 @@ bool AEquipment::GetLeftHandIKTarget(FTransform& TargetTransform, float& Alpha, 
 
 void AEquipment::EndPlay(const EEndPlayReason::Type Reason)
 {
+	GetWorldTimerManager().ClearTimer(EquipmentStateRetryTimer);
 	// 종료 시 로컬 정리만 수행하고 서버에 장착 해제 요청을 보내지 않습니다.
 	Detach();
 	OwnerCharacter = nullptr;

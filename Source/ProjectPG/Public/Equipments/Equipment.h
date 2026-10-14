@@ -8,6 +8,19 @@
 #include "GameFramework/Actor.h"
 #include "Equipment.generated.h"
 
+USTRUCT()
+struct FEquipmentReplicationState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName ItemID;
+	UPROPERTY()
+	TObjectPtr<ACharacter> Character;
+	UPROPERTY()
+	bool bEquipped = false;
+};
+
 UCLASS()
 class PROJECTPG_API AEquipment : public AActor
 {
@@ -47,8 +60,16 @@ protected:
 
 	bool bIsEquipped = false;
 
+private:
+	UPROPERTY(ReplicatedUsing = OnRep_EquipmentState)
+	FEquipmentReplicationState EquipmentState;
+	FTimerHandle EquipmentStateRetryTimer;
+	FName BuiltItemID;
+	int32 EquipmentStateRetryCount = 0;
+
 public:
-	virtual void InitializeEquipment(const struct FEquipTableRow& Data);
+	virtual void InitializeEquipment(FName ItemID = NAME_None);
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void Attach();
 	virtual void Detach();
 
@@ -69,6 +90,9 @@ protected:
 	USceneComponent* FindEquipmentPart(FName PartName) const;
 
 private:
+	UFUNCTION()
+	void OnRep_EquipmentState();
+	void ApplyReplicatedEquipmentState();
 	void EquipInternal(ACharacter* Character);
 	void UnequipInternal();
 };

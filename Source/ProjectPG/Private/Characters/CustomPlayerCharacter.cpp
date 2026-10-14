@@ -99,7 +99,7 @@ void ACustomPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 
 	const FPlayerDefaultActionTableRow* playerDefaultActionRow = tableSubSystem->FindTableRow<
 		FPlayerDefaultActionTableRow>(
-		"PlayerDefaultActionTable", "PlayerDebug");
+		"PlayerDefaultActionTable", "PlayerDefault");
 	if (nullptr == playerDefaultActionRow)
 		return;
 

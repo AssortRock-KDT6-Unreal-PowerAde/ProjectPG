@@ -379,7 +379,7 @@ void UEquipComponent::SpawnEquipActor(EEquipSlot Slot, UStaticMesh* Mesh)
 	if (!EquipItem) return;
 	EquipItem->SetReplicates(true);
 	EquipItem->bOnlyRelevantToOwner = false;
-	EquipItem->InitializeEquipment(*ItemData);
+	EquipItem->InitializeEquipment(Item->ItemID);
 	EquipItem->Equip(Character);
 	EquipItem->ForceNetUpdate();
 
