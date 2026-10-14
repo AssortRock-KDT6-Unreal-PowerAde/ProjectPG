@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "InputMappingContext.h"
-#include "Actor/EquipActor.h"
+#include "Equipments/Equipment.h"
 #include "Engine/DataTable.h"
 #include "Common/GameDefine.h"
 #include "Common/GameData.h"
@@ -47,6 +47,10 @@ struct FCharacterTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	// 캐릭터 기준 메시의 상대 위치, 회전, 스케일 조정값.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform RootMeshTransform = FTransform::Identity;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FName, TObjectPtr<USkeletalMesh>> ChildSkeletalMeshes;
@@ -114,19 +118,44 @@ struct FEquipTableRow : public FTableRowBase
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere)
-	int32 ItemID;
+	int32 ItemID = 0;
 
 	UPROPERTY(EditAnywhere)
-	EEquipSlot EquipType;
+	EEquipSlot EquipType = EEquipSlot::MAX;
 
 	UPROPERTY(EditAnywhere)
-	FName SocketName;
-
-	//UPROPERTY(EditAnywhere)
-	//TArray<FAbilityData> Abilities;
+	TObjectPtr<UMaterialInterface> HolsterPistolMaterial;
 
 	UPROPERTY(EditAnywhere)
-	TSubclassOf<AEquipActor> EquipActorClass;
+	TSubclassOf<UAttributeSet> Attributes;
+
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<AEquipment> EquipActorClass;
+
+	UPROPERTY(EditAnywhere)
+	TMap<FName, FSkeletalMeshEquipmentData> SkeletalMeshes;
+
+	UPROPERTY(EditAnywhere)
+	TMap<FName, FStaticMeshEquipmentData> StaticMeshes;
+
+	UPROPERTY(EditAnywhere)
+	TMap<FName, FActorEquipmentData> ActorEquipments;
+};
+
+// RowName은 ItemTable / EquipTable과 같은 ItemID를 사용합니다.
+USTRUCT(BlueprintType)
+struct FWeaponTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<UCustomAnimInstance> AnimBlueprint;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EWeaponType WeaponType = EWeaponType::None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FWeaponHandIKData LeftHandIK;
 };
 
 USTRUCT(BlueprintType)

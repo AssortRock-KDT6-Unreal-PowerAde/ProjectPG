@@ -2,8 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include "Actors/WorldItemActor.h"
-#include "Actors/LootCrateActor.h"
+#include "Actor/InteractActor.h"
 #include "MapAssetSet.generated.h"
 
 class UDataTable;
@@ -126,16 +125,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UDataTable> FacilityPointTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Data/DT_FacilityPoints.DT_FacilityPoints")));
 
-	// ---------- 아이템 (아이템 담당) ----------
-	// 상자 자리에 무엇이 얼마나 자주 나오나(행 구조 FLootSpawnRow, MapItemSpawner.h).
-	UPROPERTY(EditAnywhere, Category = "아이템")
-	TSoftObjectPtr<UDataTable> LootSpawnTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Data/DT_LootSpawn.DT_LootSpawn")));
-	// 바닥 아이템 BP(부모 AWorldItemActor). 비면 C++ 기본 클래스(대신 모양 없음)를 쓴다.
-	UPROPERTY(EditAnywhere, Category = "아이템")
-	TSoftClassPtr<AWorldItemActor> WorldItemClass = TSoftClassPtr<AWorldItemActor>(FSoftObjectPath(TEXT("/Game/PG/Blueprint/Item/BP_WorldItem.BP_WorldItem_C")));
-	// 아이템 상자 BP(부모 ALootCrateActor). 상자 메시는 BP 에서 고른다. 비면 C++ 기본 클래스(메시 없음 — 안 보임)를 쓴다.
-	UPROPERTY(EditAnywhere, Category = "아이템")
-	TSoftClassPtr<ALootCrateActor> LootCrateClass = TSoftClassPtr<ALootCrateActor>(FSoftObjectPath(TEXT("/Game/PG/Blueprint/Item/BP_LootCrate.BP_LootCrate_C")));
+	// ---------- 상자 (상자 담당) ----------
+	// 상자 자리(Loot 지점)에 놓을 상자 BP 목록. 자리마다 이 중 하나를 고른다(같은 시드면 같은 자리에 같은 상자).
+	// 부모가 AInteractActor(에디터에서는 InteractActor)인 BP 면 무엇이든 넣을 수 있다 — 탄약 상자, 의료 상자 등.
+	// 같은 BP 를 두 번 넣으면 그 상자가 두 배 자주 나온다.
+	UPROPERTY(EditAnywhere, Category = "상자")
+	TArray<TSoftClassPtr<AInteractActor>> LootContainerClasses = {
+		TSoftClassPtr<AInteractActor>(FSoftObjectPath(TEXT("/Game/PG/Blueprint/Item/BP_LootCrate.BP_LootCrate_C")))
+	};
 
 	// ---------- 바닥 머티리얼 (바닥 담당) ----------
 	// 들판 땅. 언덕·호숫가 비탈·타일 바닥판도 이 색으로 맞춘다(이음매가 안 보이게).

@@ -1,6 +1,7 @@
 ﻿#include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 
 #include "Actors/MapBuilder/MapBuildShared.h"
+#include "Actors/MapBuilder/MapItemSpawner.h"
 #include "Actors/MapTile.h"
 #include "Components/MapGeneratorComponent.h"
 #include "GameModes/GameModePG.h"
@@ -333,6 +334,9 @@ bool UMapSpawnRegionPlanner::PlaceAtSeat(APlayerController* PlayerController, AP
 	// 원격 플레이어의 시선은 그 사람 컴퓨터가 가진다 — 서버에서 돌리기만 하면 그 사람 화면은 안 돈다. 클라 RPC 로 보낸다.
 	PlayerController->ClientSetRotation(FRotator(-10.0f, Yaw, 0.0f));
 	PlacedPawnByPlayer.Add(PlayerController, Pawn);
+	// (테스트용) 에디터에서 플레이할 때만: 이 사람 앞에 상자 하나(상자 열어 보려고 맵을 돌아다니지 않게).
+	if (Map->ItemSpawner)
+		Map->ItemSpawner->SpawnTestContainerInFront(Seat.WorldLocation, Yaw);
 
 	FString Blocker = TEXT("nothing");
 	const float OpenAheadCm = MeasureOpenAhead(Seat.WorldLocation, Yaw, 4000.0f, Pawn, &Blocker);
