@@ -58,7 +58,7 @@ void UWebSocketSubSystem::ConnectToLobbyServer()
 		FModuleManager::Get().LoadModule("WebSockets");
 	}
 
-	FString serverURL = TEXT("ws://127.0.0.1:8080");
+	FString serverURL = TEXT("ws://192.168.0.19:8080");
 	WebSocket = FWebSocketsModule::Get().CreateWebSocket(serverURL, TEXT("ws"));
 
 	if (!WebSocket.IsValid()) return;

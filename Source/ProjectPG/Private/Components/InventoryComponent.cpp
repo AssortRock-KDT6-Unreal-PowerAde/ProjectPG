@@ -370,7 +370,7 @@ void UInventoryComponent::RegisterContainer(const FGuid& ContainerGUID, FIntPoin
 
 	if (!InventorySizeMap.Contains(ContainerGUID))
 	{
-		InventorySizeMap.Add(
+		InventorySizeMap.FindOrAdd(
 			ContainerGUID,
 			ContainerSize);
 
