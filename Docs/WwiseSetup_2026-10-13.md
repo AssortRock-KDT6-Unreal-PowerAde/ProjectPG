@@ -20,6 +20,8 @@ git에는 코드·설정·뱅크만 있다. 아래는 따로 가져와야 한다
 | 효과음 원본 | 구글 드라이브 | `ProjectPG_WwiseProject/Originals/` |
 | 효과음 후보 (`PG_Candidates`) | 구글 드라이브 | 아무 곳 |
 
+- 10-15부터 원본이 `Originals/SFX/SFX/` 안에도 들어감 (WAAPI 임포트가 한 칸 더 만듦). 원본 폴더는 통째로 옮기면 된다
+- 집 PC에서 이어 하기: 학원 PC에서 `git push` → 집에서 `git pull` 후 위 표대로 플러그인·원본을 넣는다. 게임만 돌려 볼 거면 플러그인만 있으면 된다 (뱅크는 git에 있음)
 - 플러그인이 없으면 빌드가 깨진다 (`AkAudio` 모듈을 못 찾음)
 - 게임만 돌리는 팀원은 플러그인만 있으면 된다. 원본·오서링 툴은 필요 없다
 
@@ -71,6 +73,29 @@ git에는 코드·설정·뱅크만 있다. 아래는 따로 가져와야 한다
   - 메뉴 (공식 문서 "Triggering Wwise Events in Animation Sequences"): Notifies 트랙 오른쪽 클릭 → Add notify → AkEvent
   - 에디터가 켜진 채로 바꾸려면: 헤드리스 에디터(`UnrealEditor-Cmd.exe ... -run=pythonscript -script=...`)로 `unreal.AnimationLibrary.add_animation_notify_event` 사용. 커맨드릿에선 `load_blueprint_class`가 안 되니 `load_asset("/Wwise/AnimNotify_AkEvent").generated_class()`로 클래스를 얻는다
 - Wwise 오서링 툴은 WAAPI(`http://127.0.0.1:8090/waapi`)로 바깥에서 조종할 수 있다 (켜져 있을 때)
+
+### 10-15 저녁: 남은 소리 한꺼번에 (Claude가 고른 임시 소리, 귀로는 아직 확인 안 함)
+
+| 소리 | Wwise | 원본 (`D:\PG_Candidates`) | 게임에 붙인 곳 |
+| --- | --- | --- | --- |
+| 총 꺼내기 | `Weapon\Weapon_Equip` (-4dB) | `Container_Open\S_Latchlocker,cable,steel...alt2` | `AM_Equip_*` 6개, 길이의 30% 지점 |
+| 탄창 빼기 | `Weapon\Weapon_Reload_MagOut` (-2dB) | `Container_Open\K_metalLatch` | `AM_Reload_*` 10개, 25% 지점 |
+| 탄창 끼우기 | `Weapon\Weapon_Reload_MagIn` (-2dB) | `Container_Open\S_Latchlocker,aluminum...over` | `AM_Reload_*` 10개, 60% 지점 |
+| 발소리 | `Player\Player_Footstep` 랜덤 5개, 피치 ±100 (-6dB) | `Footstep_Grass` 5개 | 걷기·조깅·달리기 시퀀스 18개 |
+| 앉아 걷기 | `Player\Player_Footstep_Crouch` (-14dB) | 위와 같음 | 앉아 걷기 시퀀스 12개 |
+| 착지 | `Player\Player_Land` 랜덤 5개 (-3dB) | `Land` 5개 | `*_Land` 시퀀스 5개, 0.02초 |
+| 상자 열기 | `World\World_Container_Open` (-3dB) | `Container_Open\S_Latchlocker,design,FutureLoot...` | `AInteractActor::Interact` 상자 쪽 → 소리 표 `World_Container_Open` |
+
+- 거리 감쇠(Attenuation) 3개 새로 만듦: `Att_Weapon` 150m, `Att_Foley` 25m, `Att_World` 20m. 총소리 3개에도 `Att_Weapon`을 걸었음 (이전엔 멀리서 쏴도 바로 옆처럼 들렸음)
+- 뱅크: `Weapon`에 3개 추가, `Player`·`World` 새로 만듦
+- 발소리 위치는 `foot_l`/`foot_r` 뼈 높이가 땅 근처로 내려오는 순간을 계산해서 꽂음. 어긋나면 애니메이션 열어서 노티파이를 끌어서 옮기면 됨
+- 상자 소리는 여는 사람만 들린다 (상자 열기가 그 컴퓨터에서만 돌기 때문)
+- 쓴 스크립트는 `Tools/Sound/`에 있음
+  - `build_wwise.py`: WAAPI로 Wwise에 소리·이벤트·뱅크를 만들고 뱅크까지 생성 (Wwise를 켜 둔 채로 실행)
+  - 언리얼 이벤트 에셋 만들기: `UnrealEditor-Cmd.exe ProjectPG.uproject -run=WwiseReconcileCommandlet -modes=create` (에디터를 끈 채로)
+  - `add_anim_sounds.py`, `add_fire_sounds.py`, `add_sound_rows.py`: 노티파이·소리 표 (`-run=pythonscript -script=경로`)
+- **게임에 기능이 없어서 못 붙인 것**: 빈 탄창(탄약 없음), 소모품 사용(사용 기능 주석 처리됨), 몬스터 공격·죽음, 문, 폭발, 땅 꺼짐, 엔딩(우주선·용·경보). 후보 소리는 `D:\PG_Candidates`에 준비돼 있음
+- **소리 원본이 없어서 못 한 것**: 타이틀·로비 음악, 숲·호수 배경음 (후보 폴더에 없음)
 - 팀원들이 사운드 작업은 전부 맡김 (소리용 수정은 허락 불필요)
 - Wwise 메뉴 위치는 공식 문서로 확인할 것: https://www.audiokinetic.com/ko/public-library/2025.1.11_9262/?source=Help&id=welcome_to_wwise (처음 열 때 캡차가 뜨면 사용자가 직접 풀어야 함)
 
@@ -83,5 +108,7 @@ git에는 코드·설정·뱅크만 있다. 아래는 따로 가져와야 한다
   - 마우스 올리기는 `FUIClickSoundProcessor`에 추가, 나머지는 해당 코드 자리에서 `PlaySound2D` 호출
   - 팀원 파일(인벤토리 = wlghks0723)을 고쳐야 하면 먼저 말하기
 - [ ] 서버 타깃 빌드 확인 (서버 빌드하는 팀원에게 부탁)
-- [ ] 발소리·재장전은 애니메이션 노티파이로, 배경음은 레벨 배치로
-- [ ] 아직 없는 소리: 재장전, 총 꺼내기, 빈 탄창, 권총 발사, 소모품, 숲·호수 배경음, 타이틀 음악
+- [x] 발소리·재장전·총 꺼내기·착지·상자 열기 (10-15, 임시 소리)
+- [ ] PIE에서 귀로 확인: 볼륨, 발소리 타이밍, 거리 감쇠
+- [ ] 바닥별 발소리 (Switch `Surface`) — 지금은 풀밭 소리 하나
+- [ ] 아직 없는 소리: 빈 탄창, 소모품, 숲·호수 배경음, 타이틀 음악 (기능 또는 원본이 생기면)

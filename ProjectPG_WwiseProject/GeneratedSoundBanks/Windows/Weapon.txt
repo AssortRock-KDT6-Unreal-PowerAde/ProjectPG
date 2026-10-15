@@ -1,6 +1,9 @@
 Event	ID	Name			Wwise Object Path	Notes
+	1178219631	Play_Weapon_Equip			\Default Work Unit\Play_Weapon_Equip	
 	1304785338	Play_Weapon_Fire_Rifle			\Default Work Unit\Play_Weapon_Fire_Rifle	
+	2322627606	Play_Weapon_Reload_MagOut			\Default Work Unit\Play_Weapon_Reload_MagOut	
 	2722226741	Play_Weapon_Fire_Pistol			\Default Work Unit\Play_Weapon_Fire_Pistol	
+	3470614779	Play_Weapon_Reload_MagIn			\Default Work Unit\Play_Weapon_Reload_MagIn	
 	4047651814	Play_Weapon_Fire_Shotgun			\Default Work Unit\Play_Weapon_Fire_Shotgun	
 
 Effect plug-ins	ID	Name	Type				Notes
@@ -13,7 +16,13 @@ Effect plug-ins	ID	Name	Type				Notes
 	3657550167	New_Parametric_EQ	Wwise Parametric EQ			
 
 In Memory Audio	ID	Name	Audio source file		Wwise Object Path	Notes	Data Size
+	216459831	Weapon_Reload_MagOut	.cache\59\{5984B54A-A7B5-8EC3-6C5C-A256651A1927}.wem		\Containers\Weapon\Weapon_Reload_MagOut		50272
 	354075555	Weapon_Fire_Rifle	.cache\57\{57FE2521-54B8-13A9-A567-D2396A727F5C}.wem		\Containers\Weapon\Weapon_Fire_Rifle		9478736
+	367715101	Weapon_Fire_Shotgun_Low	.cache\23\{23BC1D48-A535-5A41-A104-5D5021E12F4B}.wem		\Containers\Weapon\Weapon_Fire_Shotgun\Weapon_Fire_Shotgun_Low		201016
 	469897786	Weapon_Fire_Pistol	.cache\2A\{2ACE79D6-CD59-2C7E-A9A5-2A052589C32C}.wem		\Containers\Weapon\Weapon_Fire_Pistol		403176
-	1053680423	Weapon_Fire_Shotgun_Low_02	.cache\F4\{F470A886-39EB-3F1A-F359-AC272458E136}.wem		\Containers\Weapon\Weapon_Fire_Shotgun\Weapon_Fire_Shotgun_Low_02		502976
+	682430514	Weapon_Reload_MagIn	.cache\91\{91B6CF7C-1BE1-2BC5-A59C-7B5D555AF2E1}.wem		\Containers\Weapon\Weapon_Reload_MagIn		126538
+	693437502	Weapon_Equip	.cache\A1\{A12362C8-2C8A-D2DF-9500-A49DAB7CE858}.wem		\Containers\Weapon\Weapon_Equip		152416
+	932097229	Weapon_Fire_Shotgun_Low_01	.cache\07\{07F28AE2-32B6-1B8F-76C3-B5982DBC3AEE}.wem		\Containers\Weapon\Weapon_Fire_Shotgun\Weapon_Fire_Shotgun_Low_01		422384
+	1053680423	Weapon_Fire_Shotgun_Mid	.cache\25\{25DBFBA0-F7FD-877F-8B3E-2BB28BFBD07A}.wem		\Containers\Weapon\Weapon_Fire_Shotgun\Weapon_Fire_Shotgun_Mid		371872
+	1065398024	Weapon_Fire_Shotgun_Low_02	.cache\95\{95B9684F-10EF-3800-28B3-7C6C2CC3B19C}.wem		\Containers\Weapon\Weapon_Fire_Shotgun\Weapon_Fire_Shotgun_Low_02		270872
 

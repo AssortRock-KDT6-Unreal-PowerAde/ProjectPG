@@ -113,6 +113,83 @@
 						</Action>
 					</ChildrenList>
 				</Event>
+				<Event Name="Play_Weapon_Equip" ID="{611566C5-0F15-48FB-AA4C-645BB1459FB9}">
+					<ChildrenList>
+						<Action Name="" ID="{F0451F63-6B0A-48B8-B5C5-EAB90D89CA9A}" ShortID="1012527391">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Weapon_Equip" ID="{CE454498-1A65-4F4A-ADDB-0DB6448FB618}" WorkUnitID="{BE023E6A-2D5E-4E7F-BFB3-2F3DA9E7DE88}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
+				<Event Name="Play_Weapon_Reload_MagOut" ID="{894A9859-C98F-4740-87AB-E573D844A6C4}">
+					<ChildrenList>
+						<Action Name="" ID="{CC9DE746-EF96-4803-85AB-F864F3A599B4}" ShortID="263747917">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Weapon_Reload_MagOut" ID="{D4F369B8-CCC9-476E-A0C1-8BA146E55D73}" WorkUnitID="{BE023E6A-2D5E-4E7F-BFB3-2F3DA9E7DE88}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
+				<Event Name="Play_Weapon_Reload_MagIn" ID="{D54DA212-5D6E-4737-A537-479FC13CD5B8}">
+					<ChildrenList>
+						<Action Name="" ID="{BB7EF8ED-9A65-4114-89CA-F36972FFFB50}" ShortID="724563295">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Weapon_Reload_MagIn" ID="{2C609B9F-BAD4-418F-B010-B13595AC3BEA}" WorkUnitID="{BE023E6A-2D5E-4E7F-BFB3-2F3DA9E7DE88}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
+				<Event Name="Play_Player_Footstep" ID="{745EDF84-A60F-4300-B494-078D03DD1A67}">
+					<ChildrenList>
+						<Action Name="" ID="{73429652-FB3F-4CFD-88F1-3DF764E9A895}" ShortID="327133714">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Player_Footstep" ID="{B1DA7148-0B47-4867-9CD9-FB626D4CC444}" WorkUnitID="{1F00E3A4-0205-4FB6-9B65-BAC488026D10}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
+				<Event Name="Play_Player_Footstep_Crouch" ID="{0496F61F-37F0-4630-B886-D1B9C90D0094}">
+					<ChildrenList>
+						<Action Name="" ID="{77DAC15A-79E6-41F9-800A-B5F3D7B5D659}" ShortID="21949727">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Player_Footstep_Crouch" ID="{5AF7E46C-1A53-4234-B07B-AD586D4324CA}" WorkUnitID="{1F00E3A4-0205-4FB6-9B65-BAC488026D10}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
+				<Event Name="Play_Player_Land" ID="{D93BA1C3-D129-4596-8FC2-20A6475C27E8}">
+					<ChildrenList>
+						<Action Name="" ID="{4C351795-6AE1-4ADD-B6F3-287A22176A64}" ShortID="726767928">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Player_Land" ID="{8B4CDF64-7D68-4A7D-AC2B-191461957FF0}" WorkUnitID="{1F00E3A4-0205-4FB6-9B65-BAC488026D10}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
+				<Event Name="Play_World_Container_Open" ID="{87906CC0-5DFE-4B2E-9B9B-30655F6E8B95}">
+					<ChildrenList>
+						<Action Name="" ID="{E35B8C89-B6BC-436C-9056-A040FB8F0414}" ShortID="991884801">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="World_Container_Open" ID="{F2A43965-B19A-4771-A6B0-08F831A5318A}" WorkUnitID="{4A4515F3-DF3B-4894-92DF-DB2D4C2DBE81}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
 			</ChildrenList>
 		</WorkUnit>
 	</Events>

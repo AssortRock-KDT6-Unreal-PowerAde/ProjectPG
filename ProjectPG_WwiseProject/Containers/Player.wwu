@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WwiseDocument Type="WorkUnit" ID="{1F00E3A4-0205-4FB6-9B65-BAC488026D10}" SchemaVersion="133">
+	<Containers>
+		<WorkUnit Name="Player" ID="{1F00E3A4-0205-4FB6-9B65-BAC488026D10}" PersistMode="Standalone">
+			<ChildrenList>
+				<RandomSequenceContainer Name="Player_Footstep" ID="{B1DA7148-0B47-4867-9CD9-FB626D4CC444}" ShortID="848146718">
+					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
+						<Property Name="Pitch" Type="int32">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{60D04738-4D32-4EE3-80B3-274C179A64A0}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="100"/>
+											<Property Name="Min" Type="Real64" Value="-100"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+						<Property Name="Volume" Type="Real64">
+							<ValueList>
+								<Value>-6</Value>
+							</ValueList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Foley" ID="{E215F85E-ACB3-43DF-AE1D-234D57B621F3}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<Sound Name="K_footstep_grass_000" ID="{368B2F2C-33D5-4EAE-A0DA-3DD616D1E072}" ShortID="1007022837">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_000" ID="{5FA9AF79-9343-43AB-AC48-D386FABF5A4F}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_000.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="311928757"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_000" ID="{5FA9AF79-9343-43AB-AC48-D386FABF5A4F}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_footstep_grass_001" ID="{2B15D438-30EC-408E-9985-2FB018389514}" ShortID="573967512">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_001" ID="{69A4A23A-CC9A-4661-B3BE-ECBDF840ADAC}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_001.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="206310559"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_001" ID="{69A4A23A-CC9A-4661-B3BE-ECBDF840ADAC}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_footstep_grass_002" ID="{2621B863-5855-4B45-8891-93D81AB80434}" ShortID="432819328">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_002" ID="{BD011F38-20F2-4BE7-ADD1-81EA098FA3D9}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_002.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="1011289876"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_002" ID="{BD011F38-20F2-4BE7-ADD1-81EA098FA3D9}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_footstep_grass_003" ID="{0739704C-0BE2-4D15-84D9-0A6703272AA9}" ShortID="638338436">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_003" ID="{DBE1221B-9DD9-435B-B701-E176FFD256FB}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_003.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="770080689"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_003" ID="{DBE1221B-9DD9-435B-B701-E176FFD256FB}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_footstep_grass_004" ID="{DE0EADDA-CEC7-408E-B696-2684B5455649}" ShortID="723027869">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_004" ID="{ED7DC4F1-3E00-44AA-8E09-9C58771001E2}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_004.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="432344205"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_004" ID="{ED7DC4F1-3E00-44AA-8E09-9C58771001E2}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+					</ChildrenList>
+				</RandomSequenceContainer>
+				<RandomSequenceContainer Name="Player_Footstep_Crouch" ID="{5AF7E46C-1A53-4234-B07B-AD586D4324CA}" ShortID="377383237">
+					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
+						<Property Name="Pitch" Type="int32">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{23F0B0C7-65CD-4A88-BADF-BFBBF75790DC}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="100"/>
+											<Property Name="Min" Type="Real64" Value="-100"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+						<Property Name="Volume" Type="Real64">
+							<ValueList>
+								<Value>-14</Value>
+							</ValueList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Foley" ID="{E215F85E-ACB3-43DF-AE1D-234D57B621F3}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<Sound Name="K_footstep_grass_000" ID="{9E93EC48-1FAA-4906-80B0-D50F30A0FBD7}" ShortID="696112404">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_000" ID="{E6482471-2B55-4E81-9858-9077C0630FCC}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_000.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="311928757"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_000" ID="{E6482471-2B55-4E81-9858-9077C0630FCC}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_footstep_grass_001" ID="{9846773F-50A8-49EA-A605-43B8DB437638}" ShortID="753003612">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_001" ID="{61140DCC-E452-4B23-ABC0-77B7B8291888}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_001.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="206310559"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_001" ID="{61140DCC-E452-4B23-ABC0-77B7B8291888}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_footstep_grass_002" ID="{69710FAA-5964-4F23-BB2C-BBDA96B110BF}" ShortID="488822339">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_002" ID="{BC2DD915-C02D-4C34-BC2A-873D8B016B8F}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_002.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="1011289876"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_002" ID="{BC2DD915-C02D-4C34-BC2A-873D8B016B8F}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_footstep_grass_003" ID="{246E6B31-15C6-40BC-B685-0E002FF78DA2}" ShortID="627503369">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_003" ID="{FA788A98-8BE0-4CCC-B999-D627B628E119}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_003.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="770080689"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_003" ID="{FA788A98-8BE0-4CCC-B999-D627B628E119}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_footstep_grass_004" ID="{0F257BC6-3D63-45A3-B564-CBB341B1CBD7}" ShortID="597552265">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_footstep_grass_004" ID="{7E05ED8E-1809-4719-9051-B6476D3AD5AF}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_footstep_grass_004.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="432344205"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_footstep_grass_004" ID="{7E05ED8E-1809-4719-9051-B6476D3AD5AF}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+					</ChildrenList>
+				</RandomSequenceContainer>
+				<RandomSequenceContainer Name="Player_Land" ID="{8B4CDF64-7D68-4A7D-AC2B-191461957FF0}" ShortID="46563422">
+					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
+						<Property Name="Pitch" Type="int32">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{0A7E5988-A942-42D9-B8EF-EAD5EF587955}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="100"/>
+											<Property Name="Min" Type="Real64" Value="-100"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+						<Property Name="Volume" Type="Real64">
+							<ValueList>
+								<Value>-3</Value>
+							</ValueList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Foley" ID="{E215F85E-ACB3-43DF-AE1D-234D57B621F3}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<Sound Name="K_impactSoft_heavy_000" ID="{50BF8AB7-FE1A-4047-9339-C08763DFA199}" ShortID="149804875">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_impactSoft_heavy_000" ID="{94EC6CC5-F3E2-41FE-B286-81D8632DD17C}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_impactSoft_heavy_000.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="57744319"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_impactSoft_heavy_000" ID="{94EC6CC5-F3E2-41FE-B286-81D8632DD17C}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_impactSoft_heavy_001" ID="{FDD8A513-500E-466D-A32E-CACF7BFF858E}" ShortID="495246333">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_impactSoft_heavy_001" ID="{0AD87F9A-9145-4E72-9996-AA8C6B51426B}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_impactSoft_heavy_001.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="627569573"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_impactSoft_heavy_001" ID="{0AD87F9A-9145-4E72-9996-AA8C6B51426B}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_impactSoft_heavy_002" ID="{126EB0E2-80D1-4B61-A357-AAA5C3B0BCD4}" ShortID="203215383">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_impactSoft_heavy_002" ID="{BCFA4B60-72BE-417D-98BD-63617F2BA041}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_impactSoft_heavy_002.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="269833265"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_impactSoft_heavy_002" ID="{BCFA4B60-72BE-417D-98BD-63617F2BA041}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_impactSoft_heavy_003" ID="{003D558F-BA52-4CEE-92FD-23289E5240A1}" ShortID="848960936">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_impactSoft_heavy_003" ID="{0D540451-56DF-415A-85EC-6523BB939D90}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_impactSoft_heavy_003.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="945754608"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_impactSoft_heavy_003" ID="{0D540451-56DF-415A-85EC-6523BB939D90}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="K_impactSoft_heavy_004" ID="{E4089259-6354-4A2E-BA64-08F4CC0DEDDC}" ShortID="1048898444">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="K_impactSoft_heavy_004" ID="{9F9F74EA-EF07-43BB-A6CB-5FEBFB4923C5}">
+									<Language>SFX</Language>
+									<AudioFile>SFX\K_impactSoft_heavy_004.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="998040022"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ActiveSourceList>
+								<ActiveSource Name="K_impactSoft_heavy_004" ID="{9F9F74EA-EF07-43BB-A6CB-5FEBFB4923C5}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+					</ChildrenList>
+				</RandomSequenceContainer>
+			</ChildrenList>
+		</WorkUnit>
+	</Containers>
+</WwiseDocument>

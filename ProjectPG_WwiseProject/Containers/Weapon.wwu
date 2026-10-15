@@ -5,11 +5,13 @@
 			<ChildrenList>
 				<Sound Name="Weapon_Fire_Rifle" ID="{15CA66A2-E52E-49BD-B752-5CE083A2DDB5}" ShortID="733523925">
 					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
 						<Property Name="MaxSoundPerInstance" Type="int16">
 							<ValueList>
 								<Value>4</Value>
 							</ValueList>
 						</Property>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
 						<Property Name="Pitch" Type="int32">
 							<ModifierList>
 								<ModifierInfo>
@@ -43,6 +45,9 @@
 						</Property>
 					</PropertyList>
 					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Weapon" ID="{B4CD5BA0-36FC-425C-9811-498244632435}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
 						<Reference Name="Conversion">
 							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
 						</Reference>
@@ -93,11 +98,13 @@
 				</Sound>
 				<Sound Name="Weapon_Fire_Pistol" ID="{70EC26A6-F1CF-4084-A89B-55AB610798F5}" ShortID="268638150">
 					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
 						<Property Name="MaxSoundPerInstance" Type="int16">
 							<ValueList>
 								<Value>4</Value>
 							</ValueList>
 						</Property>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
 						<Property Name="Pitch" Type="int32">
 							<ModifierList>
 								<ModifierInfo>
@@ -131,6 +138,9 @@
 						</Property>
 					</PropertyList>
 					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Weapon" ID="{B4CD5BA0-36FC-425C-9811-498244632435}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
 						<Reference Name="Conversion">
 							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
 						</Reference>
@@ -177,11 +187,13 @@
 				</Sound>
 				<BlendContainer Name="Weapon_Fire_Shotgun" ID="{5AE489D1-9A7D-4070-8714-2A2AEA9C0367}" ShortID="605264187">
 					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
 						<Property Name="MaxSoundPerInstance" Type="int16">
 							<ValueList>
 								<Value>2</Value>
 							</ValueList>
 						</Property>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
 						<Property Name="Pitch" Type="int32">
 							<ModifierList>
 								<ModifierInfo>
@@ -215,6 +227,9 @@
 						</Property>
 					</PropertyList>
 					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Weapon" ID="{B4CD5BA0-36FC-425C-9811-498244632435}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
 						<Reference Name="Conversion">
 							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
 						</Reference>
@@ -242,10 +257,15 @@
 							</ReferenceList>
 							<ChildrenList>
 								<AudioFileSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{832FE1B3-AA2D-4B22-96B5-FE0660566DAF}">
+									<PropertyList>
+										<Property Name="FadeOutDuration" Type="Real64" Value="0.62124"/>
+										<Property Name="OverrideWavLoop" Type="bool" Value="True"/>
+										<Property Name="TrimEnd" Type="Real64" Value="1.04646"/>
+									</PropertyList>
 									<Language>SFX</Language>
 									<AudioFile>S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav</AudioFile>
 									<MediaIDList>
-										<MediaID ID="1053680423"/>
+										<MediaID ID="367715101"/>
 									</MediaIDList>
 								</AudioFileSource>
 							</ChildrenList>
@@ -289,6 +309,11 @@
 							</ReferenceList>
 							<ChildrenList>
 								<AudioFileSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{22AE6F7D-6426-4956-8BC7-CE5C277BB7E1}">
+									<PropertyList>
+										<Property Name="FadeOutDuration" Type="Real64" Value="1.34314"/>
+										<Property Name="OverrideWavLoop" Type="bool" Value="True"/>
+										<Property Name="TrimEnd" Type="Real64" Value="1.93633"/>
+									</PropertyList>
 									<Language>SFX</Language>
 									<AudioFile>S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav</AudioFile>
 									<MediaIDList>
@@ -344,10 +369,15 @@
 							</ReferenceList>
 							<ChildrenList>
 								<AudioFileSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{B75C7B5A-88C4-4C1D-BC69-BCE7C22848A3}">
+									<PropertyList>
+										<Property Name="FadeOutDuration" Type="Real64" Value="1.43827"/>
+										<Property Name="OverrideWavLoop" Type="bool" Value="True"/>
+										<Property Name="TrimEnd" Type="Real64" Value="2.19941"/>
+									</PropertyList>
 									<Language>SFX</Language>
 									<AudioFile>S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav</AudioFile>
 									<MediaIDList>
-										<MediaID ID="1053680423"/>
+										<MediaID ID="932097229"/>
 									</MediaIDList>
 								</AudioFileSource>
 							</ChildrenList>
@@ -413,10 +443,15 @@
 							</ReferenceList>
 							<ChildrenList>
 								<AudioFileSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{3DB15BC9-0D39-484B-BDA6-D6F796FBC155}">
+									<PropertyList>
+										<Property Name="FadeOutDuration" Type="Real64" Value="0.39178"/>
+										<Property Name="OverrideWavLoop" Type="bool" Value="True"/>
+										<Property Name="TrimEnd" Type="Real64" Value="1.41029"/>
+									</PropertyList>
 									<Language>SFX</Language>
 									<AudioFile>S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav</AudioFile>
 									<MediaIDList>
-										<MediaID ID="1053680423"/>
+										<MediaID ID="1065398024"/>
 									</MediaIDList>
 								</AudioFileSource>
 							</ChildrenList>
@@ -451,6 +486,108 @@
 						</Sound>
 					</ChildrenList>
 				</BlendContainer>
+				<Sound Name="Weapon_Equip" ID="{CE454498-1A65-4F4A-ADDB-0DB6448FB618}" ShortID="551528914">
+					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
+						<Property Name="Volume" Type="Real64">
+							<ValueList>
+								<Value>-4</Value>
+							</ValueList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Foley" ID="{E215F85E-ACB3-43DF-AE1D-234D57B621F3}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="S_Latchlocker,cable,steel,wood,room,channel,slide,catch,alt2" ID="{A704E374-AC49-4E33-BE28-B212098492F2}">
+							<Language>SFX</Language>
+							<AudioFile>SFX\S_Latchlocker,cable,steel,wood,room,channel,slide,catch,alt2.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="693437502"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="S_Latchlocker,cable,steel,wood,room,channel,slide,catch,alt2" ID="{A704E374-AC49-4E33-BE28-B212098492F2}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<Sound Name="Weapon_Reload_MagOut" ID="{D4F369B8-CCC9-476E-A0C1-8BA146E55D73}" ShortID="450158607">
+					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
+						<Property Name="Volume" Type="Real64">
+							<ValueList>
+								<Value>-2</Value>
+							</ValueList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Foley" ID="{E215F85E-ACB3-43DF-AE1D-234D57B621F3}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="K_metalLatch" ID="{AE37CB97-3222-4186-8D49-5BF7B74ED746}">
+							<Language>SFX</Language>
+							<AudioFile>SFX\K_metalLatch.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="216459831"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="K_metalLatch" ID="{AE37CB97-3222-4186-8D49-5BF7B74ED746}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<Sound Name="Weapon_Reload_MagIn" ID="{2C609B9F-BAD4-418F-B010-B13595AC3BEA}" ShortID="1070083239">
+					<PropertyList>
+						<Property Name="3DSpatialization" Type="int16" Value="1"/>
+						<Property Name="OverridePositioning" Type="bool" Value="True"/>
+						<Property Name="Volume" Type="Real64">
+							<ValueList>
+								<Value>-2</Value>
+							</ValueList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Attenuation">
+							<ObjectRef Name="Att_Foley" ID="{E215F85E-ACB3-43DF-AE1D-234D57B621F3}" WorkUnitID="{97D4EC30-9B3A-4E2E-BDDF-DE7579E470A9}"/>
+						</Reference>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="S_Latchlocker,aluminum,link,jostle,slide,click,out,over" ID="{A1ABB49D-C27A-4774-AB59-29789D5E4E1F}">
+							<Language>SFX</Language>
+							<AudioFile>SFX\S_Latchlocker,aluminum,link,jostle,slide,click,out,over.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="682430514"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ActiveSourceList>
+						<ActiveSource Name="S_Latchlocker,aluminum,link,jostle,slide,click,out,over" ID="{A1ABB49D-C27A-4774-AB59-29789D5E4E1F}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
 			</ChildrenList>
 		</WorkUnit>
 	</Containers>

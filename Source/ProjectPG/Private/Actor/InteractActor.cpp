@@ -8,6 +8,7 @@
 #include "Engine/ActorChannel.h"
 #include "Net/UnrealNetwork.h"
 #include "Core/ItemSubSystem.h"
+#include "Core/SoundSubSystem.h"
 #include <Core/TableSubSystem.h>
 AInteractActor::AInteractActor()
 {
@@ -121,6 +122,10 @@ void AInteractActor::Interact_Implementation(AActor* InteractingController)
 				}
 
 				UE_LOG(LogTemp, Warning, TEXT("상장열기"));
+				if (USoundSubSystem* Sound = USoundSubSystem::Get(this))
+				{
+					Sound->PlaySoundAtLocation(TEXT("World_Container_Open"), GetActorLocation());
+				}
 			}
 			// Force a refresh to ensure main inventory grid is created immediately
 			UE_LOG(LogTemp, Warning, TEXT("InteractActor::Interact_Implementation - RefreshAllGrids called"));

@@ -1,0 +1,6 @@
+Event	ID	Name			Wwise Object Path	Notes
+	1826025457	Play_World_Container_Open			\Default Work Unit\Play_World_Container_Open	
+
+In Memory Audio	ID	Name	Audio source file		Wwise Object Path	Notes	Data Size
+	365523072	World_Container_Open	.cache\8E\{8EEE989A-24EB-7FA2-AB6F-095B0E52BF6B}.wem		\Containers\World\World_Container_Open		383052
+

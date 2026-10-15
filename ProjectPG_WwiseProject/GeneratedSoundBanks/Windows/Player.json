@@ -1,0 +1,186 @@
+{
+ "SoundBanksInfo": {
+  "Platform": "Windows",
+  "BasePlatform": "Windows",
+  "SchemaVersion": "16",
+  "SoundBankVersion": "172",
+  "SoundBanks": [
+   {
+    "Id": "1069431850",
+    "Type": "User",
+    "GUID": "{16BFB3E2-6A7E-4EFE-ADD5-731AC716FBC2}",
+    "Language": "SFX",
+    "Hash": "{FB00B57F-1F5F-6F36-006C-B080709EEEED}",
+    "ObjectPath": "\\SoundBanks\\Default Work Unit\\Player",
+    "ShortName": "Player",
+    "Path": "Player.bnk",
+    "Media": [
+     {
+      "Id": "57744319",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_impactSoft_heavy_000.wav",
+      "CachePath": "EF/{EF6626CB-213B-A443-08B7-BAE3DF4E9801}.wem"
+     },
+     {
+      "Id": "206310559",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_footstep_grass_001.wav",
+      "CachePath": "04/{0480090D-7A31-3EB2-9FE1-643255B240E9}.wem"
+     },
+     {
+      "Id": "269833265",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_impactSoft_heavy_002.wav",
+      "CachePath": "4F/{4FD38B6A-E9DC-359D-2394-E7E323718F78}.wem"
+     },
+     {
+      "Id": "311928757",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_footstep_grass_000.wav",
+      "CachePath": "2C/{2C20FD4D-C237-32C0-FA44-E07B558D4D61}.wem"
+     },
+     {
+      "Id": "432344205",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_footstep_grass_004.wav",
+      "CachePath": "69/{693B0434-0843-DD67-5DA9-A0F946D73679}.wem"
+     },
+     {
+      "Id": "627569573",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_impactSoft_heavy_001.wav",
+      "CachePath": "C0/{C02D615F-9A2B-F6D2-8AE4-9641D392FE55}.wem"
+     },
+     {
+      "Id": "770080689",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_footstep_grass_003.wav",
+      "CachePath": "12/{121F1AC7-A07B-5401-1049-EF215FCA22CE}.wem"
+     },
+     {
+      "Id": "945754608",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_impactSoft_heavy_003.wav",
+      "CachePath": "42/{426F5277-7C47-F3EF-A752-61943696959E}.wem"
+     },
+     {
+      "Id": "998040022",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_impactSoft_heavy_004.wav",
+      "CachePath": "1C/{1C0ACE15-53EC-956F-335E-7A19E6F00884}.wem"
+     },
+     {
+      "Id": "1011289876",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\K_footstep_grass_002.wav",
+      "CachePath": "B1/{B143EDD2-C0A0-1578-07E4-EA4EE875B7BB}.wem"
+     }
+    ],
+    "Events": [
+     {
+      "Id": "1724675634",
+      "Name": "Play_Player_Footstep",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_Player_Footstep",
+      "GUID": "{745EDF84-A60F-4300-B494-078D03DD1A67}",
+      "MaxAttenuation": "2500",
+      "DurationType": "OneShot",
+      "DurationMin": "0.5543603",
+      "DurationMax": "0.8207356",
+      "MediaRefs": [
+       {
+        "Id": "206310559"
+       },
+       {
+        "Id": "311928757"
+       },
+       {
+        "Id": "432344205"
+       },
+       {
+        "Id": "770080689"
+       },
+       {
+        "Id": "1011289876"
+       }
+      ]
+     },
+     {
+      "Id": "1913024539",
+      "Name": "Play_Player_Footstep_Crouch",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_Player_Footstep_Crouch",
+      "GUID": "{0496F61F-37F0-4630-B886-D1B9C90D0094}",
+      "MaxAttenuation": "2500",
+      "DurationType": "OneShot",
+      "DurationMin": "0.5543603",
+      "DurationMax": "0.8207356",
+      "MediaRefs": [
+       {
+        "Id": "206310559"
+       },
+       {
+        "Id": "311928757"
+       },
+       {
+        "Id": "432344205"
+       },
+       {
+        "Id": "770080689"
+       },
+       {
+        "Id": "1011289876"
+       }
+      ]
+     },
+     {
+      "Id": "4249207015",
+      "Name": "Play_Player_Land",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_Player_Land",
+      "GUID": "{D93BA1C3-D129-4596-8FC2-20A6475C27E8}",
+      "MaxAttenuation": "2500",
+      "DurationType": "OneShot",
+      "DurationMin": "0.47009647",
+      "DurationMax": "0.6032694",
+      "MediaRefs": [
+       {
+        "Id": "57744319"
+       },
+       {
+        "Id": "269833265"
+       },
+       {
+        "Id": "627569573"
+       },
+       {
+        "Id": "945754608"
+       },
+       {
+        "Id": "998040022"
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "FileHash": "{CB170351-CE18-68CE-0BFC-68B3C6615163}"
+ }
+}

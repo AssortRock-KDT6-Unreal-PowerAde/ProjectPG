@@ -1,0 +1,48 @@
+{
+ "SoundBanksInfo": {
+  "Platform": "Windows",
+  "BasePlatform": "Windows",
+  "SchemaVersion": "16",
+  "SoundBankVersion": "172",
+  "SoundBanks": [
+   {
+    "Id": "2609808943",
+    "Type": "User",
+    "GUID": "{082D2B49-1760-477C-AB7C-CD4B218E6B3D}",
+    "Language": "SFX",
+    "Hash": "{47CCBDBA-F99C-A89A-A238-ED2B30E09085}",
+    "ObjectPath": "\\SoundBanks\\Default Work Unit\\World",
+    "ShortName": "World",
+    "Path": "World.bnk",
+    "Media": [
+     {
+      "Id": "365523072",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "SFX\\S_Latchlocker,design,FutureLoot,score,plunder.wav",
+      "CachePath": "8E/{8EEE989A-24EB-7FA2-AB6F-095B0E52BF6B}.wem"
+     }
+    ],
+    "Events": [
+     {
+      "Id": "1826025457",
+      "Name": "Play_World_Container_Open",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_World_Container_Open",
+      "GUID": "{87906CC0-5DFE-4B2E-9B9B-30655F6E8B95}",
+      "MaxAttenuation": "2000",
+      "DurationType": "OneShot",
+      "DurationMin": "1.9945625",
+      "DurationMax": "1.9945625",
+      "MediaRefs": [
+       {
+        "Id": "365523072"
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "FileHash": "{B9A9CC05-F8F4-B602-C7AC-AD4F5AC3C42A}"
+ }
+}

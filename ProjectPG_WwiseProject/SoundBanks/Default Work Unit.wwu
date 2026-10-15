@@ -20,7 +20,26 @@
 					<ObjectInclusionList>
 						<ObjectRef Name="Play_Weapon_Fire_Shotgun" ID="{00A07434-AC1E-43D9-94A4-DF0007462A0C}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
 						<ObjectRef Name="Play_Weapon_Fire_Rifle" ID="{CF2376D9-0AD8-451B-A490-714FB2613283}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_Weapon_Reload_MagIn" ID="{D54DA212-5D6E-4737-A537-479FC13CD5B8}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_Weapon_Reload_MagOut" ID="{894A9859-C98F-4740-87AB-E573D844A6C4}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_Weapon_Equip" ID="{611566C5-0F15-48FB-AA4C-645BB1459FB9}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
 						<ObjectRef Name="Play_Weapon_Fire_Pistol" ID="{FB73BC08-F328-4CBA-B49A-EBCBE58DF1DA}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+					</ObjectInclusionList>
+					<ObjectExclusionList/>
+					<GameSyncExclusionList/>
+				</SoundBank>
+				<SoundBank Name="Player" ID="{16BFB3E2-6A7E-4EFE-ADD5-731AC716FBC2}">
+					<ObjectInclusionList>
+						<ObjectRef Name="Play_Player_Footstep" ID="{745EDF84-A60F-4300-B494-078D03DD1A67}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_Player_Land" ID="{D93BA1C3-D129-4596-8FC2-20A6475C27E8}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_Player_Footstep_Crouch" ID="{0496F61F-37F0-4630-B886-D1B9C90D0094}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+					</ObjectInclusionList>
+					<ObjectExclusionList/>
+					<GameSyncExclusionList/>
+				</SoundBank>
+				<SoundBank Name="World" ID="{082D2B49-1760-477C-AB7C-CD4B218E6B3D}">
+					<ObjectInclusionList>
+						<ObjectRef Name="Play_World_Container_Open" ID="{87906CC0-5DFE-4B2E-9B9B-30655F6E8B95}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
 					</ObjectInclusionList>
 					<ObjectExclusionList/>
 					<GameSyncExclusionList/>
