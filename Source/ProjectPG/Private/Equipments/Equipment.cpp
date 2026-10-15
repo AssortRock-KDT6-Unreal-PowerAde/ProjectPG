@@ -145,6 +145,11 @@ void AEquipment::Attach()
 	USceneComponent* RootComp = GetRootComponent();
 	RootComp->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 	bIsEquipped = true;
+	if (HasAuthority())
+		if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
+			if (auto* Items = UItemSubSystem::Get(this))
+				if (const FEquipTableRow* Row = Items->GetEquip(EquipmentItemID))
+					Character->SetAmmoCapacityEquipment(this, Row->bDoublesAmmoCapacity);
 
 	for (const auto& [Socket, EquipType] : SocketItemTypes)
 	{
@@ -228,6 +233,8 @@ void AEquipment::Attach()
 
 void AEquipment::Detach()
 {
+	if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
+		Character->SetAmmoCapacityEquipment(this, false);
 	bIsEquipped = false;
 	if (BoundAnimInstance.IsValid()) BoundAnimInstance->ClearLeftHandIKEquipment(this);
 	if (IsValid(OwnerMesh))

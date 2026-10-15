@@ -252,6 +252,34 @@ struct FWeaponAnimationSet
 	}
 };
 
+USTRUCT(BlueprintType)
+struct FWeaponReserveAmmoState
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) EWeaponType WeaponType = EWeaponType::None;
+	UPROPERTY(BlueprintReadOnly) int32 ReserveAmmo = 0;
+	UPROPERTY(BlueprintReadOnly) int32 BaseReserveCapacity = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FFirearmData
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) int32 MagazineCapacity = 12;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0")) int32 ReserveCapacity = 60;
+	// 초당 발사 횟수. Range는 cm, ConeHalfAngle은 도 단위입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.1")) float FireRate = 3.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float Range = 10000.f;
+	// 한 발의 총 공격력. 각 레이는 Damage / TraceCount를 적용합니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0")) float Damage = 20.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0", ClampMax="45")) float ConeHalfAngle = 2.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1", ClampMax="32")) int32 TraceCount = 10;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName MuzzlePartName;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName MuzzleSocketName = TEXT("Muzzle");
+	// 소켓이 없는 무기는 MuzzleSocketName=None과 파츠 로컬 오프셋을 명시합니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector MuzzleOffset = FVector::ZeroVector;
+};
+
 // 무기 메시 또는 파지 소켓을 기준으로 지정하는 왼손 IK 목표.
 USTRUCT(BlueprintType)
 struct FWeaponHandIKData

@@ -18,6 +18,75 @@
 #include "GameplayAbilities/CustomAbilitySystemComponent.h"
 #include "GameMode/CustomPlayerState.h"
 #include "Net/UnrealNetwork.h"
+#include "UI/CharacterVitalsWidget.h"
+
+void ACustomPlayerCharacter::PawnClientRestart()
+{
+	Super::PawnClientRestart();
+	RefreshVitalsWidget();
+}
+
+void ACustomPlayerCharacter::RefreshVitalsWidget()
+{
+	auto* PC = Cast<APlayerController>(GetController());
+	if (!PC || !PC->IsLocalController()) return;
+	if (VitalsWidget)
+	{
+		VitalsWidget->ObserveCharacter(this);
+		return;
+	}
+	VitalsWidget = CreateWidget<UCharacterVitalsWidget>(PC);
+	if (!VitalsWidget) return;
+	VitalsWidget->ObserveCharacter(this);
+	VitalsWidget->SetDesiredSizeInViewport(FVector2D(480.f, 100.f));
+	VitalsWidget->SetPositionInViewport(FVector2D(24.f, -24.f), false);
+	// 위치/크기 API는 앵커를 좌측 상단으로 초기화하므로 앵커를 마지막에 설정합니다.
+	VitalsWidget->SetAnchorsInViewport(FAnchors(0.f, 1.f));
+	VitalsWidget->SetAlignmentInViewport(FVector2D(0.f, 1.f));
+	VitalsWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+	if (!VitalsWidget->AddToPlayerScreen())
+	{
+		VitalsWidget->ObserveCharacter(nullptr);
+		VitalsWidget = nullptr;
+	}
+}
+
+void ACustomPlayerCharacter::UnPossessed()
+{
+	if (VitalsWidget) VitalsWidget->RemoveFromParent();
+	VitalsWidget = nullptr;
+	Super::UnPossessed();
+}
+
+void ACustomPlayerCharacter::OnRep_Controller()
+{
+	Super::OnRep_Controller();
+	RefreshVitalsWidget();
+	if (!IsLocallyControlled() && VitalsWidget)
+	{
+		VitalsWidget->RemoveFromParent();
+		VitalsWidget = nullptr;
+	}
+}
+
+void ACustomPlayerCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+	RefreshVitalsWidget();
+}
+
+void ACustomPlayerCharacter::OnRep_CharacterAttributeSet()
+{
+	Super::OnRep_CharacterAttributeSet();
+	RefreshVitalsWidget();
+}
+
+void ACustomPlayerCharacter::EndPlay(const EEndPlayReason::Type Reason)
+{
+	if (VitalsWidget) VitalsWidget->RemoveFromParent();
+	VitalsWidget = nullptr;
+	Super::EndPlay(Reason);
+}
 
 ACustomPlayerCharacter::ACustomPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomCharacterMovementComponent>(
@@ -161,41 +230,18 @@ USpringArmComponent* ACustomPlayerCharacter::GetCameraArm() const
 	return CameraArmComp;
 }
 
+void ACustomPlayerCharacter::GetCombatViewPoint(FVector& Location, FRotator& Rotation) const
+{
+	Super::GetCombatViewPoint(Location, Rotation);
+	if (IsValid(CameraComp)) Location = CameraComp->GetComponentLocation();
+	// 서버가 보유한 ControlRotation 기준. 클라이언트가 보낸 HitResult는 신뢰하지 않습니다.
+	Rotation = GetControlRotation();
+}
+
 void ACustomPlayerCharacter::Interact()
 {
-	if (InteractComp) InteractComp->Interact(); 
+	if (InteractComp) InteractComp->Interact();
 }
-void ACustomPlayerCharacter::PlayMontage(UAnimMontage* Montage)
-{
-	if (!IsLocallyControlled() || !IsValid(Montage))
-		return;
-
-	if (HasAuthority())
-	{
-		OnRep_PlayMontage(Montage);
-	}
-	else
-	{
-		PlayAnimMontage(Montage);
-		OnReq_PlayMontage(Montage);
-	}
-}
-
-void ACustomPlayerCharacter::OnReq_PlayMontage_Implementation(UAnimMontage* Montage)
-{
-	if (IsValid(Montage))
-		OnRep_PlayMontage(Montage);
-}
-
-void ACustomPlayerCharacter::OnRep_PlayMontage_Implementation(UAnimMontage* Montage)
-{
-	// The owning client already started playback before sending the request.
-	if (!IsValid(Montage) || (!HasAuthority() && IsLocallyControlled()))
-		return;
-
-	PlayAnimMontage(Montage);
-}
-
 void ACustomPlayerCharacter::OnReq_SyncAimRotation_Implementation(FVector2D AimDirection)
 {
 	if (!HasAuthority())
@@ -262,10 +308,10 @@ void ACustomPlayerCharacter::BeginPlay()
 			return;
 
 		// TODO: Table로 옮기기
-		CharacterAttributeSet->InitHealth(100.f);
-		CharacterAttributeSet->InitMaxHealth(100.f);
-		CharacterAttributeSet->InitStamina(100.f);
-		CharacterAttributeSet->InitMaxStamina(100.f);
+		CharacterAttributeSet->SetMaxHealth(100.f);
+		CharacterAttributeSet->SetHealth(100.f);
+		CharacterAttributeSet->SetMaxStamina(100.f);
+		CharacterAttributeSet->SetStamina(100.f);
 
 		UCharacterMovementComponent* movementComp = GetCharacterMovement();
 		if (!IsValid(movementComp))
@@ -294,4 +340,5 @@ void ACustomPlayerCharacter::BeginPlay()
 			AbilitySystemComp->GiveAbility(spec);
 		}
 	}
+	RefreshVitalsWidget();
 }

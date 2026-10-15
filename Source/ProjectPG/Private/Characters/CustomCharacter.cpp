@@ -11,6 +11,8 @@
 #include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Components/CapsuleComponent.h"
+#include "Animation/AnimMontage.h"
 
 ACustomCharacter::ACustomCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomCharacterMovementComponent>(
@@ -56,31 +58,6 @@ void ACustomCharacter::Tick(float DeltaTime)
 			FMath::Min(RecoveredStamina, CharacterAttributeSet->GetMaxStamina()));
 	}
 
-	if (IsLocallyControlled() && GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(
-			0,
-			0.f,
-			FColor::Red,
-			FString::Printf(
-				TEXT("Health: %.1f / %.1f"),
-				CharacterAttributeSet->GetHealth(),
-				CharacterAttributeSet->GetMaxHealth()));
-
-		GEngine->AddOnScreenDebugMessage(
-			1,
-			0.f,
-			FColor::Green,
-			FString::Printf(
-				TEXT("Stamina: %.1f / %.1f"),
-				CharacterAttributeSet->GetStamina(),
-				CharacterAttributeSet->GetMaxStamina()));
-	}
-}
-
-void ACustomCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
 void ACustomCharacter::OnRep_PlayerState()
@@ -91,6 +68,10 @@ void ACustomCharacter::OnRep_PlayerState()
 	{
 		AbilitySystemComp->InitAbilityActorInfo(this, this);
 	}
+}
+
+void ACustomCharacter::OnRep_CharacterAttributeSet()
+{
 }
 
 void ACustomCharacter::PossessedBy(AController* NewController)
@@ -108,6 +89,9 @@ void ACustomCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ACustomCharacter, CharacterAttributeSet);
+	DOREPLIFETIME(ACustomCharacter, ActiveFirearm);
+	DOREPLIFETIME_CONDITION(ACustomCharacter, ReserveAmmoStates, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ACustomCharacter, bDoubleAmmoCapacity, COND_OwnerOnly);
 	DOREPLIFETIME(ACustomCharacter, bIsAiming);
 }
 
@@ -116,14 +100,30 @@ UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
 	return AbilitySystemComp;
 }
 
-void ACustomCharacter::EquipItem(const FString& SocketName, UObject* Item)
+void ACustomCharacter::PlayMontage(UAnimMontage* Montage)
 {
+	if (!IsValid(Montage)) return;
+	if (HasAuthority())
+	{
+		// 서버 발사와 AI는 소유 클라이언트에서도 반드시 재생합니다.
+		OnRep_PlayMontage(Montage, false);
+	}
+	else if (IsLocallyControlled())
+	{
+		PlayAnimMontage(Montage);
+		OnReq_PlayMontage(Montage);
+	}
 }
 
-void ACustomCharacter::Fire()
+void ACustomCharacter::OnReq_PlayMontage_Implementation(UAnimMontage* Montage)
 {
-	// TODO : 무기 장비 여부 확인
-	// TODO : Muzzle을 찾고 이펙트, 레이캐스트
+	if (IsValid(Montage)) OnRep_PlayMontage(Montage, true);
+}
+
+void ACustomCharacter::OnRep_PlayMontage_Implementation(UAnimMontage* Montage, bool bSkipOwningClient)
+{
+	if (!IsValid(Montage) || (bSkipOwningClient && !HasAuthority() && IsLocallyControlled())) return;
+	PlayAnimMontage(Montage);
 }
 
 bool ACustomCharacter::ApplyWeaponAnimation(EWeaponType NewWeaponType, TSubclassOf<UCustomAnimInstance> AnimClass)
@@ -168,15 +168,6 @@ class UCustomCharacterMovementComponent* ACustomCharacter::GetCustomCharacterMov
 	return Cast<UCustomCharacterMovementComponent>(GetMovementComponent());
 }
 
-bool ACustomCharacter::CanSprintInCurrentState() const
-{
-	UCustomCharacterMovementComponent* MovementComponent = GetCustomCharacterMovement();
-	if (!IsValid(MovementComponent))
-		return false;
-
-	return MovementComponent->CanSprintInCurrentState();
-}
-
 bool ACustomCharacter::IsAiming() const
 {
 	return bIsAiming;
@@ -190,6 +181,9 @@ UCharacterAttributeSet* ACustomCharacter::GetCharacterAttributeSet() const
 void ACustomCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	// 기본 Pawn/CharacterMesh 프로파일은 Visibility를 무시합니다.
+	// 이번 단순 전투는 캐릭터 캡슐을 피격 볼륨으로 사용합니다.
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	USkeletalMeshComponent* meshComponent = GetMesh();
 	if (!IsValid(meshComponent))

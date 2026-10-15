@@ -140,6 +140,10 @@ struct FEquipTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere)
 	TMap<FName, FActorEquipmentData> ActorEquipments;
+
+	// 탄창/탄약 소지 장비. 중복 장착해도 소지 한도는 최대 2배입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bDoublesAmmoCapacity = false;
 };
 
 // RowName은 ItemTable / EquipTable과 같은 ItemID를 사용합니다.
@@ -156,6 +160,9 @@ struct FWeaponTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FWeaponHandIKData LeftHandIK;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FFirearmData Firearm;
 };
 
 USTRUCT(BlueprintType)

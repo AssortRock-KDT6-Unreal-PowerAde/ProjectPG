@@ -57,8 +57,19 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	const UAbilitySystemComponent* abilitySystemComp = character->GetAbilitySystemComponent();
 	bIsSprinting = IsValid(abilitySystemComp)
 		&& abilitySystemComp->HasMatchingGameplayTag(CustomGameplayTags::State_Sprinting);
-	// 질주와 몽타주에서는 원본 애니메이션의 왼손 동작을 유지합니다.
-	if (bIsSprinting || Montage_IsPlaying(nullptr))
+	// 사격 반동에는 IK를 유지하고, 손을 떼어야 하는 동작에만 해제합니다.
+	const FWeaponAnimationSet* AnimationSet = character->GetCurrentWeaponAnimationSet();
+	const auto IsPlayingAction = [this, AnimationSet](const FGameplayTag& Tag)
+	{
+		UAnimMontage* Montage = AnimationSet ? AnimationSet->FindMontage(Tag) : nullptr;
+		return Montage && Montage_IsPlaying(Montage);
+	};
+	if (bIsSprinting
+		|| IsPlayingAction(CustomGameplayTags::WeaponAnimation_Reload_Hip)
+		|| IsPlayingAction(CustomGameplayTags::WeaponAnimation_Reload_Ironsights)
+		|| IsPlayingAction(CustomGameplayTags::WeaponAnimation_Equip)
+		|| IsPlayingAction(CustomGameplayTags::WeaponAnimation_Death_Hip)
+		|| IsPlayingAction(CustomGameplayTags::WeaponAnimation_Death_Ironsights))
 		LeftHandIKAlpha = 0.f;
 
 	UCharacterMovementComponent* movementComp = character->GetCharacterMovement();
