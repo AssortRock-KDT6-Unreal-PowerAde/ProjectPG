@@ -67,6 +67,10 @@ git에는 코드·설정·뱅크만 있다. 아래는 따로 가져와야 한다
   - 사격 코드(`ACustomCharacter::Fire`)는 비어 있고, 사격은 몽타주만 재생한다. 몽타주는 `OnRep_PlayMontage`(NetMulticast)로 모든 클라이언트에서 재생됨
   - 그래서 사격 몽타주 10개(`Content/PG/Animations/Montages`, `.../Meta/Montages`의 `AM_Fire_*`)에 Wwise 플러그인의 `AnimNotify_AkEvent` 노티파이를 꽂는다
   - 노티파이의 **Follow는 끈다**. 켜 두면 캐릭터에 AkComponent가 없어서 화면에 노란 경고 글자가 뜬다
+  - **10-15 완료**: 10개 모두 `Sound` 트랙 0초에 꽂음 (권총→`_Pistol`, 라이플 Hip/Ironsights→`_Rifle`, 샷건→`_Shotgun`, Follow 끔). 아직 PIE에서 귀로 확인 안 함
+  - 메뉴 (공식 문서 "Triggering Wwise Events in Animation Sequences"): Notifies 트랙 오른쪽 클릭 → Add notify → AkEvent
+  - 에디터가 켜진 채로 바꾸려면: 헤드리스 에디터(`UnrealEditor-Cmd.exe ... -run=pythonscript -script=...`)로 `unreal.AnimationLibrary.add_animation_notify_event` 사용. 커맨드릿에선 `load_blueprint_class`가 안 되니 `load_asset("/Wwise/AnimNotify_AkEvent").generated_class()`로 클래스를 얻는다
+- Wwise 오서링 툴은 WAAPI(`http://127.0.0.1:8090/waapi`)로 바깥에서 조종할 수 있다 (켜져 있을 때)
 - 팀원들이 사운드 작업은 전부 맡김 (소리용 수정은 허락 불필요)
 - Wwise 메뉴 위치는 공식 문서로 확인할 것: https://www.audiokinetic.com/ko/public-library/2025.1.11_9262/?source=Help&id=welcome_to_wwise (처음 열 때 캡차가 뜨면 사용자가 직접 풀어야 함)
 
