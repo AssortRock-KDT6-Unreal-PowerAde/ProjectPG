@@ -1,0 +1,190 @@
+{
+ "SoundBanksInfo": {
+  "Platform": "Windows",
+  "BasePlatform": "Windows",
+  "SchemaVersion": "16",
+  "SoundBankVersion": "172",
+  "SoundBanks": [
+   {
+    "Id": "3893417221",
+    "Type": "User",
+    "GUID": "{443FEB4E-D154-4824-AEB5-74F53347D904}",
+    "Language": "SFX",
+    "Hash": "{8EFFDA2F-4518-6F97-4925-FF3903E23B4B}",
+    "ObjectPath": "\\SoundBanks\\Default Work Unit\\Weapon",
+    "ShortName": "Weapon",
+    "Path": "Weapon.bnk",
+    "Media": [
+     {
+      "Id": "354075555",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "S_GUNShotg_Saiga 12 Cal.12 DESIGNED Single Shot Core Long_DRCA_SG12_Stereo.wav",
+      "CachePath": "57/{57FE2521-54B8-13A9-A567-D2396A727F5C}.wem"
+     },
+     {
+      "Id": "469897786",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "S_Shotgun_Fire_Slug_01.wav",
+      "CachePath": "2A/{2ACE79D6-CD59-2C7E-A9A5-2A052589C32C}.wem"
+     },
+     {
+      "Id": "1053680423",
+      "Language": "SFX",
+      "Streaming": "false",
+      "Location": "Memory",
+      "ShortName": "S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav",
+      "CachePath": "F4/{F470A886-39EB-3F1A-F359-AC272458E136}.wem"
+     }
+    ],
+    "Plugins": {
+     "Custom": [
+      {
+       "Id": "214183519",
+       "Name": "Stereo Delay (Custom)",
+       "ObjectPath": "\\Containers\\Weapon\\Weapon_Fire_Rifle\\[Effect Slot [0]: (Stereo Delay)]\\Stereo Delay (Custom)",
+       "GUID": "{B97E2376-19BF-483C-8A14-54DDA4618CED}",
+       "LibName": "Wwise Stereo Delay",
+       "LibId": "8847363"
+      },
+      {
+       "Id": "664791751",
+       "Name": "Expander (Custom)",
+       "ObjectPath": "\\Containers\\Weapon\\Weapon_Fire_Pistol\\[Effect Slot [0]: (Expander)]\\Expander (Custom)",
+       "GUID": "{82CB1DC6-9CB2-47DE-AF24-E834A486F76C}",
+       "LibName": "Wwise Expander",
+       "LibId": "7143427"
+      },
+      {
+       "Id": "750225733",
+       "Name": "RoomVerb (Custom)",
+       "ObjectPath": "\\Containers\\Weapon\\Weapon_Fire_Shotgun\\Weapon_Fire_Shotgun_Low_01\\[Effect Slot [0]: (RoomVerb)]\\RoomVerb (Custom)",
+       "GUID": "{AE90AF79-61CF-47EA-B5F4-0C3BB5EEBA55}",
+       "LibName": "Wwise RoomVerb",
+       "LibId": "7733251"
+      }
+     ],
+     "ShareSets": [
+      {
+       "Id": "1706684651",
+       "Name": "Plate_Medium",
+       "ObjectPath": "\\Effects\\Factory Effects\\RoomVerb\\Plates\\Plate_Medium",
+       "GUID": "{33384D0C-6ACB-4E3D-AC82-73AAB3AE1CA5}",
+       "LibName": "Wwise RoomVerb",
+       "LibId": "7733251"
+      },
+      {
+       "Id": "2104505845",
+       "Name": "New_Expander",
+       "ObjectPath": "\\Effects\\Default Work Unit\\New_Expander",
+       "GUID": "{56C2410C-E38F-43DF-92A1-CC085FF5ACE8}",
+       "LibName": "Wwise Expander",
+       "LibId": "7143427"
+      },
+      {
+       "Id": "2171939413",
+       "Name": "Dialog_Leveler_Hard",
+       "ObjectPath": "\\Effects\\Factory Effects\\Compressor\\Dialog_Leveler_Hard",
+       "GUID": "{865FB36F-8717-4D30-AD05-14E56375CD40}",
+       "LibName": "Wwise Compressor",
+       "LibId": "7077891"
+      },
+      {
+       "Id": "3657550167",
+       "Name": "New_Parametric_EQ",
+       "ObjectPath": "\\Effects\\Default Work Unit\\New_Parametric_EQ",
+       "GUID": "{272ADF3B-A052-4AF3-819C-266CA17B804A}",
+       "LibName": "Wwise Parametric EQ",
+       "LibId": "6881283"
+      }
+     ]
+    },
+    "Events": [
+     {
+      "Id": "2722226741",
+      "Name": "Play_Weapon_Fire_Pistol",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_Weapon_Fire_Pistol",
+      "GUID": "{FB73BC08-F328-4CBA-B49A-EBCBE58DF1DA}",
+      "DurationType": "OneShot",
+      "DurationMin": "2.039605",
+      "DurationMax": "2.6450405",
+      "MediaRefs": [
+       {
+        "Id": "469897786"
+       }
+      ],
+      "PluginRefs": {
+       "Custom": [
+        {
+         "Id": "664791751"
+        }
+       ]
+      }
+     },
+     {
+      "Id": "1304785338",
+      "Name": "Play_Weapon_Fire_Rifle",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_Weapon_Fire_Rifle",
+      "GUID": "{CF2376D9-0AD8-451B-A490-714FB2613283}",
+      "DurationType": "OneShot",
+      "DurationMin": "36.98415",
+      "DurationMax": "65.89826",
+      "MediaRefs": [
+       {
+        "Id": "354075555"
+       }
+      ],
+      "PluginRefs": {
+       "Custom": [
+        {
+         "Id": "214183519"
+        }
+       ],
+       "ShareSets": [
+        {
+         "Id": "1706684651"
+        }
+       ]
+      }
+     },
+     {
+      "Id": "4047651814",
+      "Name": "Play_Weapon_Fire_Shotgun",
+      "ObjectPath": "\\Events\\Default Work Unit\\Play_Weapon_Fire_Shotgun",
+      "GUID": "{00A07434-AC1E-43D9-94A4-DF0007462A0C}",
+      "DurationType": "OneShot",
+      "DurationMin": "4.533969",
+      "DurationMax": "4.8035727",
+      "MediaRefs": [
+       {
+        "Id": "1053680423"
+       }
+      ],
+      "PluginRefs": {
+       "Custom": [
+        {
+         "Id": "750225733"
+        }
+       ],
+       "ShareSets": [
+        {
+         "Id": "2104505845"
+        },
+        {
+         "Id": "2171939413"
+        },
+        {
+         "Id": "3657550167"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "FileHash": "{9C4FEC14-5736-CE69-785D-854258239487}"
+ }
+}

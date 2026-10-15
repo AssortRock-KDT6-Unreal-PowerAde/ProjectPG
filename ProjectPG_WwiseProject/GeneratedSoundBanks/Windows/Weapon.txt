@@ -1,0 +1,19 @@
+Event	ID	Name			Wwise Object Path	Notes
+	1304785338	Play_Weapon_Fire_Rifle			\Default Work Unit\Play_Weapon_Fire_Rifle	
+	2722226741	Play_Weapon_Fire_Pistol			\Default Work Unit\Play_Weapon_Fire_Pistol	
+	4047651814	Play_Weapon_Fire_Shotgun			\Default Work Unit\Play_Weapon_Fire_Shotgun	
+
+Effect plug-ins	ID	Name	Type				Notes
+	214183519	Stereo Delay (Custom)	Wwise Stereo Delay			
+	664791751	Expander (Custom)	Wwise Expander			
+	750225733	RoomVerb (Custom)	Wwise RoomVerb			
+	1706684651	Plate_Medium	Wwise RoomVerb			
+	2104505845	New_Expander	Wwise Expander			
+	2171939413	Dialog_Leveler_Hard	Wwise Compressor			
+	3657550167	New_Parametric_EQ	Wwise Parametric EQ			
+
+In Memory Audio	ID	Name	Audio source file		Wwise Object Path	Notes	Data Size
+	354075555	Weapon_Fire_Rifle	.cache\57\{57FE2521-54B8-13A9-A567-D2396A727F5C}.wem		\Containers\Weapon\Weapon_Fire_Rifle		9478736
+	469897786	Weapon_Fire_Pistol	.cache\2A\{2ACE79D6-CD59-2C7E-A9A5-2A052589C32C}.wem		\Containers\Weapon\Weapon_Fire_Pistol		403176
+	1053680423	Weapon_Fire_Shotgun_Low_02	.cache\F4\{F470A886-39EB-3F1A-F359-AC272458E136}.wem		\Containers\Weapon\Weapon_Fire_Shotgun\Weapon_Fire_Shotgun_Low_02		502976
+

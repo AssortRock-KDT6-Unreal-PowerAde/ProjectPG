@@ -16,6 +16,15 @@
 					<ObjectExclusionList/>
 					<GameSyncExclusionList/>
 				</SoundBank>
+				<SoundBank Name="Weapon" ID="{443FEB4E-D154-4824-AEB5-74F53347D904}">
+					<ObjectInclusionList>
+						<ObjectRef Name="Play_Weapon_Fire_Shotgun" ID="{00A07434-AC1E-43D9-94A4-DF0007462A0C}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_Weapon_Fire_Rifle" ID="{CF2376D9-0AD8-451B-A490-714FB2613283}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+						<ObjectRef Name="Play_Weapon_Fire_Pistol" ID="{FB73BC08-F328-4CBA-B49A-EBCBE58DF1DA}" WorkUnitID="{325E0F90-2387-424E-9A7C-270B60D65BD9}" Origin="Manual" Filter="7"/>
+					</ObjectInclusionList>
+					<ObjectExclusionList/>
+					<GameSyncExclusionList/>
+				</SoundBank>
 			</ChildrenList>
 		</WorkUnit>
 	</SoundBanks>

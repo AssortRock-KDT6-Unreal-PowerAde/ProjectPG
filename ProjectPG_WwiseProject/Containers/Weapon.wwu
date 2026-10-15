@@ -1,0 +1,457 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WwiseDocument Type="WorkUnit" ID="{BE023E6A-2D5E-4E7F-BFB3-2F3DA9E7DE88}" SchemaVersion="133">
+	<Containers>
+		<WorkUnit Name="Weapon" ID="{BE023E6A-2D5E-4E7F-BFB3-2F3DA9E7DE88}" PersistMode="Standalone">
+			<ChildrenList>
+				<Sound Name="Weapon_Fire_Rifle" ID="{15CA66A2-E52E-49BD-B752-5CE083A2DDB5}" ShortID="733523925">
+					<PropertyList>
+						<Property Name="MaxSoundPerInstance" Type="int16">
+							<ValueList>
+								<Value>4</Value>
+							</ValueList>
+						</Property>
+						<Property Name="Pitch" Type="int32">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{8BFC3C45-039D-49C3-A3F2-ECF5DA967B8B}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="500"/>
+											<Property Name="Min" Type="Real64" Value="-500"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+						<Property Name="UseMaxSoundPerInstance" Type="bool">
+							<ValueList>
+								<Value>True</Value>
+							</ValueList>
+						</Property>
+						<Property Name="Volume" Type="Real64">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{F85B5921-2D88-40AB-964A-69C2F3450CC1}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="1"/>
+											<Property Name="Min" Type="Real64" Value="-1"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="S_GUNShotg_Saiga 12 Cal_12 DESIGNED Single Shot Core Long_DRCA_SG12_Stereo" ID="{C5EB0C67-AF1E-4EAE-95E8-E4CA06A781F9}">
+							<Language>SFX</Language>
+							<AudioFile>S_GUNShotg_Saiga 12 Cal.12 DESIGNED Single Shot Core Long_DRCA_SG12_Stereo.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="354075555"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ObjectLists>
+						<ObjectList Name="Effects">
+							<EffectSlot Name="" ID="{AE2F4F90-6EC1-4086-A55B-A54424454E61}" ShortID="1054674938">
+								<ReferenceList>
+									<Reference Name="Effect">
+										<Custom>
+											<Effect Name="Stereo Delay (Custom)" ID="{B97E2376-19BF-483C-8A14-54DDA4618CED}" ShortID="214183519" PluginName="Wwise Stereo Delay" CompanyID="0" PluginID="135" PluginType="3">
+												<PropertyList>
+													<Property Name="DryLevel" Type="Real32" Value="1"/>
+													<Property Name="FrontRearBalance" Type="Real32" Value="-32"/>
+													<Property Name="LeftDelayTime" Type="Real32" Value="0.03"/>
+													<Property Name="RightDelayTime" Type="Real32" Value="0.03"/>
+													<Property Name="WetLevel" Type="Real32" Value="-12"/>
+												</PropertyList>
+											</Effect>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</EffectSlot>
+							<EffectSlot Name="" ID="{FFECE7CC-7FCE-4288-AB66-00E9E7C54E65}" ShortID="599215363">
+								<ReferenceList>
+									<Reference Name="Effect" PluginName="Wwise RoomVerb" CompanyID="0" PluginID="118" PluginType="3">
+										<ObjectRef Name="Plate_Medium" ID="{33384D0C-6ACB-4E3D-AC82-73AAB3AE1CA5}" WorkUnitID="{E8613F7D-BAD3-45CD-A3ED-505576F31277}"/>
+									</Reference>
+								</ReferenceList>
+							</EffectSlot>
+						</ObjectList>
+					</ObjectLists>
+					<ActiveSourceList>
+						<ActiveSource Name="S_GUNShotg_Saiga 12 Cal_12 DESIGNED Single Shot Core Long_DRCA_SG12_Stereo" ID="{C5EB0C67-AF1E-4EAE-95E8-E4CA06A781F9}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<Sound Name="Weapon_Fire_Pistol" ID="{70EC26A6-F1CF-4084-A89B-55AB610798F5}" ShortID="268638150">
+					<PropertyList>
+						<Property Name="MaxSoundPerInstance" Type="int16">
+							<ValueList>
+								<Value>4</Value>
+							</ValueList>
+						</Property>
+						<Property Name="Pitch" Type="int32">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{5451832D-CC3B-4C3E-BB46-0F339CCBFF9D}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="50"/>
+											<Property Name="Min" Type="Real64" Value="-400"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+						<Property Name="UseMaxSoundPerInstance" Type="bool">
+							<ValueList>
+								<Value>True</Value>
+							</ValueList>
+						</Property>
+						<Property Name="Volume" Type="Real64">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{066C290D-C87F-43AE-B08D-885C43D565A4}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="1"/>
+											<Property Name="Min" Type="Real64" Value="-1"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<AudioFileSource Name="S_Shotgun_Fire_Slug_01" ID="{63A1582C-174C-4029-8F12-99B064884702}">
+							<PropertyList>
+								<Property Name="FadeOutDuration" Type="Real64" Value="2.09937"/>
+								<Property Name="OverrideWavLoop" Type="bool" Value="True"/>
+								<Property Name="TrimEnd" Type="Real64" Value="2.09937"/>
+							</PropertyList>
+							<Language>SFX</Language>
+							<AudioFile>S_Shotgun_Fire_Slug_01.wav</AudioFile>
+							<MediaIDList>
+								<MediaID ID="469897786"/>
+							</MediaIDList>
+						</AudioFileSource>
+					</ChildrenList>
+					<ObjectLists>
+						<ObjectList Name="Effects">
+							<EffectSlot Name="" ID="{05DFC059-0B50-4AF4-9134-5AF56FC212C9}" ShortID="989633641">
+								<ReferenceList>
+									<Reference Name="Effect">
+										<Custom>
+											<Effect Name="Expander (Custom)" ID="{82CB1DC6-9CB2-47DE-AF24-E834A486F76C}" ShortID="664791751" PluginName="Wwise Expander" CompanyID="0" PluginID="109" PluginType="3">
+												<PropertyList>
+													<Property Name="AttackTime" Type="Real32" Value="0.57"/>
+													<Property Name="ReleaseTime" Type="Real32" Value="0.24"/>
+													<Property Name="Threshold" Type="Real32" Value="-84.2"/>
+												</PropertyList>
+											</Effect>
+										</Custom>
+									</Reference>
+								</ReferenceList>
+							</EffectSlot>
+						</ObjectList>
+					</ObjectLists>
+					<ActiveSourceList>
+						<ActiveSource Name="S_Shotgun_Fire_Slug_01" ID="{63A1582C-174C-4029-8F12-99B064884702}" Platform="Linked"/>
+					</ActiveSourceList>
+				</Sound>
+				<BlendContainer Name="Weapon_Fire_Shotgun" ID="{5AE489D1-9A7D-4070-8714-2A2AEA9C0367}" ShortID="605264187">
+					<PropertyList>
+						<Property Name="MaxSoundPerInstance" Type="int16">
+							<ValueList>
+								<Value>2</Value>
+							</ValueList>
+						</Property>
+						<Property Name="Pitch" Type="int32">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{6588853F-304D-468E-BF07-5FF00644A233}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="50"/>
+											<Property Name="Min" Type="Real64" Value="-50"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+						<Property Name="UseMaxSoundPerInstance" Type="bool">
+							<ValueList>
+								<Value>True</Value>
+							</ValueList>
+						</Property>
+						<Property Name="Volume" Type="Real64">
+							<ModifierList>
+								<ModifierInfo>
+									<Modifier Name="" ID="{DADEA2D2-260E-4405-BEF0-FA677EB3B63F}">
+										<PropertyList>
+											<Property Name="Enabled" Type="bool" Value="True"/>
+											<Property Name="Max" Type="Real64" Value="1"/>
+											<Property Name="Min" Type="Real64" Value="-1"/>
+										</PropertyList>
+									</Modifier>
+								</ModifierInfo>
+							</ModifierList>
+						</Property>
+					</PropertyList>
+					<ReferenceList>
+						<Reference Name="Conversion">
+							<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+						</Reference>
+						<Reference Name="OutputBus">
+							<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+						</Reference>
+					</ReferenceList>
+					<ChildrenList>
+						<Sound Name="Weapon_Fire_Shotgun_Low" ID="{452B2483-45D4-46BA-B9EB-14C0677D725B}" ShortID="514581850">
+							<PropertyList>
+								<Property Name="OverrideEffect" Type="bool" Value="True"/>
+								<Property Name="Pitch" Type="int32">
+									<ValueList>
+										<Value>-1000</Value>
+									</ValueList>
+								</Property>
+							</PropertyList>
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{832FE1B3-AA2D-4B22-96B5-FE0660566DAF}">
+									<Language>SFX</Language>
+									<AudioFile>S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="1053680423"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ObjectLists>
+								<ObjectList Name="Effects">
+									<EffectSlot Name="" ID="{951F93CD-8A42-4407-A460-C242A1A05139}" ShortID="1012470717">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Parametric EQ" CompanyID="0" PluginID="105" PluginType="3">
+												<ObjectRef Name="New_Parametric_EQ" ID="{272ADF3B-A052-4AF3-819C-266CA17B804A}" WorkUnitID="{731924C8-3F5D-4501-B45F-928B49A14E05}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{676C8364-5C4D-4576-BF69-02C7162CE638}" ShortID="271486340">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Compressor" CompanyID="0" PluginID="108" PluginType="3">
+												<ObjectRef Name="Dialog_Leveler_Hard" ID="{865FB36F-8717-4D30-AD05-14E56375CD40}" WorkUnitID="{E8613F7D-BAD3-45CD-A3ED-505576F31277}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{BF3CA96E-27BD-4359-9711-352A1CB804AA}" ShortID="936416357">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Expander" CompanyID="0" PluginID="109" PluginType="3">
+												<ObjectRef Name="New_Expander" ID="{56C2410C-E38F-43DF-92A1-CC085FF5ACE8}" WorkUnitID="{731924C8-3F5D-4501-B45F-928B49A14E05}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+								</ObjectList>
+							</ObjectLists>
+							<ActiveSourceList>
+								<ActiveSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{832FE1B3-AA2D-4B22-96B5-FE0660566DAF}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="Weapon_Fire_Shotgun_Mid" ID="{27B69324-1E84-43B3-A176-1B3824394935}" ShortID="811762649">
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{22AE6F7D-6426-4956-8BC7-CE5C277BB7E1}">
+									<Language>SFX</Language>
+									<AudioFile>S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="1053680423"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ObjectLists>
+								<ObjectList Name="Effects">
+									<EffectSlot Name="" ID="{3D88ED5A-6397-456B-8C89-BFE273DDFC8F}" ShortID="14755794">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Parametric EQ" CompanyID="0" PluginID="105" PluginType="3">
+												<ObjectRef Name="New_Parametric_EQ" ID="{272ADF3B-A052-4AF3-819C-266CA17B804A}" WorkUnitID="{731924C8-3F5D-4501-B45F-928B49A14E05}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{E6CED2CE-AACE-4B71-8873-61323FA0B3EF}" ShortID="451575884">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Compressor" CompanyID="0" PluginID="108" PluginType="3">
+												<ObjectRef Name="Dialog_Leveler_Hard" ID="{865FB36F-8717-4D30-AD05-14E56375CD40}" WorkUnitID="{E8613F7D-BAD3-45CD-A3ED-505576F31277}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{D566088C-BF5E-4F7F-91B3-3D718B06DBB3}" ShortID="687208886">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Expander" CompanyID="0" PluginID="109" PluginType="3">
+												<ObjectRef Name="New_Expander" ID="{56C2410C-E38F-43DF-92A1-CC085FF5ACE8}" WorkUnitID="{731924C8-3F5D-4501-B45F-928B49A14E05}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+								</ObjectList>
+							</ObjectLists>
+							<ActiveSourceList>
+								<ActiveSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{22AE6F7D-6426-4956-8BC7-CE5C277BB7E1}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="Weapon_Fire_Shotgun_Low_01" ID="{6EB10CE8-DD57-4456-AD95-C9CEDF4649D5}" ShortID="714938261">
+							<PropertyList>
+								<Property Name="OverrideEffect" Type="bool" Value="True"/>
+								<Property Name="Pitch" Type="int32">
+									<ValueList>
+										<Value>-700</Value>
+									</ValueList>
+								</Property>
+							</PropertyList>
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{B75C7B5A-88C4-4C1D-BC69-BCE7C22848A3}">
+									<Language>SFX</Language>
+									<AudioFile>S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="1053680423"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ObjectLists>
+								<ObjectList Name="Effects">
+									<EffectSlot Name="" ID="{2060112F-C725-4FDD-97BC-BA3D3445AAAA}" ShortID="980610285">
+										<ReferenceList>
+											<Reference Name="Effect">
+												<Custom>
+													<Effect Name="RoomVerb (Custom)" ID="{AE90AF79-61CF-47EA-B5F4-0C3BB5EEBA55}" ShortID="750225733" PluginName="Wwise RoomVerb" CompanyID="0" PluginID="118" PluginType="3">
+														<PropertyList>
+															<Property Name="DryLevel" Type="Real32" Value="-12.3"/>
+															<Property Name="RoomSize" Type="Real32" Value="39"/>
+														</PropertyList>
+													</Effect>
+												</Custom>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{D90C102C-52F9-4DD4-83CF-2132562D20FB}" ShortID="654391894">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Parametric EQ" CompanyID="0" PluginID="105" PluginType="3">
+												<ObjectRef Name="New_Parametric_EQ" ID="{272ADF3B-A052-4AF3-819C-266CA17B804A}" WorkUnitID="{731924C8-3F5D-4501-B45F-928B49A14E05}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{CD8468AC-3145-4381-8CDE-DEA6B11698E4}" ShortID="577274167">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Compressor" CompanyID="0" PluginID="108" PluginType="3">
+												<ObjectRef Name="Dialog_Leveler_Hard" ID="{865FB36F-8717-4D30-AD05-14E56375CD40}" WorkUnitID="{E8613F7D-BAD3-45CD-A3ED-505576F31277}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{728A1232-DCAE-4DC8-8C17-2217C8FE6F40}" ShortID="886770312">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Expander" CompanyID="0" PluginID="109" PluginType="3">
+												<ObjectRef Name="New_Expander" ID="{56C2410C-E38F-43DF-92A1-CC085FF5ACE8}" WorkUnitID="{731924C8-3F5D-4501-B45F-928B49A14E05}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+								</ObjectList>
+							</ObjectLists>
+							<ActiveSourceList>
+								<ActiveSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{B75C7B5A-88C4-4C1D-BC69-BCE7C22848A3}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+						<Sound Name="Weapon_Fire_Shotgun_Low_02" ID="{34B75C60-B227-4CC8-A07F-5F792671F6E7}" ShortID="1029747706">
+							<PropertyList>
+								<Property Name="OverrideEffect" Type="bool" Value="True"/>
+								<Property Name="Pitch" Type="int32">
+									<ValueList>
+										<Value>-300</Value>
+									</ValueList>
+								</Property>
+							</PropertyList>
+							<ReferenceList>
+								<Reference Name="Conversion">
+									<ObjectRef Name="Default Conversion Settings" ID="{6D1B890C-9826-4384-BF07-C15223E9FB56}" WorkUnitID="{4A77D7EA-1E8B-48F5-9702-F0A048DF10D1}"/>
+								</Reference>
+								<Reference Name="OutputBus">
+									<ObjectRef Name="Main Audio Bus" ID="{1514A4D8-1DA6-412A-A17E-75CA0C2149F3}" WorkUnitID="{C5134077-92A0-4C5D-BCF8-C31A485C45AE}"/>
+								</Reference>
+							</ReferenceList>
+							<ChildrenList>
+								<AudioFileSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{3DB15BC9-0D39-484B-BDA6-D6F796FBC155}">
+									<Language>SFX</Language>
+									<AudioFile>S_GUNRif_SVD Dragunov 7.62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05.wav</AudioFile>
+									<MediaIDList>
+										<MediaID ID="1053680423"/>
+									</MediaIDList>
+								</AudioFileSource>
+							</ChildrenList>
+							<ObjectLists>
+								<ObjectList Name="Effects">
+									<EffectSlot Name="" ID="{4FDB9C61-93B2-416A-874B-7176D69EB3E3}" ShortID="731523742">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Parametric EQ" CompanyID="0" PluginID="105" PluginType="3">
+												<ObjectRef Name="New_Parametric_EQ" ID="{272ADF3B-A052-4AF3-819C-266CA17B804A}" WorkUnitID="{731924C8-3F5D-4501-B45F-928B49A14E05}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{0D4CD000-C48B-43AC-A687-F8E74287D807}" ShortID="624510112">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Compressor" CompanyID="0" PluginID="108" PluginType="3">
+												<ObjectRef Name="Dialog_Leveler_Hard" ID="{865FB36F-8717-4D30-AD05-14E56375CD40}" WorkUnitID="{E8613F7D-BAD3-45CD-A3ED-505576F31277}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+									<EffectSlot Name="" ID="{69AABA52-4D1F-4606-92E5-68DDFC490EB0}" ShortID="102407154">
+										<ReferenceList>
+											<Reference Name="Effect" PluginName="Wwise Expander" CompanyID="0" PluginID="109" PluginType="3">
+												<ObjectRef Name="New_Expander" ID="{56C2410C-E38F-43DF-92A1-CC085FF5ACE8}" WorkUnitID="{731924C8-3F5D-4501-B45F-928B49A14E05}"/>
+											</Reference>
+										</ReferenceList>
+									</EffectSlot>
+								</ObjectList>
+							</ObjectLists>
+							<ActiveSourceList>
+								<ActiveSource Name="S_GUNRif_SVD Dragunov 7_62��54R DESIGNED Single Shot Core Long_DRCA_DRAG_Stereo_05" ID="{3DB15BC9-0D39-484B-BDA6-D6F796FBC155}" Platform="Linked"/>
+							</ActiveSourceList>
+						</Sound>
+					</ChildrenList>
+				</BlendContainer>
+			</ChildrenList>
+		</WorkUnit>
+	</Containers>
+</WwiseDocument>

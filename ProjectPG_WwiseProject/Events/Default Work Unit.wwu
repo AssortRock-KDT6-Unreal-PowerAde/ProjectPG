@@ -80,6 +80,39 @@
 						</Action>
 					</ChildrenList>
 				</Event>
+				<Event Name="Play_Weapon_Fire_Shotgun" ID="{00A07434-AC1E-43D9-94A4-DF0007462A0C}">
+					<ChildrenList>
+						<Action Name="" ID="{35251BF3-7079-4D44-BD6F-17519003E749}" ShortID="110725790">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Weapon_Fire_Shotgun" ID="{5AE489D1-9A7D-4070-8714-2A2AEA9C0367}" WorkUnitID="{BE023E6A-2D5E-4E7F-BFB3-2F3DA9E7DE88}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
+				<Event Name="Play_Weapon_Fire_Pistol" ID="{FB73BC08-F328-4CBA-B49A-EBCBE58DF1DA}">
+					<ChildrenList>
+						<Action Name="" ID="{7ED1BF79-D2D8-4820-9033-AEAFF4EDAC3F}" ShortID="190790438">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Weapon_Fire_Pistol" ID="{70EC26A6-F1CF-4084-A89B-55AB610798F5}" WorkUnitID="{BE023E6A-2D5E-4E7F-BFB3-2F3DA9E7DE88}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
+				<Event Name="Play_Weapon_Fire_Rifle" ID="{CF2376D9-0AD8-451B-A490-714FB2613283}">
+					<ChildrenList>
+						<Action Name="" ID="{535FF97F-BC07-4E1D-859B-E7301B772638}" ShortID="665920850">
+							<ReferenceList>
+								<Reference Name="Target">
+									<ObjectRef Name="Weapon_Fire_Rifle" ID="{15CA66A2-E52E-49BD-B752-5CE083A2DDB5}" WorkUnitID="{BE023E6A-2D5E-4E7F-BFB3-2F3DA9E7DE88}"/>
+								</Reference>
+							</ReferenceList>
+						</Action>
+					</ChildrenList>
+				</Event>
 			</ChildrenList>
 		</WorkUnit>
 	</Events>

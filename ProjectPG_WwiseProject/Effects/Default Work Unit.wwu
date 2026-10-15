@@ -1,6 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <WwiseDocument Type="WorkUnit" ID="{731924C8-3F5D-4501-B45F-928B49A14E05}" SchemaVersion="133">
 	<Effects>
-		<WorkUnit Name="Default Work Unit" ID="{731924C8-3F5D-4501-B45F-928B49A14E05}" PersistMode="Standalone"/>
+		<WorkUnit Name="Default Work Unit" ID="{731924C8-3F5D-4501-B45F-928B49A14E05}" PersistMode="Standalone">
+			<ChildrenList>
+				<Effect Name="New_Parametric_EQ" ID="{272ADF3B-A052-4AF3-819C-266CA17B804A}" PluginName="Wwise Parametric EQ" CompanyID="0" PluginID="105" PluginType="3">
+					<PropertyList>
+						<Property Name="FrequencyBand1" Type="Real32" Value="41.56601"/>
+						<Property Name="FrequencyBand2" Type="Real32" Value="108.4938"/>
+						<Property Name="FrequencyBand3" Type="Real32" Value="696.1401"/>
+						<Property Name="FrequencyBand4" Type="Real32" Value="220.1388"/>
+						<Property Name="GainBand1" Type="Real32" Value="3.798883"/>
+						<Property Name="GainBand2" Type="Real32" Value="12.11173"/>
+						<Property Name="GainBand3" Type="Real32" Value="6.659218"/>
+						<Property Name="GainBand4" Type="Real32" Value="5.765363"/>
+						<Property Name="NumBands" Type="int32" Value="5"/>
+						<Property Name="OnOffBand4" Type="bool" Value="True"/>
+						<Property Name="OnOffBand5" Type="bool" Value="True"/>
+					</PropertyList>
+				</Effect>
+				<Effect Name="New_Expander" ID="{56C2410C-E38F-43DF-92A1-CC085FF5ACE8}" PluginName="Wwise Expander" CompanyID="0" PluginID="109" PluginType="3">
+					<PropertyList>
+						<Property Name="Threshold" Type="Real32" Value="-90.1"/>
+					</PropertyList>
+				</Effect>
+			</ChildrenList>
+		</WorkUnit>
 	</Effects>
 </WwiseDocument>
