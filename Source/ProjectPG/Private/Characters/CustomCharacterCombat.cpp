@@ -8,10 +8,12 @@
 #include "TimerManager.h"
 #include "Components/EquipComponent.h"
 #include "GameFramework/PlayerState.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
 
 void ACustomCharacter::RegisterFirearm(AFirearmEquipment* Weapon)
 {
-	if (!HasAuthority() || !IsValid(Weapon)) return;
+	if (!HasAuthority() || IsDead() || !IsValid(Weapon)) return;
 	OnReq_SetFireInput(false);
 	CancelPendingFire();
 	ActiveFirearm = Weapon;
@@ -104,7 +106,7 @@ void ACustomCharacter::OnReq_SelectWeapon_Implementation(EEquipSlot Slot) { Sele
 
 void ACustomCharacter::SelectWeaponInternal(EEquipSlot Slot)
 {
-	if (!HasAuthority() || (Slot != EEquipSlot::MainWeapon && Slot != EEquipSlot::SubWeapon)) return;
+	if (!HasAuthority() || IsDead() || (Slot != EEquipSlot::MainWeapon && Slot != EEquipSlot::SubWeapon)) return;
 	APlayerState* State = GetPlayerState();
 	UEquipComponent* Equipment = State ? State->FindComponentByClass<UEquipComponent>() : nullptr;
 	AFirearmEquipment* Weapon = Equipment ? Cast<AFirearmEquipment>(Equipment->GetEquipActor(Slot)) : nullptr;
@@ -147,6 +149,7 @@ void ACustomCharacter::OnReq_SetFireInput_Implementation(bool bPressed)
 
 void ACustomCharacter::HandleFireInput(bool bPressed)
 {
+	if (IsDead()) bPressed = false;
 	if (bPressed && bFireInputHeld) return;
 	bFireInputHeld = bPressed;
 	GetWorldTimerManager().ClearTimer(AutomaticFireTimer);
@@ -239,13 +242,14 @@ void ACustomCharacter::CancelPendingFire()
 
 bool ACustomCharacter::CanBeHit_Implementation() const
 {
-	return IsValid(CharacterAttributeSet) && CharacterAttributeSet->GetHealth() > 0.f;
+	return !IsDead() && IsValid(CharacterAttributeSet) && CharacterAttributeSet->GetHealth() > 0.f;
 }
 
 void ACustomCharacter::Hit_Implementation(float Damage, AActor* DamageCauser, const FHitResult& HitResult)
 {
 	if (!HasAuthority() || !FMath::IsFinite(Damage) || Damage <= 0.f || !CanBeHit_Implementation()) return;
 	CharacterAttributeSet->SetHealth(FMath::Max(0.f, CharacterAttributeSet->GetHealth() - Damage));
+	if (CharacterAttributeSet->GetHealth() <= 0.f) Die();
 	ForceNetUpdate();
 	// 산탄의 여러 트레이스는 각각 피해를 주되 반응 몽타주는 매번 초기화하지 않습니다.
 	if (!CanBeHit_Implementation() || GetWorld()->GetTimeSeconds() < NextHitReactionTime) return;
@@ -265,7 +269,79 @@ void ACustomCharacter::Hit_Implementation(float Damage, AActor* DamageCauser, co
 
 void ACustomCharacter::EndPlay(const EEndPlayReason::Type Reason)
 {
+	if (CharacterAttributeSet) CharacterAttributeSet->OnHealthChanged.RemoveDynamic(this, &ThisClass::HandleHealthChanged);
 	GetWorldTimerManager().ClearTimer(AutomaticFireTimer);
 	GetWorldTimerManager().ClearTimer(PendingFireTimeout);
 	Super::EndPlay(Reason);
+}
+
+void ACustomCharacter::HandleHealthChanged(float Current, float Maximum)
+{
+	if (HasAuthority() && Current <= 0.f) Die();
+}
+
+void ACustomCharacter::Die()
+{
+	if (!HasAuthority() || IsDead()) return;
+	const FWeaponAnimationSet* Set = GetCurrentWeaponAnimationSet();
+	const UAnimMontage* Hip = Set ? Set->FindMontage(CustomGameplayTags::WeaponAnimation_Death_Hip) : nullptr;
+	const UAnimMontage* Aimed = Set ? Set->FindMontage(CustomGameplayTags::WeaponAnimation_Death_Ironsights) : nullptr;
+	const int32 HipCount = Hip ? Hip->CompositeSections.Num() : 0;
+	const int32 AimedCount = Aimed ? Aimed->CompositeSections.Num() : 0;
+	DeathAnimationIndex = (IsAiming() || HipCount == 0) && AimedCount > 0
+		? HipCount + FMath::RandHelper(AimedCount)
+		: (HipCount > 0 ? FMath::RandHelper(HipCount) : 0);
+	bIsDead = true;
+	ApplyDeathState();
+	ForceNetUpdate();
+}
+
+UAnimMontage* ACustomCharacter::GetDeathMontage(int32& SectionIndex) const
+{
+	SectionIndex = DeathAnimationIndex;
+	const FWeaponAnimationSet* Set = GetCurrentWeaponAnimationSet();
+	if (!Set || SectionIndex < 0) return nullptr;
+	const FGameplayTag DeathTags[] = { CustomGameplayTags::WeaponAnimation_Death_Hip, CustomGameplayTags::WeaponAnimation_Death_Ironsights };
+	for (const FGameplayTag& Tag : DeathTags)
+	{
+		UAnimMontage* Montage = Set->FindMontage(Tag);
+		const int32 Count = Montage ? Montage->CompositeSections.Num() : 0;
+		if (SectionIndex < Count) return Montage;
+		SectionIndex -= Count;
+	}
+	return nullptr;
+}
+
+void ACustomCharacter::OnRep_Death() { ApplyDeathState(); }
+
+void ACustomCharacter::ApplyDeathState()
+{
+	if (!IsDead()) return;
+	bFireInputHeld = false;
+	GetWorldTimerManager().ClearTimer(AutomaticFireTimer);
+	CancelPendingFire();
+	ReloadingFirearm.Reset();
+	ReloadMontage.Reset();
+	bIsAiming = false;
+	StopJumping();
+	if (AbilitySystemComp) AbilitySystemComp->CancelAllAbilities();
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+	UAnimInstance* Anim = GetMesh()->GetAnimInstance();
+	if (!Anim) return; // BeginPlay/ABP 설정이 완료되면 다시 적용합니다.
+	int32 SectionIndex = INDEX_NONE;
+	UAnimMontage* Montage = GetDeathMontage(SectionIndex);
+	const FName Section = Montage ? Montage->CompositeSections[SectionIndex].SectionName : NAME_None;
+	if (DeathAnimInstance.Get() == Anim && (!Montage || (Anim->Montage_IsActive(Montage)
+		&& Anim->Montage_GetCurrentSection(Montage) == Section))) return;
+	DeathAnimInstance = Anim;
+	Anim->Montage_Stop(0.f);
+	if (!Montage) return;
+	float Start = 0.f, End = Montage->GetPlayLength();
+	Montage->GetSectionStartAndEndTime(SectionIndex, Start, End);
+	GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	Anim->Montage_Play(Montage, 1.f, EMontagePlayReturnType::MontageLength, Start);
+	Anim->Montage_SetNextSection(Section, NAME_None, Montage);
 }

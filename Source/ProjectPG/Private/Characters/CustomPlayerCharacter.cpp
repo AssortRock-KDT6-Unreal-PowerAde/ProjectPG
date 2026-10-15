@@ -240,6 +240,7 @@ void ACustomPlayerCharacter::GetCombatViewPoint(FVector& Location, FRotator& Rot
 
 void ACustomPlayerCharacter::Interact()
 {
+	if (IsDead()) return;
 	if (InteractComp) InteractComp->Interact();
 }
 void ACustomPlayerCharacter::OnReq_SyncAimRotation_Implementation(FVector2D AimDirection)
@@ -308,8 +309,8 @@ void ACustomPlayerCharacter::BeginPlay()
 			return;
 
 		// TODO: Table로 옮기기
-		CharacterAttributeSet->SetMaxHealth(100.f);
 		CharacterAttributeSet->SetHealth(100.f);
+		CharacterAttributeSet->SetMaxHealth(100.f);
 		CharacterAttributeSet->SetMaxStamina(100.f);
 		CharacterAttributeSet->SetStamina(100.f);
 

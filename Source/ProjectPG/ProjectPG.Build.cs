@@ -12,7 +12,7 @@ public class ProjectPG : ModuleRules
 		{
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "WebSockets", "Json", "JsonUtilities",
 			"AIModule", "GameplayTags", "GameplayTasks", "GameplayAbilities", "Slate", "SlateCore", "NavigationSystem",
-			"PCG", "Landscape"
+			"PCG", "Landscape", "UMG"
 		});
 
 		// PG.BuildShoreMeshes 같은 에디터 전용 에셋 생성 명령용.

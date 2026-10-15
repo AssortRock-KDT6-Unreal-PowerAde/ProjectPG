@@ -47,7 +47,7 @@ void ACustomCharacter::Tick(float DeltaTime)
 	if (!IsValid(CharacterAttributeSet))
 		return;
 
-	if (HasAuthority()
+	if (HasAuthority() && !IsDead()
 		&& IsValid(AbilitySystemComp)
 		&& !AbilitySystemComp->HasMatchingGameplayTag(CustomGameplayTags::State_UsingStamina)
 		&& CharacterAttributeSet->GetStamina() < CharacterAttributeSet->GetMaxStamina())
@@ -93,6 +93,8 @@ void ACustomCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME_CONDITION(ACustomCharacter, ReserveAmmoStates, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ACustomCharacter, bDoubleAmmoCapacity, COND_OwnerOnly);
 	DOREPLIFETIME(ACustomCharacter, bIsAiming);
+	DOREPLIFETIME(ACustomCharacter, DeathAnimationIndex);
+	DOREPLIFETIME(ACustomCharacter, bIsDead);
 }
 
 UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
@@ -102,7 +104,7 @@ UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
 
 void ACustomCharacter::PlayMontage(UAnimMontage* Montage)
 {
-	if (!IsValid(Montage)) return;
+	if (IsDead() || !IsValid(Montage)) return;
 	if (HasAuthority())
 	{
 		// 서버 발사와 AI는 소유 클라이언트에서도 반드시 재생합니다.
@@ -117,17 +119,18 @@ void ACustomCharacter::PlayMontage(UAnimMontage* Montage)
 
 void ACustomCharacter::OnReq_PlayMontage_Implementation(UAnimMontage* Montage)
 {
-	if (IsValid(Montage)) OnRep_PlayMontage(Montage, true);
+	if (!IsDead() && IsValid(Montage)) OnRep_PlayMontage(Montage, true);
 }
 
 void ACustomCharacter::OnRep_PlayMontage_Implementation(UAnimMontage* Montage, bool bSkipOwningClient)
 {
-	if (!IsValid(Montage) || (bSkipOwningClient && !HasAuthority() && IsLocallyControlled())) return;
+	if (IsDead() || !IsValid(Montage) || (bSkipOwningClient && !HasAuthority() && IsLocallyControlled())) return;
 	PlayAnimMontage(Montage);
 }
 
 bool ACustomCharacter::ApplyWeaponAnimation(EWeaponType NewWeaponType, TSubclassOf<UCustomAnimInstance> AnimClass)
 {
+	if (IsDead() && DeathAnimInstance.IsValid()) return false;
 	USkeletalMeshComponent* MeshComponent = GetMesh();
 	if (!IsValid(MeshComponent))
 		return false;
@@ -140,6 +143,7 @@ bool ACustomCharacter::ApplyWeaponAnimation(EWeaponType NewWeaponType, TSubclass
 	if (MeshComponent->GetAnimClass() != AnimClass.Get())
 		MeshComponent->SetAnimInstanceClass(AnimClass);
 	CurrentWeaponType = NewWeaponType;
+	if (IsDead()) ApplyDeathState();
 	return true;
 }
 
@@ -150,6 +154,7 @@ const FWeaponAnimationSet* ACustomCharacter::GetCurrentWeaponAnimationSet() cons
 
 void ACustomCharacter::SetAiming(bool bNewAiming)
 {
+	if (IsDead()) return;
 	bIsAiming = bNewAiming;
 	if (auto* Movement = GetCustomCharacterMovement())
 		Movement->bWantsToAim = bNewAiming;
@@ -160,6 +165,7 @@ void ACustomCharacter::SetAiming(bool bNewAiming)
 
 void ACustomCharacter::OnReq_SetAiming_Implementation(bool bNewAiming)
 {
+	if (IsDead()) return;
 	bIsAiming = bNewAiming;
 }
 
@@ -181,6 +187,9 @@ UCharacterAttributeSet* ACustomCharacter::GetCharacterAttributeSet() const
 void ACustomCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	if (HasAuthority() && CharacterAttributeSet)
+		CharacterAttributeSet->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleHealthChanged);
+	if (IsDead()) ApplyDeathState();
 	// 기본 Pawn/CharacterMesh 프로파일은 Visibility를 무시합니다.
 	// 이번 단순 전투는 캐릭터 캡슐을 피격 볼륨으로 사용합니다.
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
@@ -240,6 +249,7 @@ void ACustomCharacter::BeginPlay()
 	}
 
 	ApplyWeaponAnimation(CurrentWeaponType);
+	if (IsDead()) ApplyDeathState();
 }
 
 const FWeaponAnimationSet* ACustomCharacter::FindWeaponAnimationSet(EWeaponType WeaponType) const

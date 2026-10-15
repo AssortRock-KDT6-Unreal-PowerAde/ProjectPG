@@ -52,6 +52,11 @@ protected:
 	TArray<FWeaponReserveAmmoState> ReserveAmmoStates;
 	UPROPERTY(Replicated, BlueprintReadOnly, Category="Combat|Ammo")
 	bool bDoubleAmmoCapacity = false;
+	// Hip 섹션들 다음 Ironsights 섹션들을 순서대로 센 사망 동작 번호입니다.
+	UPROPERTY(ReplicatedUsing=OnRep_Death)
+	int32 DeathAnimationIndex = 0;
+	UPROPERTY(ReplicatedUsing=OnRep_Death, BlueprintReadOnly, Category="Combat|Death")
+	bool bIsDead = false;
 
 private:
 	TSet<TWeakObjectPtr<class AEquipment>> AmmoCapacityEquipment;
@@ -63,6 +68,7 @@ private:
 	TWeakObjectPtr<class AFirearmEquipment> ReloadingFirearm;
 	TWeakObjectPtr<class UAnimMontage> ReloadMontage;
 	double NextHitReactionTime = 0.;
+	TWeakObjectPtr<class UAnimInstance> DeathAnimInstance;
 
 public:
 	// 생명주기 / 복제
@@ -130,12 +136,16 @@ public:
 	virtual bool CanBeHit_Implementation() const override;
 	virtual void Hit_Implementation(float Damage, AActor* DamageCauser, const FHitResult& HitResult) override;
 
+	UFUNCTION(BlueprintPure, Category="Combat|Death")
+	bool IsDead() const { return bIsDead; }
+
 protected:
 	// 생명주기
 	UFUNCTION()
 	virtual void OnRep_CharacterAttributeSet();
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	void ApplyDeathState();
 
 	// 무기 애니메이션 조회
 	const FWeaponAnimationSet* FindWeaponAnimationSet(EWeaponType WeaponType) const;
@@ -153,4 +163,8 @@ private:
 	void TryStartFireMontage();
 	void CancelPendingFire();
 	void HandleReloadEnded(class UAnimMontage* Montage, bool bInterrupted);
+	UFUNCTION() void OnRep_Death();
+	UFUNCTION() void HandleHealthChanged(float Current, float Maximum);
+	void Die();
+	class UAnimMontage* GetDeathMontage(int32& SectionIndex) const;
 };

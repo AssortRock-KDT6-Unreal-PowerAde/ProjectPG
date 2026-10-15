@@ -209,15 +209,11 @@ void AEquipment::Attach()
 	if (auto* Items = UItemSubSystem::Get(this))
 		if (const auto* Row = Items->GetWeapon(EquipmentItemID))
 		{
-			if (Row->AnimBlueprint)
-			{
-				if (OwnerMesh->GetAnimClass() != Row->AnimBlueprint.Get())
-					OwnerMesh->SetAnimInstanceClass(Row->AnimBlueprint);
-				if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
-					Character->ApplyWeaponAnimation(Row->WeaponType, Row->AnimBlueprint);
-			}
-			else if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
-				Character->ApplyWeaponAnimation(Row->WeaponType);
+			// 캐릭터 경로에서 사망 중 ABP 교체를 차단합니다.
+			if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
+				Character->ApplyWeaponAnimation(Row->WeaponType, Row->AnimBlueprint);
+			else if (Row->AnimBlueprint && OwnerMesh->GetAnimClass() != Row->AnimBlueprint.Get())
+				OwnerMesh->SetAnimInstanceClass(Row->AnimBlueprint);
 			LeftHandIKData = Row->LeftHandIK;
 		}
 	if (LeftHandIKData.bEnabled)

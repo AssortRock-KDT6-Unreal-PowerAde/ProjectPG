@@ -16,6 +16,14 @@ UCustomAnimInstance::UCustomAnimInstance()
 void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
+	if (const auto* Character = Cast<ACustomCharacter>(TryGetPawnOwner()); Character && Character->IsDead())
+	{
+		LeftHandIKAlpha = 0.f;
+		AimOffset = FVector2D::ZeroVector;
+		bIsAiming = bIsSprinting = bWasJumping = bIsFalling = false;
+		NormalizedGroundSpeed = 0.f;
+		return;
+	}
 	LeftHandIKTransform = FTransform::Identity;
 	LeftHandIKAlpha = 0.f;
 	// ABP가 장착 이후 교체되어도 현재 캐릭터의 IK 장비를 다시 찾습니다.
