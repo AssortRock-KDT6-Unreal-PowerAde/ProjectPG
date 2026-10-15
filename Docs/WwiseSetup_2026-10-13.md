@@ -57,7 +57,20 @@ git에는 코드·설정·뱅크만 있다. 아래는 따로 가져와야 한다
 4. `SoundTable`에 줄 추가: 줄 이름 `UI_Hover`, `Event` 칸에 `Play_UI_Hover`
 5. 코드에서 `USoundSubSystem::Get(this)->PlaySound2D(TEXT("UI_Hover"));`
 
-## 6. TODO
+## 6. 진행 상황 (2026-10-15)
+
+- UI 소리 7개 완료: `UI_Click`, `UI_Hover`(버튼 감시자), `UI_Open`/`UI_Close`(UIManagerSubSystem), `UI_ItemPick`/`UI_ItemDrop`/`UI_ItemFail`(ItemWidget, EquipSlot, InventoryGridWidget)
+  - 팀원 파일에는 `USoundSubSystem::PlayUISound(this, TEXT("이름"))` 한 줄씩만 들어감
+- 총소리 3개 Wwise 완료(`Weapon` 뱅크): `Play_Weapon_Fire_Pistol` / `_Rifle` / `_Shotgun`
+  - 샷건은 Blend Container 4겹, 재생 제한은 상자(부모)에 건다
+- **남은 일: 총소리를 게임에 연결**
+  - 사격 코드(`ACustomCharacter::Fire`)는 비어 있고, 사격은 몽타주만 재생한다. 몽타주는 `OnRep_PlayMontage`(NetMulticast)로 모든 클라이언트에서 재생됨
+  - 그래서 사격 몽타주 10개(`Content/PG/Animations/Montages`, `.../Meta/Montages`의 `AM_Fire_*`)에 Wwise 플러그인의 `AnimNotify_AkEvent` 노티파이를 꽂는다
+  - 노티파이의 **Follow는 끈다**. 켜 두면 캐릭터에 AkComponent가 없어서 화면에 노란 경고 글자가 뜬다
+- 팀원들이 사운드 작업은 전부 맡김 (소리용 수정은 허락 불필요)
+- Wwise 메뉴 위치는 공식 문서로 확인할 것: https://www.audiokinetic.com/ko/public-library/2025.1.11_9262/?source=Help&id=welcome_to_wwise (처음 열 때 캡차가 뜨면 사용자가 직접 풀어야 함)
+
+## 7. TODO
 
 - [x] 플러그인 빌드 확인, 첫 이벤트(`Play_UI_Click`)와 뱅크 생성
 - [x] `.gitignore` 확정, 소리 창구·소리 표·버튼 클릭음 커밋
