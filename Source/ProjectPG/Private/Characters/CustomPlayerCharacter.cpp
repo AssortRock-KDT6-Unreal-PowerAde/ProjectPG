@@ -38,11 +38,8 @@ void ACustomPlayerCharacter::RefreshVitalsWidget()
 	VitalsWidget = CreateWidget<UCharacterVitalsWidget>(PC);
 	if (!VitalsWidget) return;
 	VitalsWidget->ObserveCharacter(this);
-	VitalsWidget->SetDesiredSizeInViewport(FVector2D(480.f, 100.f));
-	VitalsWidget->SetPositionInViewport(FVector2D(24.f, -24.f), false);
-	// 위치/크기 API는 앵커를 좌측 상단으로 초기화하므로 앵커를 마지막에 설정합니다.
-	VitalsWidget->SetAnchorsInViewport(FAnchors(0.f, 1.f));
-	VitalsWidget->SetAlignmentInViewport(FVector2D(0.f, 1.f));
+	// 전체 플레이어 화면을 사용하고 체력/탄약과 크로스헤어는 내부 Canvas에서 배치합니다.
+	VitalsWidget->SetAnchorsInViewport(FAnchors(0.f, 0.f, 1.f, 1.f));
 	VitalsWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
 	if (!VitalsWidget->AddToPlayerScreen())
 	{

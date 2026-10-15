@@ -123,6 +123,7 @@ public:
 	void SetAmmoCapacityEquipment(class AEquipment* Equipment, bool bEquipped);
 	UFUNCTION(BlueprintPure, Category="Combat|Ammo")
 	int32 GetReserveAmmo(EWeaponType WeaponType) const;
+	virtual bool HasInfiniteReserveAmmo() const { return false; }
 	UFUNCTION(BlueprintPure, Category="Combat|Ammo")
 	int32 GetReserveAmmoCapacity(EWeaponType WeaponType) const;
 	// 서버 전용 획득 API. 장비 해제 후 초과 탄약은 보존하고 신규 획득만 제한합니다.

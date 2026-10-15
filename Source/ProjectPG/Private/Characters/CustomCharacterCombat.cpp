@@ -25,6 +25,7 @@ void ACustomCharacter::RegisterFirearm(AFirearmEquipment* Weapon)
 void ACustomCharacter::InitializeReserveAmmo(EWeaponType Type, int32 BaseCapacity)
 {
 	if (!HasAuthority()) return;
+	if (HasInfiniteReserveAmmo()) return;
 	if (Type == EWeaponType::None) return;
 	FWeaponReserveAmmoState* State = ReserveAmmoStates.FindByPredicate([Type](const FWeaponReserveAmmoState& S) { return S.WeaponType == Type; });
 	if (!State)
@@ -67,6 +68,7 @@ void ACustomCharacter::SetAmmoCapacityEquipment(AEquipment* Equipment, bool bEqu
 
 int32 ACustomCharacter::GetReserveAmmo(EWeaponType Type) const
 {
+	if (HasInfiniteReserveAmmo() && Type != EWeaponType::None) return MAX_int32;
 	const auto* State = ReserveAmmoStates.FindByPredicate([Type](const FWeaponReserveAmmoState& S) { return S.WeaponType == Type; });
 	return State ? State->ReserveAmmo : 0;
 }
@@ -218,6 +220,12 @@ void ACustomCharacter::HandleReloadEnded(UAnimMontage* Montage, bool bInterrupte
 	ReloadingFirearm.Reset();
 	ReloadMontage.Reset();
 	if (bInterrupted || !IsValid(Weapon) || ActiveFirearm != Weapon || !CanBeHit_Implementation()) return;
+	if (HasInfiniteReserveAmmo())
+	{
+		Weapon->LoadAmmo(Weapon->GetMagazineCapacity());
+		OnAmmoChanged.Broadcast();
+		return;
+	}
 	auto* State = ReserveAmmoStates.FindByPredicate([Weapon](const FWeaponReserveAmmoState& S) { return S.WeaponType == Weapon->GetWeaponType(); });
 	if (!State) return;
 	State->ReserveAmmo -= Weapon->LoadAmmo(State->ReserveAmmo);

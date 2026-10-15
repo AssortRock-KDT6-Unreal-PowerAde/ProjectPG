@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "Characters/CustomCharacter.h"
 #include "Characters/CustomPlayerCharacter.h"
+#include "Characters/CustomEnemyCharacter.h"
 #include "CustomGameplayTags.h"
 #include "Equipments/Equipment.h"
 
@@ -47,7 +48,7 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	if (LeftHandIKEquipment.IsValid())
 		LeftHandIKEquipment->GetLeftHandIKTarget(LeftHandIKTransform, LeftHandIKAlpha, LeftHandIKReferenceBone);
 
-	ACustomPlayerCharacter* character = Cast<ACustomPlayerCharacter>(TryGetPawnOwner());
+	ACustomCharacter* character = Cast<ACustomCharacter>(TryGetPawnOwner());
 	if (!IsValid(character))
 		return;
 
@@ -59,8 +60,11 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		FRotator AimRotation = (character->GetControlRotation() - character->GetActorRotation()).GetNormalized();
 		AimRotation.Roll = 0.f;
 		SyncAim(AimRotation);
-		character->OnReq_SyncAimRotation({AimRotation.Yaw, AimRotation.Pitch});
+		if (auto* Player = Cast<ACustomPlayerCharacter>(character))
+			Player->OnReq_SyncAimRotation({AimRotation.Yaw, AimRotation.Pitch});
 	}
+	if (const auto* Enemy = Cast<ACustomEnemyCharacter>(character))
+		SyncAim(Enemy->GetEnemyAimOffset().X, Enemy->GetEnemyAimOffset().Y);
 
 	const UAbilitySystemComponent* abilitySystemComp = character->GetAbilitySystemComponent();
 	bIsSprinting = IsValid(abilitySystemComp)

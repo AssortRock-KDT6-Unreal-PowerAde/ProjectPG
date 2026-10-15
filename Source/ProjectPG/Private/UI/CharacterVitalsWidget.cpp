@@ -8,6 +8,9 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/SizeBox.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/Image.h"
 #include "Equipments/FirearmEquipment.h"
 #include "GameplayAbilities/WeaponAttributeSet.h"
 
@@ -18,7 +21,37 @@ void UCharacterVitalsWidget::NativeOnInitialized()
 	{
 		auto* Box = WidgetTree->ConstructWidget<UVerticalBox>();
 		auto* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
-		WidgetTree->RootWidget = Row;
+		auto* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>();
+		WidgetTree->RootWidget = Canvas;
+		auto* VitalsSlot = Canvas->AddChildToCanvas(Row);
+		VitalsSlot->SetAnchors(FAnchors(0.f, 1.f));
+		VitalsSlot->SetAlignment(FVector2D(0.f, 1.f));
+		VitalsSlot->SetPosition(FVector2D(24.f, -24.f));
+		VitalsSlot->SetSize(FVector2D(480.f, 100.f));
+		// 폰트 대신 도형을 사용해 조준 중심과 선 두께를 일정하게 유지합니다.
+		auto AddCrosshairRect = [&](FVector2D Position, FVector2D Size, FLinearColor Color)
+		{
+			auto* Image = WidgetTree->ConstructWidget<UImage>();
+			FSlateBrush Brush;
+			Brush.DrawAs = ESlateBrushDrawType::Image;
+			Brush.TintColor = FSlateColor(Color);
+			Image->SetBrush(Brush);
+			auto* ImageSlot = Canvas->AddChildToCanvas(Image);
+			ImageSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+			ImageSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+			ImageSlot->SetPosition(Position);
+			ImageSlot->SetSize(Size);
+		};
+		auto AddCrosshairMark = [&](FVector2D Position, FVector2D Size)
+		{
+			AddCrosshairRect(Position, Size + FVector2D(2.f, 2.f), FLinearColor(0.f, 0.f, 0.f, 0.65f));
+			AddCrosshairRect(Position, Size, FLinearColor(0.95f, 0.95f, 0.95f));
+		};
+		AddCrosshairMark(FVector2D::ZeroVector, FVector2D(2.f, 2.f));
+		AddCrosshairMark(FVector2D(-8.f, 0.f), FVector2D(6.f, 1.f));
+		AddCrosshairMark(FVector2D(8.f, 0.f), FVector2D(6.f, 1.f));
+		AddCrosshairMark(FVector2D(0.f, -8.f), FVector2D(1.f, 6.f));
+		AddCrosshairMark(FVector2D(0.f, 8.f), FVector2D(1.f, 6.f));
 		auto* VitalsSize = WidgetTree->ConstructWidget<USizeBox>();
 		VitalsSize->SetWidthOverride(260.f);
 		VitalsSize->SetContent(Box);
