@@ -10,7 +10,7 @@
     "Type": "User",
     "GUID": "{443FEB4E-D154-4824-AEB5-74F53347D904}",
     "Language": "SFX",
-    "Hash": "{D3BFB47F-679D-2C55-9D5E-7172A44DFCE3}",
+    "Hash": "{D54A9749-8FD9-24D2-FFF9-AB11037C9422}",
     "ObjectPath": "\\SoundBanks\\Default Work Unit\\Weapon",
     "ShortName": "Weapon",
     "Path": "Weapon.bnk",
@@ -29,7 +29,7 @@
       "Streaming": "false",
       "Location": "Memory",
       "ShortName": "S_GUNShotg_Saiga 12 Cal.12 DESIGNED Single Shot Core Long_DRCA_SG12_Stereo.wav",
-      "CachePath": "57/{57FE2521-54B8-13A9-A567-D2396A727F5C}.wem"
+      "CachePath": "C0/{C086F362-B3C9-5E63-E9E0-17F24C8DA857}.wem"
      },
      {
       "Id": "367715101",
@@ -195,8 +195,8 @@
       "GUID": "{CF2376D9-0AD8-451B-A490-714FB2613283}",
       "MaxAttenuation": "15000",
       "DurationType": "OneShot",
-      "DurationMin": "36.98415",
-      "DurationMax": "65.89826",
+      "DurationMin": "1.4983071",
+      "DurationMax": "2.6696796",
       "MediaRefs": [
        {
         "Id": "354075555"
@@ -290,6 +290,6 @@
     ]
    }
   ],
-  "FileHash": "{5A27B1A1-32EC-DD81-9AE1-99D489E3CFC2}"
+  "FileHash": "{F56C7463-0D0F-2669-4D6B-14EC7A18D1B4}"
  }
 }

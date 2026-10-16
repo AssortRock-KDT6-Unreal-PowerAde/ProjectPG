@@ -57,6 +57,12 @@
 					</ReferenceList>
 					<ChildrenList>
 						<AudioFileSource Name="S_GUNShotg_Saiga 12 Cal_12 DESIGNED Single Shot Core Long_DRCA_SG12_Stereo" ID="{C5EB0C67-AF1E-4EAE-95E8-E4CA06A781F9}">
+							<PropertyList>
+								<Property Name="FadeOutDuration" Type="Real64" Value="0.8"/>
+								<Property Name="LoopBegin" Type="Real64" Value="0"/>
+								<Property Name="OverrideWavLoop" Type="bool" Value="True"/>
+								<Property Name="TrimEnd" Type="Real64" Value="2"/>
+							</PropertyList>
 							<Language>SFX</Language>
 							<AudioFile>S_GUNShotg_Saiga 12 Cal.12 DESIGNED Single Shot Core Long_DRCA_SG12_Stereo.wav</AudioFile>
 							<MediaIDList>
