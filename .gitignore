@@ -75,3 +75,6 @@ Plugins/**/Intermediate/*
 DerivedDataCache/*
 Content/*
 !Content/PG
+
+# 파이썬이 만드는 캐시
+__pycache__/
