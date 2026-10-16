@@ -1,0 +1,16 @@
+{
+  "name": "unreal-mcpython-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP stdio bridge that exposes UnrealMCPython's TCP python_call functions as MCP tools",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "list-tools": "node scripts/list-tools.js",
+    "smoke-test": "node scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  }
+}

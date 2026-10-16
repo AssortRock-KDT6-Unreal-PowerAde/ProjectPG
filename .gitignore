@@ -80,3 +80,8 @@ Content/*
 Plugins/Wwise*/
 ProjectPG_WwiseProject/Originals/
 !Content/WwiseAudio
+
+# UnrealPythonMCP 연결 도구: npm ci 로 받는다
+Tools/UnrealMCPBridge/node_modules/
+# Claude Code 개인 설정
+.claude/settings.local.json

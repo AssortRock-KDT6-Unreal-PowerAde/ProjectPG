@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "unreal-mcpython": {
+      "command": "node",
+      "args": ["Tools/UnrealMCPBridge/server.js"],
+      "env": {
+        "UE_MCP_HOST": "127.0.0.1",
+        "UE_MCP_PORT": "12029"
+      }
+    }
+  }
+}
