@@ -135,12 +135,13 @@ public:
 	};
 
 	// 타일·시설 BP 에 찍어 둔 상자 자리(LootSlot) 중 판마다 몇 개에 상자를 놓을지. 타일(묶음)마다 이 범위에서 고른다.
-	// 예: 최소 1, 최대 0 → 자리가 3개인 타일은 판마다 1~3개.
+	// 기본 최소 0, 최대 1 → 타일마다 "없음" 아니면 1개(판마다 400개 안팎). 자리 3개 중 어디에 나올지는 판마다 바뀐다.
+	// 왜 1개까지만: 타일마다 자리를 3~4개 찍어 두어서, 최대를 자리 수까지 두면 판마다 1500개가 넘었다.
 	UPROPERTY(EditAnywhere, Category = "상자", meta = (ClampMin = "0"))
-	int32 MinActiveSlotsPerGroup = 1;
+	int32 MinActiveSlotsPerGroup = 0;
 	// 0 = 그 타일의 자리 수까지.
 	UPROPERTY(EditAnywhere, Category = "상자", meta = (ClampMin = "0"))
-	int32 MaxActiveSlotsPerGroup = 0;
+	int32 MaxActiveSlotsPerGroup = 1;
 	// 상자 자리를 아직 안 찍은 타일에 예전 방식(코드가 정한 Loot 지점)으로 상자를 놓을지.
 	// 켜 두면: 자리를 찍은 타일은 자리대로, 안 찍은 타일은 예전대로. 모든 타일에 자리를 찍었으면 끈다.
 	UPROPERTY(EditAnywhere, Category = "상자")

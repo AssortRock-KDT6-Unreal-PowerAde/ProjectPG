@@ -13,9 +13,6 @@
 #include "EngineUtils.h"
 #include "TimerManager.h"
 
-// 맵이 놓은 상자에 붙이는 표. 들어온 사람 쪽에서 "맵이 놓은 상자" 만 세는 데 쓴다.
-static const FName MapLootContainerTag(TEXT("MapLootContainer"));
-
 void UMapItemSpawner::Init(AMapBuilder* InMap)
 {
 	Map = InMap;
@@ -74,7 +71,6 @@ AInteractActor* UMapItemSpawner::SpawnContainer(UClass* ContainerClass, const FV
 	AInteractActor* Container = GetWorld()->SpawnActor<AInteractActor>(ContainerClass, FloorPoint, Rotation, SpawnParameters);
 	if (!IsValid(Container))
 		return nullptr;
-	Container->Tags.AddUnique(MapLootContainerTag);
 
 	// 팩에서 가져온 상자 BP 는 부품(뚜껑 등)이 스태틱으로 저장돼 있을 수 있다.
 	// 스태틱이면 게임 중에 못 움직여서 바닥 맞추기가 무시되고, 상자가 떠 있거나 바닥에 박힌다 → 전부 무버블로.
@@ -178,7 +174,7 @@ void UMapItemSpawner::ResetRecordedLootSlots()
 // 상자 자리마다 상자 놓기.
 // ① 상자 BP 목록(DA_MapAssets 의 LootContainerClasses)을 읽는다. 못 읽는 칸은 빼고 로그로 알린다.
 // ② 사람이 타일·시설 BP 에 찍어 둔 상자 자리(LootSlot): 타일(묶음)마다 판 시드로 몇 개를 골라 그 자리에 놓는다.
-//    예: 자리 3개짜리 타일 → 어떤 판은 1개, 어떤 판은 2개. 개수 범위는 DA_MapAssets 의 MinActive/MaxActiveSlotsPerGroup.
+//    예: 자리 3개짜리 타일 → 어떤 판은 없음, 어떤 판은 그중 1개. 개수 범위는 DA_MapAssets 의 MinActive/MaxActiveSlotsPerGroup.
 //    왜 이렇게 바꿨나: 예전 지점은 코드가 칸 가운데에서 숫자로 정한 위치라, 언덕·소품이 있으면 상자가 묻히거나 떴다.
 // ③ 예전 방식(코드가 정한 Loot 지점): 자리를 아직 안 찍은 칸에만. 그 자리 씨앗으로 상자를 고르고 바로 아래 바닥에 놓는다.
 //    둘 다 아래로 선을 쏴서 바닥(창고 2층이면 2층 바닥)에 내려놓는다 — 벽 속이 아니라 손 닿는 바닥이어야
