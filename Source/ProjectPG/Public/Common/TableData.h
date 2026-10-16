@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "InputMappingContext.h"
-#include "Actor/EquipActor.h"
+#include "Equipments/Equipment.h"
 #include "Engine/DataTable.h"
 #include "Common/GameDefine.h"
 #include "Common/GameData.h"
@@ -47,6 +47,10 @@ struct FCharacterTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	// 캐릭터 기준 메시의 상대 위치, 회전, 스케일 조정값.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform RootMeshTransform = FTransform::Identity;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FName, TObjectPtr<USkeletalMesh>> ChildSkeletalMeshes;
@@ -114,19 +118,51 @@ struct FEquipTableRow : public FTableRowBase
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere)
-	int32 ItemID;
+	int32 ItemID = 0;
 
 	UPROPERTY(EditAnywhere)
-	EEquipSlot EquipType;
+	EEquipSlot EquipType = EEquipSlot::MAX;
 
 	UPROPERTY(EditAnywhere)
-	FName SocketName;
-
-	//UPROPERTY(EditAnywhere)
-	//TArray<FAbilityData> Abilities;
+	TObjectPtr<UMaterialInterface> HolsterPistolMaterial;
 
 	UPROPERTY(EditAnywhere)
-	TSubclassOf<AEquipActor> EquipActorClass;
+	TSubclassOf<UAttributeSet> Attributes;
+
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<AEquipment> EquipActorClass;
+
+	UPROPERTY(EditAnywhere)
+	TMap<FName, FSkeletalMeshEquipmentData> SkeletalMeshes;
+
+	UPROPERTY(EditAnywhere)
+	TMap<FName, FStaticMeshEquipmentData> StaticMeshes;
+
+	UPROPERTY(EditAnywhere)
+	TMap<FName, FActorEquipmentData> ActorEquipments;
+
+	// 탄창/탄약 소지 장비. 중복 장착해도 소지 한도는 최대 2배입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bDoublesAmmoCapacity = false;
+};
+
+// RowName은 ItemTable / EquipTable과 같은 ItemID를 사용합니다.
+USTRUCT(BlueprintType)
+struct FWeaponTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<UCustomAnimInstance> AnimBlueprint;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EWeaponType WeaponType = EWeaponType::None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FWeaponHandIKData LeftHandIK;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FFirearmData Firearm;
 };
 
 USTRUCT(BlueprintType)
@@ -139,6 +175,25 @@ struct FDropTableaRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere)
 	TArray<FDropItemData> DropItems;
+};
+
+USTRUCT(BlueprintType)
+struct FEnemyTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	// RowName은 CharacterTable의 캐릭터 ID와 같습니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName WeaponItemID = TEXT("1010");
+	// 1은 추가 조준 오차 없음, 0은 최대 10도. 총기 자체 탄퍼짐은 별도입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0", ClampMax="1")) float Accuracy = 0.7f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float Health = 100.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float MoveSpeed = 250.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float DetectionRange = 2500.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float AttackRange = 1200.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0")) float PatrolRadius = 600.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0")) float CoverSearchRadius = 700.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.1")) float CoverWaitTime = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.1")) float AttackDuration = 1.5f;
 };
 
 USTRUCT(BlueprintType)

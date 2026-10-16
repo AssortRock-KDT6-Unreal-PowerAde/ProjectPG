@@ -23,8 +23,6 @@ static void SafeRemoveWidget_InventoryWindow(UWidget* Widget)
 	}
 }
 
-
-
 void UInventoryWindow::NativeConstruct()
 {
 	Super::NativeConstruct();

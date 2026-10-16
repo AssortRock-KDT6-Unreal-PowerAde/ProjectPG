@@ -11,6 +11,8 @@
 #include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Components/CapsuleComponent.h"
+#include "Animation/AnimMontage.h"
 
 ACustomCharacter::ACustomCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomCharacterMovementComponent>(
@@ -45,7 +47,7 @@ void ACustomCharacter::Tick(float DeltaTime)
 	if (!IsValid(CharacterAttributeSet))
 		return;
 
-	if (HasAuthority()
+	if (HasAuthority() && !IsDead()
 		&& IsValid(AbilitySystemComp)
 		&& !AbilitySystemComp->HasMatchingGameplayTag(CustomGameplayTags::State_UsingStamina)
 		&& CharacterAttributeSet->GetStamina() < CharacterAttributeSet->GetMaxStamina())
@@ -56,31 +58,6 @@ void ACustomCharacter::Tick(float DeltaTime)
 			FMath::Min(RecoveredStamina, CharacterAttributeSet->GetMaxStamina()));
 	}
 
-	if (IsLocallyControlled() && GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(
-			0,
-			0.f,
-			FColor::Red,
-			FString::Printf(
-				TEXT("Health: %.1f / %.1f"),
-				CharacterAttributeSet->GetHealth(),
-				CharacterAttributeSet->GetMaxHealth()));
-
-		GEngine->AddOnScreenDebugMessage(
-			1,
-			0.f,
-			FColor::Green,
-			FString::Printf(
-				TEXT("Stamina: %.1f / %.1f"),
-				CharacterAttributeSet->GetStamina(),
-				CharacterAttributeSet->GetMaxStamina()));
-	}
-}
-
-void ACustomCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
 void ACustomCharacter::OnRep_PlayerState()
@@ -91,6 +68,10 @@ void ACustomCharacter::OnRep_PlayerState()
 	{
 		AbilitySystemComp->InitAbilityActorInfo(this, this);
 	}
+}
+
+void ACustomCharacter::OnRep_CharacterAttributeSet()
+{
 }
 
 void ACustomCharacter::PossessedBy(AController* NewController)
@@ -108,7 +89,12 @@ void ACustomCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ACustomCharacter, CharacterAttributeSet);
+	DOREPLIFETIME(ACustomCharacter, ActiveFirearm);
+	DOREPLIFETIME_CONDITION(ACustomCharacter, ReserveAmmoStates, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ACustomCharacter, bDoubleAmmoCapacity, COND_OwnerOnly);
 	DOREPLIFETIME(ACustomCharacter, bIsAiming);
+	DOREPLIFETIME(ACustomCharacter, DeathAnimationIndex);
+	DOREPLIFETIME(ACustomCharacter, bIsDead);
 }
 
 UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
@@ -116,28 +102,48 @@ UAbilitySystemComponent* ACustomCharacter::GetAbilitySystemComponent() const
 	return AbilitySystemComp;
 }
 
-void ACustomCharacter::EquipItem(const FString& SocketName, UObject* Item)
+void ACustomCharacter::PlayMontage(UAnimMontage* Montage)
 {
+	if (IsDead() || !IsValid(Montage)) return;
+	if (HasAuthority())
+	{
+		// 서버 발사와 AI는 소유 클라이언트에서도 반드시 재생합니다.
+		OnRep_PlayMontage(Montage, false);
+	}
+	else if (IsLocallyControlled())
+	{
+		PlayAnimMontage(Montage);
+		OnReq_PlayMontage(Montage);
+	}
 }
 
-void ACustomCharacter::Fire()
+void ACustomCharacter::OnReq_PlayMontage_Implementation(UAnimMontage* Montage)
 {
-	// TODO : 무기 장비 여부 확인
-	// TODO : Muzzle을 찾고 이펙트, 레이캐스트
+	if (!IsDead() && IsValid(Montage)) OnRep_PlayMontage(Montage, true);
 }
 
-bool ACustomCharacter::ApplyWeaponAnimation(EWeaponType NewWeaponType)
+void ACustomCharacter::OnRep_PlayMontage_Implementation(UAnimMontage* Montage, bool bSkipOwningClient)
 {
+	if (IsDead() || !IsValid(Montage) || (bSkipOwningClient && !HasAuthority() && IsLocallyControlled())) return;
+	PlayAnimMontage(Montage);
+}
+
+bool ACustomCharacter::ApplyWeaponAnimation(EWeaponType NewWeaponType, TSubclassOf<UCustomAnimInstance> AnimClass)
+{
+	if (IsDead() && DeathAnimInstance.IsValid()) return false;
 	USkeletalMeshComponent* MeshComponent = GetMesh();
 	if (!IsValid(MeshComponent))
 		return false;
 
 	const FWeaponAnimationSet* AnimationSet = FindWeaponAnimationSet(NewWeaponType);
-	if (!AnimationSet || !AnimationSet->AnimInstanceClass)
+	if (!AnimClass && AnimationSet) AnimClass = AnimationSet->AnimInstanceClass;
+	if (!AnimClass)
 		return false;
 
-	MeshComponent->SetAnimInstanceClass(AnimationSet->AnimInstanceClass);
+	if (MeshComponent->GetAnimClass() != AnimClass.Get())
+		MeshComponent->SetAnimInstanceClass(AnimClass);
 	CurrentWeaponType = NewWeaponType;
+	if (IsDead()) ApplyDeathState();
 	return true;
 }
 
@@ -148,6 +154,7 @@ const FWeaponAnimationSet* ACustomCharacter::GetCurrentWeaponAnimationSet() cons
 
 void ACustomCharacter::SetAiming(bool bNewAiming)
 {
+	if (IsDead()) return;
 	bIsAiming = bNewAiming;
 	if (auto* Movement = GetCustomCharacterMovement())
 		Movement->bWantsToAim = bNewAiming;
@@ -158,21 +165,13 @@ void ACustomCharacter::SetAiming(bool bNewAiming)
 
 void ACustomCharacter::OnReq_SetAiming_Implementation(bool bNewAiming)
 {
+	if (IsDead()) return;
 	bIsAiming = bNewAiming;
 }
 
 class UCustomCharacterMovementComponent* ACustomCharacter::GetCustomCharacterMovement() const
 {
 	return Cast<UCustomCharacterMovementComponent>(GetMovementComponent());
-}
-
-bool ACustomCharacter::CanSprintInCurrentState() const
-{
-	UCustomCharacterMovementComponent* MovementComponent = GetCustomCharacterMovement();
-	if (!IsValid(MovementComponent))
-		return false;
-
-	return MovementComponent->CanSprintInCurrentState();
 }
 
 bool ACustomCharacter::IsAiming() const
@@ -188,6 +187,12 @@ UCharacterAttributeSet* ACustomCharacter::GetCharacterAttributeSet() const
 void ACustomCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	if (HasAuthority() && CharacterAttributeSet)
+		CharacterAttributeSet->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleHealthChanged);
+	if (IsDead()) ApplyDeathState();
+	// 기본 Pawn/CharacterMesh 프로파일은 Visibility를 무시합니다.
+	// 이번 단순 전투는 캐릭터 캡슐을 피격 볼륨으로 사용합니다.
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	USkeletalMeshComponent* meshComponent = GetMesh();
 	if (!IsValid(meshComponent))
@@ -205,6 +210,7 @@ void ACustomCharacter::BeginPlay()
 	if (!IsValid(characterRow->SkeletalMesh))
 		return;
 	meshComponent->SetSkeletalMesh(characterRow->SkeletalMesh.Get());
+	meshComponent->SetRelativeTransform(characterRow->RootMeshTransform);
 
 	TArray<USceneComponent*> childrenMeshComps;
 	meshComponent->GetChildrenComponents(false, childrenMeshComps);
@@ -223,7 +229,7 @@ void ACustomCharacter::BeginPlay()
 			USkeletalMeshComponent* childMeshComp = Cast<USkeletalMeshComponent>(childComp);
 			childMeshComp->SetSkeletalMesh(characterRow->ChildSkeletalMeshes[compName]);
 			childMeshComp->SetLeaderPoseComponent(meshComponent);
-			
+
 			appliedChildrenMeshFNames.Add(compName);
 		}
 	}
@@ -235,14 +241,15 @@ void ACustomCharacter::BeginPlay()
 
 		USkeletalMeshComponent* newMeshComp = NewObject<USkeletalMeshComponent>(this, Key);
 		newMeshComp->SetSkeletalMesh(NewMesh);
-		
+
 		newMeshComp->SetupAttachment(meshComponent);
 		newMeshComp->RegisterComponent();
 
 		newMeshComp->SetLeaderPoseComponent(meshComponent);
 	}
-	
+
 	ApplyWeaponAnimation(CurrentWeaponType);
+	if (IsDead()) ApplyDeathState();
 }
 
 const FWeaponAnimationSet* ACustomCharacter::FindWeaponAnimationSet(EWeaponType WeaponType) const

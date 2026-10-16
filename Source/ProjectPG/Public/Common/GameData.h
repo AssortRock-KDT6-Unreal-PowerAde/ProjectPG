@@ -76,6 +76,7 @@ struct FItemInstance
 	UPROPERTY()
 	EItemType type = EItemType::ETC;
 };
+
 USTRUCT()
 struct FInventoryContainerSnapshot
 {
@@ -130,6 +131,7 @@ struct FItemArrayWrapper
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FItemInstance> Items;
 };
+
 USTRUCT(BlueprintType)
 struct FInventoryMapWrapper
 {
@@ -170,7 +172,6 @@ struct FInventoryMapWrapper
 
 	UPROPERTY()
 	TArray<FItemArrayWrapper> EquipItem;
-
 };
 
 USTRUCT(BlueprintType)
@@ -239,7 +240,7 @@ struct FWeaponAnimationSet
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TSubclassOf<class UAnimInstance> AnimInstanceClass;
+	TSubclassOf<class UCustomAnimInstance> AnimInstanceClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FGameplayTag, TObjectPtr<class UAnimMontage>> Montages;
@@ -249,4 +250,109 @@ struct FWeaponAnimationSet
 		const TObjectPtr<UAnimMontage>* Montage = Montages.Find(MontageTag);
 		return Montage ? Montage->Get() : nullptr;
 	}
+};
+
+USTRUCT(BlueprintType)
+struct FWeaponReserveAmmoState
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) EWeaponType WeaponType = EWeaponType::None;
+	UPROPERTY(BlueprintReadOnly) int32 ReserveAmmo = 0;
+	UPROPERTY(BlueprintReadOnly) int32 BaseReserveCapacity = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FFirearmData
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) int32 MagazineCapacity = 12;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0")) int32 ReserveCapacity = 60;
+	// 초당 발사 횟수. Range는 cm, ConeHalfAngle은 도 단위입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.1")) float FireRate = 3.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float Range = 10000.f;
+	// 한 발의 총 공격력. 각 레이는 Damage / TraceCount를 적용합니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0")) float Damage = 20.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0", ClampMax="45")) float ConeHalfAngle = 2.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1", ClampMax="32")) int32 TraceCount = 10;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName MuzzlePartName;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName MuzzleSocketName = TEXT("Muzzle");
+	// 소켓이 없는 무기는 MuzzleSocketName=None과 파츠 로컬 오프셋을 명시합니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector MuzzleOffset = FVector::ZeroVector;
+};
+
+// 무기 메시 또는 파지 소켓을 기준으로 지정하는 왼손 IK 목표.
+USTRUCT(BlueprintType)
+struct FWeaponHandIKData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bEnabled = false;
+
+	// Equipment Map의 Key. 배열 순서나 캐릭터 소켓 이름과는 별개입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName EquipmentPartName;
+
+	// 기존 에셋 로딩을 위한 호환 필드. Map 조회에는 사용하지 않습니다.
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use EquipmentPartName"))
+	int32 StaticMeshIndex = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName GripSocketName = TEXT("LeftHandGrip");
+
+	// 소켓 이름이 None이면 무기 메시 로컬 공간 기준.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform GripTransform = FTransform::Identity;
+
+	// ABP IK 노드의 Effector Space Bone Name과 일치시킵니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName ReferenceBoneName = TEXT("hand_r");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float Alpha = 1.f;
+};
+
+USTRUCT(BlueprintType)
+struct FSkeletalMeshEquipmentData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<USkeletalMesh> Mesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName SocketName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform RelativeTransform = FTransform::Identity;
+};
+
+USTRUCT(BlueprintType)
+struct FStaticMeshEquipmentData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<UStaticMesh> Mesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName SocketName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform RelativeTransform = FTransform::Identity;
+};
+
+USTRUCT(BlueprintType)
+struct FActorEquipmentData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<AActor> Blueprint;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName SocketName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform RelativeTransform = FTransform::Identity;
 };

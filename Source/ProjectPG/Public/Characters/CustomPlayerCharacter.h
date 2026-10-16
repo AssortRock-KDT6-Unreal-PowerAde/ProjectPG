@@ -7,7 +7,6 @@
 #include "CustomPlayerCharacter.generated.h"
 
 class UCustomAbilitySystemComponent;
-class UAnimMontage;
 
 /**
  * 
@@ -31,7 +30,14 @@ protected:
 	TObjectPtr<class UNativeActionComponent> NativeActionComp;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<class UInteractComponent> InteractComp;
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<class UCharacterVitalsWidget> VitalsWidget;
 public:
+	virtual void PawnClientRestart() override;
+	virtual void UnPossessed() override;
+	virtual void OnRep_Controller() override;
+	virtual void OnRep_PlayerState() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -39,12 +45,7 @@ public:
 	UCustomAbilitySystemComponent* GetCustomAbilitySystemComponent() const;
 	USpringArmComponent* GetCameraArm() const;
 	void Interact();
-	void PlayMontage(UAnimMontage* Montage);
-
-	UFUNCTION(Server, Reliable)
-	void OnReq_PlayMontage(UAnimMontage* Montage);
-	UFUNCTION(NetMulticast, Reliable)
-	void OnRep_PlayMontage(UAnimMontage* Montage);
+	virtual void GetCombatViewPoint(FVector& Location, FRotator& Rotation) const override;
 
 	UFUNCTION(Server, Unreliable)
 	void OnReq_SyncAimRotation(FVector2D AimDirection);
@@ -57,5 +58,9 @@ public:
 	void OnRep_SyncCharacterRotation(FVector2D AimDirection);
 
 protected:
+	virtual void OnRep_CharacterAttributeSet() override;
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+private:
+	void RefreshVitalsWidget();
 };

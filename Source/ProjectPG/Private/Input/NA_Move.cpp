@@ -11,7 +11,7 @@ bool UNA_Move::ShouldRegisterTriggerEvent(ETriggerEvent TriggerEvent) const
 
 void UNA_Move::Triggered(const FInputActionValue& InputActionValue, ACustomPlayerCharacter* PlayerCharacter)
 {
-	if (!IsValid(PlayerCharacter) || !PlayerCharacter->IsLocallyControlled())
+	if (!IsValid(PlayerCharacter) || PlayerCharacter->IsDead() || !PlayerCharacter->IsLocallyControlled())
 		return;
 	auto* Movement = PlayerCharacter->GetCharacterMovement();
 	if (!IsValid(Movement))

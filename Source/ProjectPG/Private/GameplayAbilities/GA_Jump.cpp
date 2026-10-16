@@ -21,7 +21,7 @@ bool UGA_Jump::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const
 		return false;
 
 	const ACustomCharacter* Character = Cast<ACustomCharacter>(ActorInfo->AvatarActor.Get());
-	if (!IsValid(Character) || !Character->CanJump())
+	if (!IsValid(Character) || Character->IsDead() || !Character->CanJump())
 		return false;
 
 	const UCharacterMovementComponent* MovementComponent = Character->GetCharacterMovement();
