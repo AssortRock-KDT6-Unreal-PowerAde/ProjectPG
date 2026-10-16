@@ -85,3 +85,5 @@ ProjectPG_WwiseProject/Originals/
 Tools/UnrealMCPBridge/node_modules/
 # Claude Code 개인 설정
 .claude/settings.local.json
+# 파이썬이 만드는 캐시
+__pycache__/
