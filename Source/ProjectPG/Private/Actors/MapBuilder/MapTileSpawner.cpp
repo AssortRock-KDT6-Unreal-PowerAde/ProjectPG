@@ -2,6 +2,7 @@
 
 #include "Actors/MapBuilder/MapBuildShared.h"
 #include "Actors/MapBuilder/MapAssetSet.h"
+#include "Actors/MapBuilder/MapItemSpawner.h"
 #include "Actors/TacticalTileActor.h"
 #include "Actors/TacticalTileRoadStraight.h"
 #include "Actors/ProceduralFacilityActor.h"
@@ -75,6 +76,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 			PackedComponent->DestroyComponent();
 	}
 	Map->RuntimePackedVisualHISMs.Reset();
+	if (Map->ItemSpawner)
+		Map->ItemSpawner->ResetRecordedLootSlots();
 	BuildElevatedFacilityTerrain();
 
 	// 검토가 끝난 LD_Tile 맵들은 PG.BuildPackedTileBlueprints 로 재사용 블루프린트 클래스에 담아 둔다.
@@ -697,6 +700,10 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 		// 타일 액터는 매번 똑같이 만들어지는 조립용 틀일 뿐이다. 보이는 스태틱 메시를
 		// 같이 쓰는 HISM 묶음으로 모은 뒤 액터는 버린다.
 		// 원본 배치 manifest 와 게임플레이 지점은 그대로다.
+		// 타일 BP 에 찍어 둔 상자 자리(LootSlot)는 액터와 같이 사라지므로, 지우기 전에 상자 담당에게 적어 둔다.
+		// 메시를 묶음으로 옮기기 전에 적는다: 옮긴 뒤에는 타일 크기(어느 칸을 덮는지)를 잴 메시가 없다.
+		if (Map->ItemSpawner)
+			Map->ItemSpawner->RecordLootSlots(Tile);
 		PackActorVisuals(Tile);
 		Tile->Destroy();
 		++PackedTileActorCount;
