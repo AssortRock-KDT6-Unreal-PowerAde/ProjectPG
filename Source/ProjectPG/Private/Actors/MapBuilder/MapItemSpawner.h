@@ -9,6 +9,19 @@
 class AActor;
 class AInteractActor;
 
+// 상자 자리 하나를 적어 둔 것. 타일 액터는 맵이 메시를 묶음(HISM)으로 옮긴 뒤 지우므로,
+// 지우기 전에 자리 표시(ULootSlotComponent)의 위치·설정을 여기에 옮겨 적는다.
+struct FLootSlotRecord
+{
+	// 같은 값끼리 한 묶음(타일 하나 + SlotGroup).
+	FString GroupKey;
+	FName SlotGroup;
+	// 노란 선 아래면 가운데 = 상자 바닥 점.
+	FVector Bottom = FVector::ZeroVector;
+	float Yaw = 0.0f;
+	TArray<TSoftClassPtr<AInteractActor>> ContainerClasses;
+};
+
 // 상자 자리에 나오는 아이템 한 줄 (데이터 테이블 DT_LootSpawn 의 한 줄).
 // 게임에서: "붕대는 흔하게(무게 5), 1~3개씩, 아무 자리에서나" / "에픽 소총은 드물게(무게 1), 좋은 자리(3)에서만".
 // 왜 표로 뺐나: 무엇이 얼마나 자주 나오는지는 기획·밸런스 값이라 코드 없이 바꿀 수 있어야 해서.
@@ -60,7 +73,15 @@ public:
 	// 시작 구역 담당이 플레이어를 자리에 세운 직후 부른다(서버만).
 	void SpawnTestContainerInFront(const FVector& SeatLocation, float Yaw);
 
+	// 타일 담당이 타일 액터를 지우기 직전에 부른다: 그 타일의 상자 자리를 적어 둔다.
+	void RecordLootSlots(AActor* Tile);
+	// 타일을 다시 지을 때(맵 다시 만들기) 적어 둔 자리를 비운다.
+	void ResetRecordedLootSlots();
+
 private:
+	// 액터에 달린 상자 자리를 기록으로 옮기고, 그 액터가 덮는 칸을 Cells 에 더한다.
+	static void AppendSlotsOf(AActor* Owner, TArray<FLootSlotRecord>& OutSlots, TSet<FIntPoint>& OutCells);
+
 	// 상자 하나를 바닥 점에 놓는다(서버만). 표 붙이기·무버블·바닥 맞추기까지.
 	AInteractActor* SpawnContainer(UClass* ContainerClass, const FVector& FloorPoint, const FRotator& Rotation);
 	// 상자 아래면을 바닥에 붙인다.
@@ -73,6 +94,10 @@ private:
 	TArray<TObjectPtr<UClass>> ContainerClasses;
 	// 테스트 상자를 몇 개 놓았나(상자 종류를 돌아가며 고르는 데 쓴다).
 	int32 TestContainerCount = 0;
+
+	// 지워진 타일에서 옮겨 적은 상자 자리와 그 타일들이 덮는 칸.
+	TArray<FLootSlotRecord> RecordedSlots;
+	TSet<FIntPoint> RecordedSlotCells;
 
 	// 이번 판에 놓은 상자. 바닥 찾기 선이 이미 놓은 상자 위에 걸리지 않게 빼는 데도 쓴다.
 	UPROPERTY()

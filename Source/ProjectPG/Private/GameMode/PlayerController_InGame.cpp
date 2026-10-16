@@ -36,6 +36,21 @@ void APlayerController_InGame::BeginPlay()
 		GetWorldTimerManager().SetTimer(InitialInventoryTimer, this, &APlayerController_InGame::TryInitializeInventory, 0.2f, true);
 		TryInitializeInventory();
 	}
+	
+	FInputModeGameOnly InputMode;
+	InputMode.SetConsumeCaptureMouseDown(true);
+	SetInputMode(InputMode);
+
+	// GetGameViewport()가 유효한지 안전 검사 후 진행
+	if (GetWorld() && GetWorld()->GetGameViewport())
+	{
+		FViewport* Viewport = GetWorld()->GetGameViewport()->Viewport;
+		if (Viewport)
+		{
+			Viewport->LockMouseToViewport(true); // 마우스를 화면에 완전히 가둡니다.
+			Viewport->CaptureMouse(true);       // 마우스 입력을 엔진이 캡처합니다.
+		}
+	}
 }
 
 void APlayerController_InGame::EndPlay(const EEndPlayReason::Type EndPlayReason)
