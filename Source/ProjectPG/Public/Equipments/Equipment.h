@@ -82,7 +82,7 @@ public:
 	void Req_Unequip();
 
 	UFUNCTION(BlueprintPure, Category = "Weapon|IK")
-	bool GetLeftHandIKTarget(FTransform& TargetTransform, float& Alpha, FName& ReferenceBoneName) const;
+	virtual bool GetLeftHandIKTarget(FTransform& TargetTransform, float& Alpha, FName& ReferenceBoneName) const;
 
 protected:
 	virtual void BeginPlay() override;

@@ -140,6 +140,10 @@ struct FEquipTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere)
 	TMap<FName, FActorEquipmentData> ActorEquipments;
+
+	// 탄창/탄약 소지 장비. 중복 장착해도 소지 한도는 최대 2배입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bDoublesAmmoCapacity = false;
 };
 
 // RowName은 ItemTable / EquipTable과 같은 ItemID를 사용합니다.
@@ -156,6 +160,9 @@ struct FWeaponTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FWeaponHandIKData LeftHandIK;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FFirearmData Firearm;
 };
 
 USTRUCT(BlueprintType)
@@ -168,6 +175,25 @@ struct FDropTableaRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere)
 	TArray<FDropItemData> DropItems;
+};
+
+USTRUCT(BlueprintType)
+struct FEnemyTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	// RowName은 CharacterTable의 캐릭터 ID와 같습니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName WeaponItemID = TEXT("1010");
+	// 1은 추가 조준 오차 없음, 0은 최대 10도. 총기 자체 탄퍼짐은 별도입니다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0", ClampMax="1")) float Accuracy = 0.7f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float Health = 100.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float MoveSpeed = 250.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float DetectionRange = 2500.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1")) float AttackRange = 1200.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0")) float PatrolRadius = 600.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0")) float CoverSearchRadius = 700.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.1")) float CoverWaitTime = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.1")) float AttackDuration = 1.5f;
 };
 
 USTRUCT(BlueprintType)

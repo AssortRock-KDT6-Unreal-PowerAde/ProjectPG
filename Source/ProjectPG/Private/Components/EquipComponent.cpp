@@ -6,6 +6,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Core/ItemSubSystem.h"
 #include "Equipments/Equipment.h"
+#include "Equipments/FirearmEquipment.h"
 #include "Core/TableSubSystem.h"
 #include "Core/UIManagerSubSystem.h"
 
@@ -375,7 +376,13 @@ void UEquipComponent::SpawnEquipActor(EEquipSlot Slot, UStaticMesh* Mesh)
 	FActorSpawnParameters Params;
 	Params.Owner = Character;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AEquipment* EquipItem = GetWorld()->SpawnActor<AEquipment>(ItemData->EquipActorClass, Character->GetActorTransform(), Params);
+	TSubclassOf<AEquipment> EquipClass = ItemData->EquipActorClass;
+	// 기존 데이터의 기본 AEquipment 행만 호환. 사용자 정의 장비 BP는 임의 교체하지 않습니다.
+	if (EquipClass == AEquipment::StaticClass())
+		if (auto* Items = UItemSubSystem::Get(this))
+			if (const auto* Weapon = Items->GetWeapon(Item->ItemID))
+				if (Weapon->WeaponType != EWeaponType::None) EquipClass = AFirearmEquipment::StaticClass();
+	AEquipment* EquipItem = GetWorld()->SpawnActor<AEquipment>(EquipClass, Character->GetActorTransform(), Params);
 	if (!EquipItem) return;
 	EquipItem->SetReplicates(true);
 	EquipItem->bOnlyRelevantToOwner = false;
