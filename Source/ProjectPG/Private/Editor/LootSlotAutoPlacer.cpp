@@ -11,10 +11,12 @@
 // 자리 고르는 법(칸 안을 1~1.5m 간격으로 훑는다):
 // ① 위에서 아래로 선을 쏴서 바닥을 찾는다. 2층 건물이면 2층 바닥도 찾는다.
 //    지붕(위에 아무것도 없고 땅보다 1.5m 넘게 높은 바닥)·물·기울어진 바닥은 뺀다.
-// ② 상자 크기보다 조금 큰 공간(가로세로 96cm, 높이 1m)에 벽·소품이 박히면 뺀다.
-// ③ 상자 네 귀퉁이 아래가 다 바닥이어야 한다(턱 끝에 걸치지 않게).
-// ④ 벽·소품 옆, 지붕 아래를 먼저 고른다. 상자 앞면은 벽 반대쪽(트인 쪽)을 본다.
-// ⑤ 자리끼리 4m 는 띄운다(층이 다르면 괜찮다). 개수는 칸 수로 정한다(1칸 3개, 2x2 7개, 6x6 20개).
+// ② 바깥(하늘이 보이는 땅)에서 걸어서 갈 수 있는 바닥만 남긴다. 이웃 칸으로는 계단 높이 차까지,
+//    사이에 벽이 없을 때만 건너간다 → 문 없는 건물 안, 계단 없는 2층, 막힌 담장 안은 빠진다.
+// ③ 상자 크기보다 조금 큰 공간(가로세로 96cm, 높이 1m)에 벽·소품이 박히면 뺀다.
+// ④ 상자 네 귀퉁이 아래가 다 바닥이어야 한다(턱 끝에 걸치지 않게).
+// ⑤ 벽·소품 옆, 지붕 아래를 먼저 고른다. 상자 앞면은 벽 반대쪽(트인 쪽)을 본다.
+// ⑥ 자리끼리 4m 는 띄운다(층이 다르면 괜찮다). 개수는 1칸 타일 3개, 그보다 큰 시설 4개.
 
 #if WITH_EDITOR
 
@@ -84,6 +86,9 @@ namespace LootSlotAutoPlacer
 		int32 Target = 0;
 		int32 Existing = 0;
 		int32 Candidates = 0;
+		// 사람이 설 수 있는 바닥 수 / 그중 바깥에서 걸어 갈 수 있는 수.
+		int32 Walkable = 0;
+		int32 Reachable = 0;
 		TArray<FTransform> Picked;
 	};
 
@@ -185,10 +190,10 @@ namespace LootSlotAutoPlacer
 		return (Hash % 1000) / 1000.0f;
 	}
 
-	// 칸 수 → 자리 수. 1칸 3, 1x2 5, 2x2 7, 3x3 12, 6x6 20.
+	// 자리 수: 1칸 타일 3개, 그보다 큰 시설(BP·레벨) 4개.
 	static int32 TargetCount(int32 Cells)
 	{
-		return FMath::Clamp(FMath::RoundToInt(2.2f * FMath::Pow(static_cast<float>(Cells), 0.75f) + 1.0f), 3, 20);
+		return Cells <= 1 ? 3 : 4;
 	}
 
 	static bool TooClose(const FVector& A, const FVector& B)
@@ -206,11 +211,30 @@ namespace LootSlotAutoPlacer
 
 		const float Step = Result.Cells <= 4 ? 100.0f : 150.0f;
 		const FVector BoxHalf(48.0f, 48.0f, 50.0f);
-		TArray<FCandidate> Candidates;
-		for (float X = Scene.Region.Min.X; X <= Scene.Region.Max.X; X += Step)
+
+		// ① 사람이 설 수 있는 바닥을 칸마다 모은다.
+		struct FNode
 		{
-			for (float Y = Scene.Region.Min.Y; Y <= Scene.Region.Max.Y; Y += Step)
+			FIntPoint Grid;
+			FFloor Floor;
+			bool bHasCeiling = false;
+			float CeilingZ = 0.0f;
+			bool bReached = false;
+		};
+		TArray<FNode> Nodes;
+		TMap<FIntPoint, TArray<int32>> NodesAt;
+		const int32 CountX = FMath::FloorToInt((Scene.Region.Max.X - Scene.Region.Min.X) / Step) + 1;
+		const int32 CountY = FMath::FloorToInt((Scene.Region.Max.Y - Scene.Region.Min.Y) / Step) + 1;
+		auto PointOf = [&](const FNode& Node)
+		{
+			return FVector(Scene.Region.Min.X + Node.Grid.X * Step, Scene.Region.Min.Y + Node.Grid.Y * Step, Node.Floor.Z);
+		};
+		for (int32 IX = 0; IX < CountX; ++IX)
+		{
+			for (int32 IY = 0; IY < CountY; ++IY)
 			{
+				const float X = Scene.Region.Min.X + IX * Step;
+				const float Y = Scene.Region.Min.Y + IY * Step;
 				const TArray<FFloor> Floors = FloorsAt(Scene, X, Y);
 				for (int32 Index = 0; Index < Floors.Num(); ++Index)
 				{
@@ -219,63 +243,124 @@ namespace LootSlotAutoPlacer
 					// 지붕: 위에 아무것도 없는데 땅보다 높다.
 					if (!bHasCeiling && Floor.Z > Scene.GroundZ + 150.0f)
 						continue;
-					if (Floor.bWater || (!Floor.bVirtual && Floor.Normal.Z < 0.95f))
+					// 물, 비탈(계단·경사로까지는 된다).
+					if (Floor.bWater || (!Floor.bVirtual && Floor.Normal.Z < 0.7f))
 						continue;
 					// 천장이 너무 낮으면(기어 들어가야 하는 틈) 뺀다.
 					if (bHasCeiling && Floors[Index - 1].Z - Floor.Z < 200.0f)
 						continue;
-					const FVector Point(X, Y, Floor.Z);
-					if (IsBlocked(Scene, Point + FVector(0.0f, 0.0f, BoxHalf.Z + 6.0f), BoxHalf))
+					// 사람 하나 설 자리(무릎 높이부터 머리까지)가 비어야 한다.
+					if (IsBlocked(Scene, FVector(X, Y, Floor.Z + 115.0f), FVector(25.0f, 25.0f, 70.0f)))
 						continue;
-					// 네 귀퉁이 아래도 바닥이어야 한다(공통 땅 위는 늘 평평하다).
-					if (!Floor.bVirtual)
-					{
-						bool bFlat = true;
-						for (const FVector2D Corner : { FVector2D(40, 30), FVector2D(-40, 30), FVector2D(40, -30), FVector2D(-40, -30) })
-						{
-							const FVector Above = Point + FVector(Corner.X, Corner.Y, 25.0f);
-							FHitResult Hit;
-							if (!FirstHit(Scene, Above, Above - FVector(0.0f, 0.0f, 50.0f), Hit)
-								|| FMath::Abs(Hit.ImpactPoint.Z - Floor.Z) > 10.0f)
-							{
-								bFlat = false;
-								break;
-							}
-						}
-						if (!bFlat)
-							continue;
-					}
-
-					// 둘레 8 방향으로 2m 선을 쏴서 벽·소품이 몇 쪽에 있는지 본다.
-					int32 WallSides = 0;
-					float NearestDistance = TNumericLimits<float>::Max();
-					float NearestYaw = 0.0f;
-					for (int32 Side = 0; Side < 8; ++Side)
-					{
-						const float Yaw = Side * 45.0f;
-						const FVector Start = Point + FVector(0.0f, 0.0f, 50.0f);
-						FHitResult Hit;
-						if (FirstHit(Scene, Start, Start + FRotator(0.0f, Yaw, 0.0f).Vector() * 200.0f, Hit))
-						{
-							++WallSides;
-							if (Hit.Distance < NearestDistance)
-							{
-								NearestDistance = Hit.Distance;
-								NearestYaw = Yaw;
-							}
-						}
-					}
-
-					FCandidate& Candidate = Candidates.AddDefaulted_GetRef();
-					Candidate.Floor = Point;
-					Candidate.Score = (WallSides >= 1 && WallSides <= 5 ? 3.0f : (WallSides > 5 ? 1.0f : 0.0f))
-						+ (bHasCeiling ? 2.0f : 0.0f) + Hash01(Point) * 0.9f;
-					// 상자 앞면(X축)은 가장 가까운 벽의 반대쪽. 벽이 없으면 15도 단위로 아무렇게나.
-					Candidate.Yaw = WallSides > 0
-						? FRotator::NormalizeAxis(NearestYaw + 180.0f)
-						: FMath::FloorToFloat(Hash01(Point + FVector(7.0f)) * 24.0f) * 15.0f;
+					FNode& Node = Nodes.AddDefaulted_GetRef();
+					Node.Grid = FIntPoint(IX, IY);
+					Node.Floor = Floor;
+					Node.bHasCeiling = bHasCeiling;
+					Node.CeilingZ = bHasCeiling ? Floors[Index - 1].Z : 0.0f;
+					NodesAt.FindOrAdd(Node.Grid).Add(Nodes.Num() - 1);
 				}
 			}
+		}
+
+		// ② 바깥에서 걸어 들어갈 수 있는 바닥만 남긴다.
+		// 시작: 하늘이 보이는 땅. 이웃 칸으로는 높이 차가 계단 정도이고 사이에 벽이 없을 때만 건너간다.
+		// 그래서 문 없는 건물 안, 계단 없는 2층, 막힌 담장 안은 빠진다.
+		TArray<int32> Queue;
+		for (int32 Index = 0; Index < Nodes.Num(); ++Index)
+		{
+			if (!Nodes[Index].bHasCeiling && FMath::Abs(Nodes[Index].Floor.Z - Scene.GroundZ) <= 150.0f)
+			{
+				Nodes[Index].bReached = true;
+				Queue.Add(Index);
+			}
+		}
+		const float MaxRise = Step * 0.7f;
+		for (int32 Head = 0; Head < Queue.Num(); ++Head)
+		{
+			const FNode From = Nodes[Queue[Head]];
+			for (const FIntPoint Offset : { FIntPoint(1, 0), FIntPoint(-1, 0), FIntPoint(0, 1), FIntPoint(0, -1) })
+			{
+				const TArray<int32>* Neighbors = NodesAt.Find(From.Grid + Offset);
+				if (!Neighbors)
+					continue;
+				for (const int32 NeighborIndex : *Neighbors)
+				{
+					FNode& To = Nodes[NeighborIndex];
+					if (To.bReached || FMath::Abs(To.Floor.Z - From.Floor.Z) > MaxRise)
+						continue;
+					const float WalkZ = FMath::Max(From.Floor.Z, To.Floor.Z) + 50.0f;
+					FHitResult Hit;
+					const FVector A = PointOf(From), B = PointOf(To);
+					if (FirstHit(Scene, FVector(A.X, A.Y, WalkZ), FVector(B.X, B.Y, WalkZ), Hit))
+						continue;
+					To.bReached = true;
+					Queue.Add(NeighborIndex);
+				}
+			}
+		}
+		Result.Reachable = Queue.Num();
+		Result.Walkable = Nodes.Num();
+
+		// ③ 갈 수 있는 바닥 중 상자를 놓을 만한 곳.
+		TArray<FCandidate> Candidates;
+		for (const FNode& Node : Nodes)
+		{
+			if (!Node.bReached)
+				continue;
+			const FFloor& Floor = Node.Floor;
+			const bool bHasCeiling = Node.bHasCeiling;
+			if (!Floor.bVirtual && Floor.Normal.Z < 0.95f)
+				continue;
+			const FVector Point = PointOf(Node);
+			if (IsBlocked(Scene, Point + FVector(0.0f, 0.0f, BoxHalf.Z + 6.0f), BoxHalf))
+				continue;
+			// 네 귀퉁이 아래도 바닥이어야 한다(공통 땅 위는 늘 평평하다).
+			if (!Floor.bVirtual)
+			{
+				bool bFlat = true;
+				for (const FVector2D Corner : { FVector2D(40, 30), FVector2D(-40, 30), FVector2D(40, -30), FVector2D(-40, -30) })
+				{
+					const FVector Above = Point + FVector(Corner.X, Corner.Y, 25.0f);
+					FHitResult Hit;
+					if (!FirstHit(Scene, Above, Above - FVector(0.0f, 0.0f, 50.0f), Hit)
+						|| FMath::Abs(Hit.ImpactPoint.Z - Floor.Z) > 10.0f)
+					{
+						bFlat = false;
+						break;
+					}
+				}
+				if (!bFlat)
+					continue;
+			}
+
+			// 둘레 8 방향으로 2m 선을 쏴서 벽·소품이 몇 쪽에 있는지 본다.
+			int32 WallSides = 0;
+			float NearestDistance = TNumericLimits<float>::Max();
+			float NearestYaw = 0.0f;
+			for (int32 Side = 0; Side < 8; ++Side)
+			{
+				const float Yaw = Side * 45.0f;
+				const FVector Start = Point + FVector(0.0f, 0.0f, 50.0f);
+				FHitResult Hit;
+				if (FirstHit(Scene, Start, Start + FRotator(0.0f, Yaw, 0.0f).Vector() * 200.0f, Hit))
+				{
+					++WallSides;
+					if (Hit.Distance < NearestDistance)
+					{
+						NearestDistance = Hit.Distance;
+						NearestYaw = Yaw;
+					}
+				}
+			}
+
+			FCandidate& Candidate = Candidates.AddDefaulted_GetRef();
+			Candidate.Floor = Point;
+			Candidate.Score = (WallSides >= 1 && WallSides <= 5 ? 3.0f : (WallSides > 5 ? 1.0f : 0.0f))
+				+ (bHasCeiling ? 2.0f : 0.0f) + Hash01(Point) * 0.9f;
+			// 상자 앞면(X축)은 가장 가까운 벽의 반대쪽. 벽이 없으면 15도 단위로 아무렇게나.
+			Candidate.Yaw = WallSides > 0
+				? FRotator::NormalizeAxis(NearestYaw + 180.0f)
+				: FMath::FloorToFloat(Hash01(Point + FVector(7.0f)) * 24.0f) * 15.0f;
 		}
 		Result.Candidates = Candidates.Num();
 
@@ -465,8 +550,8 @@ namespace LootSlotAutoPlacer
 		const FTransform ActorTransform = Temp->GetActorTransform();
 		World->EditorDestroyActor(Temp, false);
 
-		UE_LOG(LogTemp, Display, TEXT("Auto loot slots: %s cells=%d target=%d existing=%d candidates=%d added=%d%s"),
-			*Blueprint->GetName(), Result.Cells, Result.Target, Result.Existing, Result.Candidates, Result.Picked.Num(),
+		UE_LOG(LogTemp, Display, TEXT("Auto loot slots: %s cells=%d target=%d existing=%d walkable=%d reachable=%d candidates=%d added=%d%s"),
+			*Blueprint->GetName(), Result.Cells, Result.Target, Result.Existing, Result.Walkable, Result.Reachable, Result.Candidates, Result.Picked.Num(),
 			Job.bDry ? TEXT(" (dry)") : TEXT(""));
 		if (Job.bDry || Result.Picked.IsEmpty())
 		{
@@ -582,8 +667,8 @@ namespace LootSlotAutoPlacer
 		FResult Result;
 		Result.Cells = CellsX * CellsY;
 		PickSlots(Scene, Existing, Result);
-		UE_LOG(LogTemp, Display, TEXT("Auto loot slots: %s cells=%d target=%d existing=%d candidates=%d added=%d removed=%d%s"),
-			*Name, Result.Cells, Result.Target, Result.Existing, Result.Candidates, Result.Picked.Num(), RemovedHere,
+		UE_LOG(LogTemp, Display, TEXT("Auto loot slots: %s cells=%d target=%d existing=%d walkable=%d reachable=%d candidates=%d added=%d removed=%d%s"),
+			*Name, Result.Cells, Result.Target, Result.Existing, Result.Walkable, Result.Reachable, Result.Candidates, Result.Picked.Num(), RemovedHere,
 			Job.bDry ? TEXT(" (dry)") : TEXT(""));
 		if (Job.bDry)
 			return;
