@@ -13,8 +13,8 @@ void UAnimNotify_Fire::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBas
 	if (!IsValid(MeshComp))
 		return;
 	
-	ACustomCharacter* character = Cast<ACustomCharacter>(MeshComp->GetAttachParentActor());
-	if (!IsValid(character))
+	ACustomCharacter* character = Cast<ACustomCharacter>(MeshComp->GetOwner());
+	if (!IsValid(character) || !character->HasAuthority() || MeshComp != character->GetMesh())
 		return;
 	
 	character->Fire();

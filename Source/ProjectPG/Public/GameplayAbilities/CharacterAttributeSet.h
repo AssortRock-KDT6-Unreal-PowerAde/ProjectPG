@@ -7,6 +7,8 @@
 #include "AttributeSet.h"
 #include "CharacterAttributeSet.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCharacterVitalChanged, float, Current, float, Maximum);
+
 #define ATTRIBUTE_ACCESSORS(ClassName, PropertyName) \
     GAMEPLAYATTRIBUTE_PROPERTY_GETTER(ClassName, PropertyName) \
     GAMEPLAYATTRIBUTE_VALUE_GETTER(PropertyName) \
@@ -25,22 +27,33 @@ public:
 	UCharacterAttributeSet();
 
 public:
-	UPROPERTY(BlueprintReadOnly, Replicated)
+	UPROPERTY(BlueprintAssignable)
+	FCharacterVitalChanged OnHealthChanged;
+	UPROPERTY(BlueprintAssignable)
+	FCharacterVitalChanged OnStaminaChanged;
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Health)
 	FGameplayAttributeData Health;
-	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, Health)
 
-	UPROPERTY(BlueprintReadOnly, Replicated)
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxHealth)
 	FGameplayAttributeData MaxHealth;
-	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, MaxHealth)
 
-	UPROPERTY(BlueprintReadOnly, Replicated)
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Stamina)
 	FGameplayAttributeData Stamina;
-	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, Stamina)
 
-	UPROPERTY(BlueprintReadOnly, Replicated)
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxStamina)
 	FGameplayAttributeData MaxStamina;
-	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, MaxStamina)
 
 public:
+	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, Health)
+	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, MaxHealth)
+	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, Stamina)
+	ATTRIBUTE_ACCESSORS(UCharacterAttributeSet, MaxStamina)
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue) override;
+private:
+	UFUNCTION() void OnRep_Health(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_MaxHealth(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_Stamina(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_MaxStamina(const FGameplayAttributeData& OldValue);
 };

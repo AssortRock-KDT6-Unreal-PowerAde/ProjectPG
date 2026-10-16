@@ -14,6 +14,8 @@ namespace CustomGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Ability_Sprint);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Ability_Jump);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Weapon_Fire);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Weapon_SelectMain);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Weapon_SelectSub);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Weapon_Reload);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Weapon_IronSight);
 
@@ -31,4 +33,8 @@ namespace CustomGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Reload_Ironsights);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Death_Hip);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_Death_Ironsights);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_HitReact_1);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_HitReact_2);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_HitReact_3);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(WeaponAnimation_HitReact_4);
 };

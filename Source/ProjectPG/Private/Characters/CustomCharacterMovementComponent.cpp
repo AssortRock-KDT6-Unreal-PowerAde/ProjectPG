@@ -76,6 +76,12 @@ UCustomCharacterMovementComponent::UCustomCharacterMovementComponent()
 
 void UCustomCharacterMovementComponent::PhysicsRotation(float DeltaTime)
 {
+	// AI는 정지 중에도 포커스를 향해 회전하고 순찰 시 이동 방향을 따릅니다.
+	if (CharacterOwner && CharacterOwner->Controller && !CharacterOwner->IsPlayerControlled())
+	{
+		Super::PhysicsRotation(DeltaTime);
+		return;
+	}
 	if (!HasValidData() || !CharacterOwner->Controller
 		|| CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy
 		|| UpdatedComponent->IsSimulatingPhysics())

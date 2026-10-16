@@ -20,7 +20,7 @@ bool UGA_Sprint::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, con
 		return false;
 
 	const ACustomCharacter* Character = Cast<ACustomCharacter>(ActorInfo->AvatarActor.Get());
-	if (!IsValid(Character))
+	if (!IsValid(Character) || Character->IsDead())
 		return false;
 
 	const UCharacterAttributeSet* AttributeSet = Character->GetCharacterAttributeSet();

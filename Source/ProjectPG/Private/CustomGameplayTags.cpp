@@ -12,6 +12,8 @@ namespace CustomGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Ability_Sprint, "Input.Ability.Sprint");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Ability_Jump, "Input.Ability.Jump");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_Fire, "Input.Weapon.Fire");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_SelectMain, "Input.Weapon.SelectMain");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_SelectSub, "Input.Weapon.SelectSub");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_Reload, "Input.Weapon.Reload");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Weapon_IronSight, "Input.Weapon.Ironsight");
 
@@ -29,4 +31,8 @@ namespace CustomGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Reload_Ironsights, "WeaponAnimation.Reload.Ironsights");
 	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Death_Hip, "WeaponAnimation.Death.Hip");
 	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_Death_Ironsights, "WeaponAnimation.Death.Ironsights");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_HitReact_1, "WeaponAnimation.HitReact.1");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_HitReact_2, "WeaponAnimation.HitReact.2");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_HitReact_3, "WeaponAnimation.HitReact.3");
+	UE_DEFINE_GAMEPLAY_TAG(WeaponAnimation_HitReact_4, "WeaponAnimation.HitReact.4");
 };

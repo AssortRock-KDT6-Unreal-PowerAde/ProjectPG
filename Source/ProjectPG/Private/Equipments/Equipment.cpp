@@ -145,6 +145,11 @@ void AEquipment::Attach()
 	USceneComponent* RootComp = GetRootComponent();
 	RootComp->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 	bIsEquipped = true;
+	if (HasAuthority())
+		if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
+			if (auto* Items = UItemSubSystem::Get(this))
+				if (const FEquipTableRow* Row = Items->GetEquip(EquipmentItemID))
+					Character->SetAmmoCapacityEquipment(this, Row->bDoublesAmmoCapacity);
 
 	for (const auto& [Socket, EquipType] : SocketItemTypes)
 	{
@@ -204,15 +209,11 @@ void AEquipment::Attach()
 	if (auto* Items = UItemSubSystem::Get(this))
 		if (const auto* Row = Items->GetWeapon(EquipmentItemID))
 		{
-			if (Row->AnimBlueprint)
-			{
-				if (OwnerMesh->GetAnimClass() != Row->AnimBlueprint.Get())
-					OwnerMesh->SetAnimInstanceClass(Row->AnimBlueprint);
-				if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
-					Character->ApplyWeaponAnimation(Row->WeaponType, Row->AnimBlueprint);
-			}
-			else if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
-				Character->ApplyWeaponAnimation(Row->WeaponType);
+			// 캐릭터 경로에서 사망 중 ABP 교체를 차단합니다.
+			if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
+				Character->ApplyWeaponAnimation(Row->WeaponType, Row->AnimBlueprint);
+			else if (Row->AnimBlueprint && OwnerMesh->GetAnimClass() != Row->AnimBlueprint.Get())
+				OwnerMesh->SetAnimInstanceClass(Row->AnimBlueprint);
 			LeftHandIKData = Row->LeftHandIK;
 		}
 	if (LeftHandIKData.bEnabled)
@@ -228,6 +229,8 @@ void AEquipment::Attach()
 
 void AEquipment::Detach()
 {
+	if (auto* Character = Cast<ACustomCharacter>(OwnerCharacter))
+		Character->SetAmmoCapacityEquipment(this, false);
 	bIsEquipped = false;
 	if (BoundAnimInstance.IsValid()) BoundAnimInstance->ClearLeftHandIKEquipment(this);
 	if (IsValid(OwnerMesh))
