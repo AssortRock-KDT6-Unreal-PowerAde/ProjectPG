@@ -37,6 +37,34 @@ void UMapItemSpawner::PlaceOnFloor(AActor* Container, const FVector& FloorPoint)
 		Container->AddActorWorldOffset(FVector(0.0f, 0.0f, FloorPoint.Z - Bounds.Min.Z + 1.0f));
 }
 
+// Start→End 선에서 처음 닿는 바닥. 눈에 보이고 사람이 밟는 것만 바닥으로 친다.
+// 보이는 표면(삼각형)으로 잰다: 시내 보도블록(SM_ground_mod_tile)은 충돌 상자가 보이는 면보다 높아서,
+// 충돌 상자 위에 올리면 상자가 떠 보였다.
+static bool TraceFloor(const UWorld* World, const FVector& Start, const FVector& End, const FCollisionQueryParams& Params, FHitResult& OutHit)
+{
+	FCollisionObjectQueryParams Objects;
+	Objects.AddObjectTypesToQuery(ECC_WorldStatic);
+	Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
+	FCollisionQueryParams Complex = Params;
+	Complex.bTraceComplex = true;
+	TArray<FHitResult> Hits;
+	World->LineTraceMultiByObjectType(Hits, Start, End, Objects, Complex);
+	bool bFound = false;
+	for (const FHitResult& Hit : Hits)
+	{
+		const UPrimitiveComponent* Component = Hit.GetComponent();
+		if (Hit.bStartPenetrating || !Component || !Component->IsVisible() || Component->bHiddenInGame
+			|| Component->GetCollisionResponseToChannel(ECC_Pawn) != ECR_Block)
+			continue;
+		if (!bFound || Hit.Distance < OutHit.Distance)
+		{
+			OutHit = Hit;
+			bFound = true;
+		}
+	}
+	return bFound;
+}
+
 AInteractActor* UMapItemSpawner::SpawnContainer(UClass* ContainerClass, const FVector& FloorPoint, const FRotator& Rotation)
 {
 	// 주인(Owner)은 두지 않는다: F 상호작용(UInteractComponent)은 맞은 물체에 주인이 있으면 주인을 열려고 해서,
@@ -78,8 +106,7 @@ void UMapItemSpawner::SpawnTestContainerInFront(const FVector& SeatLocation, flo
 	FCollisionQueryParams FloorQuery(SCENE_QUERY_STAT(MapTestContainerFloor), false);
 	FloorQuery.AddIgnoredActors(SpawnedContainers);
 	FHitResult Hit;
-	const bool bFloor = GetWorld()->LineTraceSingleByChannel(
-		Hit, Front + FVector(0.0f, 0.0f, 150.0f), Front - FVector(0.0f, 0.0f, 400.0f), ECC_Visibility, FloorQuery);
+	const bool bFloor = TraceFloor(GetWorld(), Front + FVector(0.0f, 0.0f, 150.0f), Front - FVector(0.0f, 0.0f, 400.0f), FloorQuery, Hit);
 	const FVector FloorPoint = bFloor ? FVector(Hit.ImpactPoint) : Front - FVector(0.0f, 0.0f, 120.0f);
 
 	// 상자 종류는 돌아가며: 플레이어마다 다른 상자를 열어 볼 수 있게.
@@ -173,16 +200,22 @@ void UMapItemSpawner::SpawnLootOnce()
 	// 확인용: 몇 초 뒤 받은 상자 수와 그 안의 아이템 수를 로그에 남긴다(가까운 것만 오므로 서버 수보다 적을 수 있다).
 	if (GetWorld()->GetNetMode() == NM_Client)
 	{
+		// 상자 종류(DA_MapAssets 목록)로 센다. 이름표(Tags)는 복제가 안 돼서 클라에서는 늘 비어 있다.
+		TArray<UClass*> LootClasses;
+		for (const TSoftClassPtr<AInteractActor>& Entry : Map->GetMapAssets().LootContainerClasses)
+			if (UClass* Class = Entry.LoadSynchronous())
+				LootClasses.Add(Class);
 		FTimerHandle CountTimer;
 		TWeakObjectPtr<UWorld> WeakWorld(GetWorld());
-		GetWorld()->GetTimerManager().SetTimer(CountTimer, FTimerDelegate::CreateLambda([WeakWorld]()
+		GetWorld()->GetTimerManager().SetTimer(CountTimer, FTimerDelegate::CreateLambda([WeakWorld, LootClasses]()
 		{
 			if (!WeakWorld.IsValid())
 				return;
 			int32 ContainerCount = 0, Filled = 0, ItemsInside = 0;
 			for (TActorIterator<AInteractActor> It(WeakWorld.Get()); It; ++It)
 			{
-				if (!It->Tags.Contains(MapLootContainerTag))
+				// 서버에서 복제로 받은 것만(클라가 직접 가진 상자는 빼고).
+				if (It->HasAuthority() || !LootClasses.ContainsByPredicate([&It](const UClass* Class) { return It->IsA(Class); }))
 					continue;
 				++ContainerCount;
 				// 안 아이템 수: 형님 인벤토리 복제(OnRep)가 채워 준 이 상자 칸(MyActorGuid)의 아이템 수.
@@ -237,8 +270,7 @@ void UMapItemSpawner::SpawnLootOnce()
 	{
 		const FVector Designed = Point.WorldLocation - FVector(0.0f, 0.0f, 120.0f);
 		FHitResult Hit;
-		const bool bFloor = GetWorld()->LineTraceSingleByChannel(
-			Hit, Designed + FVector(0.0f, 0.0f, 60.0f), Designed - FVector(0.0f, 0.0f, 60.0f), ECC_Visibility, FloorQuery);
+		const bool bFloor = TraceFloor(GetWorld(), Designed + FVector(0.0f, 0.0f, 60.0f), Designed - FVector(0.0f, 0.0f, 60.0f), FloorQuery, Hit);
 		if (!bFloor)
 		{
 			++NoFloorCount;
@@ -302,8 +334,7 @@ void UMapItemSpawner::SpawnLootOnce()
 
 			// 언덕 등으로 땅이 살짝 다르면 ±60cm 안에서 맞춘다.
 			FHitResult Hit;
-			const bool bFloor = GetWorld()->LineTraceSingleByChannel(
-				Hit, Slot.Bottom + FVector(0.0f, 0.0f, 60.0f), Slot.Bottom - FVector(0.0f, 0.0f, 60.0f), ECC_Visibility, FloorQuery);
+			const bool bFloor = TraceFloor(GetWorld(), Slot.Bottom + FVector(0.0f, 0.0f, 60.0f), Slot.Bottom - FVector(0.0f, 0.0f, 60.0f), FloorQuery, Hit);
 			if (!bFloor)
 				++NoFloorCount;
 			const FVector FloorPoint = bFloor ? FVector(Hit.ImpactPoint) : Slot.Bottom;
