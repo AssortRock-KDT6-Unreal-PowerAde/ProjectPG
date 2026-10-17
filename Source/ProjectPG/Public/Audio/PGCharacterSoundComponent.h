@@ -54,6 +54,7 @@ private:
 	void TryBindAnimInstance();
 	int32 BindTries = 0;
 	FTimerHandle BindTimer;
+	TWeakObjectPtr<UAnimInstance> BoundAnim;
 
 	UFUNCTION()
 	void HandleMontageStarted(UAnimMontage* Montage);

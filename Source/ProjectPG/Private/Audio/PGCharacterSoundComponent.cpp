@@ -54,6 +54,7 @@ void UPGCharacterSoundComponent::TryBindAnimInstance()
 	if (Anim)
 	{
 		Anim->OnMontageStarted.AddUniqueDynamic(this, &UPGCharacterSoundComponent::HandleMontageStarted);
+		BoundAnim = Anim;
 		return;
 	}
 	if (++BindTries >= MaxBindTries)
@@ -102,6 +103,7 @@ float UPGCharacterSoundComponent::FindFireNotifyTime(UAnimMontage* Montage)
 void UPGCharacterSoundComponent::HandleMontageStarted(UAnimMontage* Montage)
 {
 	if (!Montage || !OwnerCharacter) return;
+	UE_LOG(LogPGCharacterSound, Verbose, TEXT("%s: 몽타주 시작 %s"), *GetNameSafe(OwnerCharacter), *GetNameSafe(Montage));
 	UAnimInstance* Anim = OwnerCharacter->GetMesh()->GetAnimInstance();
 	const float Rate = FMath::Max(Montage->RateScale * (Anim ? Anim->Montage_GetPlayRate(Montage) : 1.f), KINDA_SMALL_NUMBER);
 	FTimerManager& Timers = GetWorld()->GetTimerManager();
@@ -134,7 +136,12 @@ void UPGCharacterSoundComponent::FireNow()
 {
 	ACustomCharacter* Shooter = Cast<ACustomCharacter>(OwnerCharacter);
 	AFirearmEquipment* Firearm = Shooter ? Shooter->GetActiveFirearm() : nullptr;
-	if (!Firearm) return; // 총을 내려놓은 사이에 타이머가 끝난 경우 — 소리 없이 끝
+	if (!Firearm)
+	{
+		// 총을 내려놓은 사이에 타이머가 끝났거나, 이 클라에 아직 총 정보가 안 온 경우
+		UE_LOG(LogPGCharacterSound, Verbose, TEXT("%s: 발사 표시 시각인데 든 총이 없음 → 총소리 안 냄"), *GetNameSafe(OwnerCharacter));
+		return;
+	}
 	FVector Muzzle;
 	if (!Firearm->GetMuzzleLocation(Muzzle)) Muzzle = Firearm->GetActorLocation();
 	OnGunshot(Muzzle, Firearm->GetWeaponType());
@@ -187,6 +194,16 @@ void UPGCharacterSoundComponent::CheckMovement()
 {
 	const UCharacterMovementComponent* Move = OwnerCharacter ? OwnerCharacter->GetCharacterMovement() : nullptr;
 	if (!Move) return;
+
+	// 무기를 바꿀 때 몸 애니메이션 묶음(AnimInstance)이 새로 만들어지면 "몽타주 시작" 연결이 끊김 → 바뀌었으면 다시 연결.
+	// 따로 알려 주는 신호가 없어서 어차피 도는 이 확인에 얹음(비교 한 번이라 부담 없음).
+	const UAnimInstance* CurrentAnim = OwnerCharacter->GetMesh() ? OwnerCharacter->GetMesh()->GetAnimInstance() : nullptr;
+	if (CurrentAnim && CurrentAnim != BoundAnim.Get())
+	{
+		UE_LOG(LogPGCharacterSound, Verbose, TEXT("%s: 몸 애니메이션이 바뀜 → 몽타주 알림 다시 연결"), *GetNameSafe(OwnerCharacter));
+		BindTries = 0;
+		TryBindAnimInstance();
+	}
 
 	const bool bFalling = Move->IsFalling();
 	if (bWasFalling && !bFalling && Move->IsMovingOnGround())

@@ -4,7 +4,7 @@ Wwise 없이 엔진 내장 메타사운드만 쓴다. 팀원 누구나 플러그
 
 ## 누가 무엇을 맡나
 
-- **메타사운드 에셋** (`Content/PG/Audio/MetaSounds`): 소리 모양. 층, 필터, 거리별 섞기, 실내 메아리.
+- **메타사운드 에셋** (`Content/PG/Audio/MetaSounds`): 녹음을 어떻게 틀지. 합성 소리는 넣지 않고 녹음만 쓴다(총소리 = 가까운/먼 녹음을 거리로 섞기).
 - **소리 표 `DA_PGSounds`** (`Content/PG/Audio`): 무엇을 언제 틀지. 총 종류·재질·몽타주 → 소리, 음량, 보폭.
 - **C++** (`Audio/`): 사건이 언제·어디서·어떤 재질에서 났는지만 알아내서 넘긴다. 팀원 클래스는 고치지 않는다.
 - **BP 자식 `BP_PGCharacterSound`** (선택): `On…` 이벤트를 덮어쓰면 동작을 BP 로 바꿀 수 있다.
@@ -15,7 +15,7 @@ Wwise 없이 엔진 내장 메타사운드만 쓴다. 팀원 누구나 플러그
 flowchart TD
   S[서버: 발사·장전·피격·죽음 몽타주 재생] -->|이미 있는 멀티캐스트| C[모든 클라: 같은 몽타주 재생]
   C -->|몽타주 시작 알림| K[UPGCharacterSoundComponent<br/>클라에만, 캐릭터마다 자동으로 붙음]
-  K -->|발사 표시 시각까지 기다림| G[OnGunshot → MS_Gunshot<br/>Wave/FarWave/Indoor 입력]
+  K -->|발사 표시 시각까지 기다림| G[OnGunshot → MS_Gunshot<br/>Wave/FarWave 입력]
   K -->|보이기용 선 직접 쏨| I[OnBulletImpact → 재질별 탄착음]
   K -->|소리 표 MontageSounds| M[OnMontageSound → 장전·피격·죽음]
   MV[0.1초마다 이동 확인] --> K
@@ -31,7 +31,7 @@ flowchart TD
 
 - `Wave` (WaveAsset): 가까이서 들리는 녹음. 매번 표의 후보 중 하나.
 - `FarWave` (WaveAsset): 멀리서 들리는 녹음(총소리만).
-- `Indoor` (Float 0/1): 지붕 아래면 1 → 메아리를 진하게.
+- `Indoor` (Float 0/1): 지붕 아래면 1. 표에서 `bCheckIndoor` 를 켠 소리만 넘긴다. 지금 메타사운드는 이 입력을 안 쓴다(나중에 실내 녹음으로 바꿔 끼울 때 쓸 자리).
 - 거리: 메타사운드가 `UE.Attenuation` 인터페이스로 직접 받는다. C++ 은 넘기지 않는다.
 
 ## 재질

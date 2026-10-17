@@ -176,18 +176,15 @@ def build_one_shot(preview):
 
 
 def build_gunshot(preview_near, preview_far):
-    # 총소리 한 발 = 가까운 녹음 + 먼 녹음(거리로 섞음) + 합성 저음 "쿵" + 메아리(실내면 진하게).
+    # 총소리 한 발 = 가까운 녹음 + 먼 녹음을 듣는 사람과의 거리로 섞음. 합성 소리는 넣지 않는다(녹음만 씀).
     # 거리는 감쇠 인터페이스가 듣는 사람마다 따로 넣어 줌 → 같은 총도 사람마다 다르게 들림.
     g = Graph("MS_Gunshot")
     g.ok(g.b.add_interface("UE.Attenuation"), "감쇠 인터페이스")
     dist = g.interface_input("UE.Attenuation.Distance")
     wave = g.input("Wave", "WaveAsset", preview_near)  # 기본값 = 에디터 미리듣기용
     far_wave = g.input("FarWave", "WaveAsset", preview_far)
-    indoor = g.input("Indoor", "Float", 0.0)
     near_d = g.input("NearDistance", "Float", 1500.0)   # 이 거리까진 가까운 녹음만
     far_d = g.input("FarDistance", "Float", 8000.0)     # 이 거리부터 먼 녹음만
-    thump = g.input("ThumpLevel", "Float", 0.6)         # 가까이서만 들리는 저음 크기
-    tail = g.input("TailLevel", "Float", 0.35)          # 실내 메아리 크기
 
     near = g.node("UE", "Wave Player", "Mono")
     far = g.node("UE", "Wave Player", "Mono")
@@ -208,29 +205,9 @@ def build_gunshot(preview_near, preview_far):
     g.link(g.pin_out(near, "Out Mono"), layers, "In 0"); g.link(near_gain, layers, "Gain 0")
     g.link(g.pin_out(far, "Out Mono"), layers, "In 1"); g.link(t, layers, "Gain 1")
 
-    # 합성 저음: 잡음 → 저역만 남김 → 짧게 "쿵" 하고 사라지는 모양 → 가까울수록 크게
-    noise = g.node("UE", "Noise", "Audio")
-    lpf = g.node("UE", "One-Pole Low Pass Filter", "Audio"); g.link(g.pin_out(noise, "Audio"), lpf, "In"); g.set(lpf, "Cutoff Frequency", 140)
-    env = g.node("AD Envelope", "AD Envelope", "Audio"); g.link(g.on_play, env, "Trigger"); g.set(env, "Attack Time", 0.002); g.set(env, "Decay Time", 0.28)
-    shaped = g.node("UE", "Multiply", "Audio"); g.link(g.pin_out(lpf, "Out"), shaped, "PrimaryOperand"); g.link(g.pin_out(env, "Out Envelope"), shaped, "AdditionalOperands")
-    thump_gain = g.node("UE", "Multiply", "Float"); g.link(thump, thump_gain, "PrimaryOperand"); g.link(near_gain, thump_gain, "AdditionalOperands")
+    g.ok(g.b.connect_nodes(g.pin_out(layers, "Out"), g.outs[0]), "출력 연결")
 
-    body = g.node("AudioMixer", "Audio Mixer (Mono, 2)")
-    g.link(g.pin_out(layers, "Out"), body, "In 0"); g.set(body, "Gain 0", 1)
-    g.link(g.pin_out(shaped, "Out"), body, "In 1"); g.link(g.pin_out(thump_gain, "Out"), body, "Gain 1")
-
-    # 메아리: 밖에선 옅은 되울림, 실내면 Indoor(0/1) × TailLevel 만큼 진하고 길게
-    wet_in = g.node("UE", "Multiply", "Float"); g.link(indoor, wet_in, "PrimaryOperand"); g.link(tail, wet_in, "AdditionalOperands")
-    wet = g.node("UE", "Add", "Float"); g.set(wet, "PrimaryOperand", 0.12); g.link(g.pin_out(wet_in, "Out"), wet, "AdditionalOperands")
-    fb_in = g.node("UE", "Multiply", "Float"); g.link(indoor, fb_in, "PrimaryOperand"); g.set(fb_in, "AdditionalOperands", 0.35)
-    fb = g.node("UE", "Add", "Float"); g.set(fb, "PrimaryOperand", 0.2); g.link(g.pin_out(fb_in, "Out"), fb, "AdditionalOperands")
-    delay = g.node("UE", "Delay", "Audio")
-    g.link(g.pin_out(body, "Out"), delay, "In")
-    g.set(delay, "Delay Time", 0.085); g.set(delay, "Dry Level", 1.0)
-    g.link(g.pin_out(wet, "Out"), delay, "Wet Level"); g.link(g.pin_out(fb, "Out"), delay, "Feedback")
-    g.ok(g.b.connect_nodes(g.pin_out(delay, "Out"), g.outs[0]), "출력 연결")
-
-    # 메아리 꼬리까지 들리게 3초 뒤에 끝냄(녹음은 3초 이하로 잘라 둠).
+    # 녹음 둘 중 긴 쪽이 끝날 때까지 들리게 3초 뒤에 끝냄(녹음은 3초 이하로 잘라 둠).
     life = g.node("AD Envelope", "AD Envelope", "Audio"); g.link(g.on_play, life, "Trigger"); g.set(life, "Attack Time", 0); g.set(life, "Decay Time", 3.0)
     g.ok(g.b.connect_nodes(g.pin_out(life, "On Done"), g.on_finished), "끝 연결")
     return g.save()
@@ -263,7 +240,7 @@ def main():
                "Finale_Arrival", "Finale_Dragon", "Finale_Hover", "Finale_Launch", "Finale_Victory", "Finale_Warning",
                "Impact_Concrete", "Impact_Dirt", "Impact_Metal", "Impact_Wood", "Impact_Flesh", "Hit_React", "Body_Fall",
                "UI_Click", "UI_Hover", "UI_Open", "UI_Close", "UI_Error", "Reload",
-               "Gun_Rifle", "Gun_RifleFar", "Gun_Pistol", "Gun_PistolFar", "Gun_Shotgun", "Gun_ShotgunFar", "Gun_Reload"]
+               "Gun_Rifle", "Gun_RifleFar", "Gun_Pistol", "Gun_PistolFar", "Gun_Shotgun", "Gun_ShotgunFar", "Gun_Reload", "Step_Dirt", "Step_Grass"]
     w = {f: import_folder(f) for f in folders}
 
     att_gun = make_attenuation("ATT_Gunshot", 600, 15000, 2500)
@@ -279,10 +256,13 @@ def main():
 
     # 게임 총은 실총(AK·AR·권총·산탄총)이라 실제 녹음만 쓴다(미래형·기관포 녹음은 안 씀).
     fire = "Weapon_Fire"
-    rifle = w["Gun_Rifle"] + load_waves(fire, contains=["Dragunov_7_62_54R_DESIGNED"], exclude=["TRANSIENT"])
-    rifle_far = w["Gun_RifleFar"] + load_waves(fire, contains=["_FAR"], exclude=["TRANSIENT"])
-    pistol, pistol_far = w["Gun_Pistol"], w["Gun_PistolFar"]
-    shotgun = w["Gun_Shotgun"] + load_waves(fire, contains=["Saiga", "Shotgun_Fire_Slug"], exclude=["TRANSIENT"])
+    # 총 하나엔 녹음 한 계열만(여러 총을 섞으면 쏠 때마다 다른 총처럼 들림).
+    # 베레타 근거리 녹음은 평균 -40dB 로 거의 무음이라 안 씀.
+    rifle = load_waves("Gun_Rifle", contains=["M4_Shots"])
+    rifle_far = w["Gun_RifleFar"]
+    pistol = load_waves("Gun_Pistol", contains=["38_Plus_Power"])
+    pistol_far = w["Gun_PistolFar"]
+    shotgun = load_waves(fire, contains=["Saiga"], exclude=["TRANSIENT"])
     shotgun_far = w["Gun_ShotgunFar"]
     one = build_one_shot(w["UI_Click"][0])
     gun = build_gunshot(rifle[0], rifle_far[0])
@@ -291,9 +271,9 @@ def main():
     da = assets.load_asset(da_path) if assets.does_asset_exist(da_path) else tools.create_asset("DA_PGSounds", ROOT, unreal.PGSoundSet, unreal.DataAssetFactory())
     W = unreal.WeaponType
     da.set_editor_property("gunshots", {
-        W.RIFLE: cue(gun, rifle, att_gun, 1.0, 0.04, rifle_far, indoor=True),
-        W.SHOTGUN: cue(gun, shotgun, att_gun, 1.0, 0.04, shotgun_far, indoor=True),
-        W.PISTOL: cue(gun, pistol, att_gun, 0.8, 0.05, pistol_far, indoor=True),
+        W.RIFLE: cue(gun, rifle, att_gun, 1.0, 0.03, rifle_far),
+        W.SHOTGUN: cue(gun, shotgun, att_gun, 1.0, 0.03, shotgun_far),
+        W.PISTOL: cue(gun, pistol, att_gun, 0.8, 0.03, pistol_far),
     })
     da.set_editor_property("bullet_impacts", {
         S.SURFACE_TYPE_DEFAULT: cue(one, w["Impact_Concrete"], att_impact, 0.7, 0.08),
@@ -309,8 +289,8 @@ def main():
         S.SURFACE_TYPE1: cue(one, w["Footstep_Concrete"], att_step, 0.5, 0.06),
         S.SURFACE_TYPE2: cue(one, w["Footstep_Metal"], att_step, 0.5, 0.06),
         S.SURFACE_TYPE3: cue(one, w["Footstep_Wood"], att_step, 0.5, 0.06),
-        S.SURFACE_TYPE4: cue(one, w["Footstep_Soft"], att_step, 0.5, 0.06),
-        S.SURFACE_TYPE5: cue(one, w["Footstep_Grass"], att_step, 0.45, 0.06),
+        S.SURFACE_TYPE4: cue(one, w["Step_Dirt"], att_step, 0.5, 0.06),   # 흙·자갈(PMSFX)
+        S.SURFACE_TYPE5: cue(one, w["Step_Grass"], att_step, 0.45, 0.06),  # 마른 풀(PMSFX)
     })
     da.set_editor_property("landing", cue(one, w["Land"], att_step, 0.7, 0.05))
 
@@ -345,7 +325,7 @@ def main():
         "Container.Open": cue(one, w["Container_Open"], att_body, 0.7),
         "Door.Open": cue(one, w["Door_Open"], att_body, 0.8),
         "Door.Close": cue(one, w["Door_Close"], att_body, 0.8),
-        "Explosion.Barrel": cue(one, w["Explosion_Barrel"], att_big, 1.0, 0.04, indoor=True),
+        "Explosion.Barrel": cue(one, w["Explosion_Barrel"], att_big, 1.0, 0.04),
         "Ground.Collapse": cue(one, w["Ground_Collapse"], att_big, 1.0, 0.03),
         "Monster.Attack": cue(one, w["Monster_Attack"], att_body, 0.9, 0.06),
         "Monster.Death": cue(one, w["Monster_Death"], att_body, 1.0, 0.04),
