@@ -302,7 +302,7 @@ void UMapSpawnRegionPlanner::PlaceJoinedPlayers()
 // 왜 필요: 접속 직후 폰은 아무 데나 생기고, 맵이 다 지어질 때까지 수십 초 걸린다. 그 사이 몬스터가 먼저 죽였다.
 // - 자리 번호가 있는 사람 → 이미 섰다, 건너뜀
 // - 폰이 있는데 아직 안 막았다 → 막는다(폰이 바뀌었으면 옛 폰은 풀고 새 폰을 막는다)
-// - 60초가 지나도 못 세웠다 → 풀고 Error 로그, 다시 막지 않음
+// - 시간 제한(맵 액터의 SpawnProtectionTimeoutSeconds, 기본 60초)이 지나도 못 세웠다 → 풀고 Error 로그, 다시 막지 않음
 // 부담: 기다리는 사람이 없으면 PlayerController 수만큼 확인 몇 번.
 void UMapSpawnRegionPlanner::ProtectUnseatedPlayers()
 {
@@ -324,10 +324,10 @@ void UMapSpawnRegionPlanner::ProtectUnseatedPlayers()
 
 		const double FirstSeen = FirstSeenSeconds.FindOrAdd(PlayerController, Now);
 		FProtectedPawn& Protected = ProtectedByPlayer.FindOrAdd(PlayerController);
-		if (Now - FirstSeen > ProtectionTimeoutSeconds)
+		if (Now - FirstSeen > Map->SpawnProtectionTimeoutSeconds)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Spawn protect: %s not seated after %.0fs (map ready=%d, regions=%d) - protection removed, player is now hittable where they stand"),
-				*GetNameSafe(PlayerController), ProtectionTimeoutSeconds, Map->bResolvedGameplayPointSafety ? 1 : 0, Map->SpawnRegionCells.Num());
+				*GetNameSafe(PlayerController), Map->SpawnProtectionTimeoutSeconds, Map->bResolvedGameplayPointSafety ? 1 : 0, Map->SpawnRegionCells.Num());
 			if (APawn* OldPawn = Protected.Pawn.Get())
 				UnprotectPawn(OldPawn);
 			ProtectedByPlayer.Remove(PlayerController);

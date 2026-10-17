@@ -1,6 +1,6 @@
 #include "Actors/MapBuilder/PGLoadingScreenWidget.h"
 
-#include "Components/TextBlock.h"
+#include "Animation/WidgetAnimation.h"
 
 void UPGLoadingScreenWidget::NativeConstruct()
 {
@@ -11,8 +11,10 @@ void UPGLoadingScreenWidget::NativeConstruct()
 		LoadingCorner->SetVisibility(ESlateVisibility::HitTestInvisible);
 }
 
-void UPGLoadingScreenWidget::SetLoadingText(const FText& Text)
+float UPGLoadingScreenWidget::PlayHide()
 {
-	if (LoadingText)
-		LoadingText->SetText(Text);
+	if (!HideAnim)
+		return 0.0f;
+	PlayAnimation(HideAnim);
+	return HideAnim->GetEndTime();
 }

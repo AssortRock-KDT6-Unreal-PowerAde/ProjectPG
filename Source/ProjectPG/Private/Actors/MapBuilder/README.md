@@ -36,14 +36,14 @@ flowchart TD
         S1["처음 보는 PlayerController<br/>→ 자리 알림 부품(UMapSeatStatus) 붙이기"] --> S2["폰이 있으면 막기<br/>충돌 끔 + 제자리 멈춤 + 데미지 안 받음"]
         S2 --> S3{"맵 준비 끝?<br/>(끼임 정리 끝)"}
         S3 -- "예" --> S4["자리에 세우기 (PlaceAtSeat)<br/>→ 막기 풀기 → bSeated = true"]
-        S3 -- "아직" --> S5{"60초 넘음?"}
+        S3 -- "아직" --> S5{"Spawn Protection Timeout Seconds<br/>(맵 액터, 기본 60초) 넘음?"}
         S5 -- "예" --> S6["막기 풀기 + Error 로그"]
         S5 -- "아니오" --> S2
     end
     subgraph 화면["화면 있는 쪽 (클라·방장·혼자)"]
         C1["맵 BeginPlay → 로딩 창 띄움<br/>(DA_MapAssets 의 Loading Screen Class)"] --> C2{"bSeated 도착(OnRep_Seated)<br/>+ 내 맵도 다 지음(끼임 정리 끝)?"}
-        C2 -- "둘 다 예" --> C3["0.6초 흐려지며 닫힘"]
-        C2 -- "75초 넘음" --> C4["닫고 Error 로그"]
+        C2 -- "둘 다 예" --> C3["닫힘<br/>(WBP 에 HideAnim 애니메이션이 있으면 틀고 나서)"]
+        C2 -- "Wait Limit Seconds(WBP, 기본 75초) 넘음" --> C4["닫고 Error 로그"]
     end
     S4 -. "값 복제 (주인에게만)" .-> C2
 ```

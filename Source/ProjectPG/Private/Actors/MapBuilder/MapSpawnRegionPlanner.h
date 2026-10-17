@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
@@ -74,11 +74,10 @@ private:
 		bool bWasDamageable = true;
 	};
 	TMap<TWeakObjectPtr<APlayerController>, FProtectedPawn> ProtectedByPlayer;
-	// 처음 본 시각. 60초가 지나도 못 세우면 막기를 풀고 Error 로그(영영 무적보다 낫다).
+	// 처음 본 시각. 맵 액터의 SpawnProtectionTimeoutSeconds(기본 60초)가 지나도 못 세우면 막기를 풀고 Error 로그(영영 무적보다 낫다).
 	TMap<TWeakObjectPtr<APlayerController>, double> FirstSeenSeconds;
 	// 시간 제한으로 막기를 푼 사람(다시 막지 않는다).
 	TSet<TWeakObjectPtr<APlayerController>> ProtectionTimedOut;
-	static constexpr double ProtectionTimeoutSeconds = 60.0;
 
 private:
 	UPROPERTY()

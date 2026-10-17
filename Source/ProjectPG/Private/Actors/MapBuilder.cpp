@@ -316,8 +316,7 @@ void AMapBuilder::BeginPlay()
 	// 왜: 자리에 서기 전엔 아무 데나 생겨 멈춰 있는 모습이라, 그 동안은 가린다. 전용 서버는 화면이 없어 건너뜀.
 	if (GetNetMode() != NM_DedicatedServer && GetGameInstance() && GetGameInstance()->GetFirstGamePlayer())
 		if (UPGLoadingScreenSubsystem* Loading = UPGLoadingScreenSubsystem::Get(this))
-			Loading->ShowLoading(GetWorld(), GetMapAssets().LoadingScreenClass,
-				NSLOCTEXT("PGLoading", "BuildingMap", "맵을 불러오는 중"));
+			Loading->ShowLoading(GetWorld(), GetMapAssets().LoadingScreenClass);
 	//부모거 다 진행하고 다음 검사기 진행
 	if (!Verifier)
 	//1. 아직 없으면	

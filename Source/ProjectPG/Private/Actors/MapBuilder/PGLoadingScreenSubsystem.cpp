@@ -15,15 +15,14 @@ UPGLoadingScreenSubsystem* UPGLoadingScreenSubsystem::Get(const UObject* WorldCo
 
 void UPGLoadingScreenSubsystem::Deinitialize()
 {
-	StopTicker();
 	FWorldDelegates::OnWorldCleanup.Remove(WorldCleanupHandle);
 	RemoveWidget();
 	Super::Deinitialize();
 }
 
-void UPGLoadingScreenSubsystem::ShowLoading(UWorld* World, TSoftClassPtr<UUserWidget> WidgetClass, const FText& Message)
+void UPGLoadingScreenSubsystem::ShowLoading(UWorld* World, TSoftClassPtr<UUserWidget> WidgetClass)
 {
-	if (!IsValid(World) || bLoading)
+	if (!IsValid(World) || Widget)
 		return;
 	if (SeatedWorld.Get() == World && MapReadyWorld.Get() == World)
 	{
@@ -48,17 +47,20 @@ void UPGLoadingScreenSubsystem::ShowLoading(UWorld* World, TSoftClassPtr<UUserWi
 		return;
 	SlateRoot = Widget->TakeWidget();
 	Viewport->AddViewportWidgetContent(SlateRoot.ToSharedRef(), 1000); // 게임 화면·다른 UI 보다 위
-	Widget->SetRenderOpacity(1.0f);
-	Widget->SetLoadingText(Message);
-
-	bLoading = true;
-	bHiding = false;
 	ShownWorld = World;
+	bHiding = false;
 	LoadingShownAt = FPlatformTime::Seconds();
 	if (!WorldCleanupHandle.IsValid())
 		WorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddUObject(this, &UPGLoadingScreenSubsystem::HandleWorldCleanup);
-	if (!TickHandle.IsValid())
-		TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UPGLoadingScreenSubsystem::TickLoading));
+
+	// 끝내 "섰다" 가 안 오면(서버 무적 시간 제한이 지나도) 그냥 닫는다. 영영 검은 화면보다 낫다.
+	const float WaitLimit = Widget->WaitLimitSeconds;
+	Schedule(WaitLimitHandle, WaitLimit, [this, WaitLimit]()
+	{
+		UE_LOG(LogTemp, Error, TEXT("PGLoading: still not seated/map built after %.0fs (seated=%d, map built=%d) - closing the loading screen anyway"),
+			WaitLimit, SeatedWorld.IsValid() ? 1 : 0, MapReadyWorld.IsValid() ? 1 : 0);
+		HideLoading(TEXT("wait limit"));
+	});
 	UE_LOG(LogTemp, Display, TEXT("PGLoading: shown (%s)"), *Class->GetName());
 }
 
@@ -79,66 +81,61 @@ void UPGLoadingScreenSubsystem::NotifyMapReady(UWorld* World)
 void UPGLoadingScreenSubsystem::HideIfReady()
 {
 	UWorld* World = ShownWorld.Get();
-	if (bLoading && World && SeatedWorld.Get() == World && MapReadyWorld.Get() == World)
+	if (Widget && World && SeatedWorld.Get() == World && MapReadyWorld.Get() == World)
 		HideLoading(TEXT("seated and map built"));
 }
 
 void UPGLoadingScreenSubsystem::HideLoading(const TCHAR* Why)
 {
-	if (!bLoading || bHiding)
+	if (!Widget || bHiding)
 		return;
 	bHiding = true;
-	HideStartedAt = FPlatformTime::Seconds();
-	UE_LOG(LogTemp, Display, TEXT("PGLoading: hiding after %.1fs - %s"), HideStartedAt - LoadingShownAt, Why);
+	UE_LOG(LogTemp, Display, TEXT("PGLoading: hiding after %.1fs - %s"), FPlatformTime::Seconds() - LoadingShownAt, Why);
+	const float AnimSeconds = Widget->PlayHide();
+	if (AnimSeconds <= 0.0f)
+		RemoveWidget();
+	else
+		Schedule(RemoveHandle, AnimSeconds, [this]() { RemoveWidget(); });
 }
 
 void UPGLoadingScreenSubsystem::RemoveWidget()
 {
+	CancelSchedules();
 	if (SlateRoot.IsValid())
 		if (UGameInstance* GameInstance = GetGameInstance())
 			if (UGameViewportClient* Viewport = GameInstance->GetGameViewportClient())
 				Viewport->RemoveViewportWidgetContent(SlateRoot.ToSharedRef());
 	SlateRoot.Reset();
 	Widget = nullptr;
-	bLoading = false;
 	bHiding = false;
 	ShownWorld.Reset();
 }
 
-void UPGLoadingScreenSubsystem::StopTicker()
+void UPGLoadingScreenSubsystem::Schedule(FTSTicker::FDelegateHandle& Handle, float Delay, TFunction<void()> Action)
 {
-	if (TickHandle.IsValid())
-		FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
-	TickHandle.Reset();
+	if (Handle.IsValid())
+		FTSTicker::GetCoreTicker().RemoveTicker(Handle);
+	TWeakObjectPtr<UPGLoadingScreenSubsystem> WeakThis(this);
+	Handle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
+		[WeakThis, &Handle, Action = MoveTemp(Action)](float)
+		{
+			if (WeakThis.IsValid())
+			{
+				Handle.Reset();
+				Action();
+			}
+			return false; // 한 번만
+		}), Delay);
 }
 
-bool UPGLoadingScreenSubsystem::TickLoading(float DeltaTime)
+void UPGLoadingScreenSubsystem::CancelSchedules()
 {
-	if (!bLoading || !Widget)
+	for (FTSTicker::FDelegateHandle* Handle : { &WaitLimitHandle, &RemoveHandle })
 	{
-		RemoveWidget();
-		TickHandle.Reset();
-		return false; // 끝: 이 확인을 더 안 부른다
+		if (Handle->IsValid())
+			FTSTicker::GetCoreTicker().RemoveTicker(*Handle);
+		Handle->Reset();
 	}
-	const double Now = FPlatformTime::Seconds();
-	if (!bHiding && Now - LoadingShownAt > LoadingTimeoutSeconds)
-	{
-		UE_LOG(LogTemp, Error, TEXT("PGLoading: no 'seated' message from the server after %.0fs - closing the loading screen anyway"),
-			LoadingTimeoutSeconds);
-		HideLoading(TEXT("timeout"));
-	}
-	if (bHiding)
-	{
-		const float Alpha = 1.0f - static_cast<float>((Now - HideStartedAt) / HideFadeSeconds);
-		Widget->SetRenderOpacity(FMath::Clamp(Alpha, 0.0f, 1.0f));
-		if (Alpha <= 0.0f)
-		{
-			RemoveWidget();
-			TickHandle.Reset();
-			return false;
-		}
-	}
-	return true;
 }
 
 void UPGLoadingScreenSubsystem::HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources)
@@ -147,9 +144,6 @@ void UPGLoadingScreenSubsystem::HandleWorldCleanup(UWorld* World, bool bSessionE
 		SeatedWorld.Reset();
 	if (MapReadyWorld.Get() == World)
 		MapReadyWorld.Reset();
-	if (bLoading && ShownWorld.Get() == World)
-	{
-		StopTicker();
+	if (Widget && ShownWorld.Get() == World)
 		RemoveWidget();
-	}
 }
