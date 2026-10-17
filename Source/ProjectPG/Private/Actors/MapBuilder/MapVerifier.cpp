@@ -20,6 +20,7 @@
 #include "Containers/Queue.h"   // 줄 세우기(먼저 넣은 칸부터 꺼냄) — 출구까지 길 찾을 때 씀
 #include "Misc/App.h"   // 이번 프레임에 걸린 시간(FApp::GetDeltaTime)
 #include "HAL/PlatformMemory.h"   // 메모리 사용량 읽기
+#include "GameFramework/Pawn.h"   // 캐릭터(플레이어·몬스터) 구분
 #include "EngineUtils.h"   // 월드의 모든 액터를 하나씩 돌기(TActorIterator)
 #include "Components/InstancedStaticMeshComponent.h"   // 같은 메시를 여러 장 찍은 묶음(땅판 수백 장 등)
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"   // 땅판·길판 묶음(맵 액터의 GroundHISM·RoadSurfaceHISM)
@@ -264,17 +265,13 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 		return;
 	// "했음" 표시를 켠다. 한 번만 부르므로 아래에서 건너뛰고 나가도 켜 둔다.
 	bLoggedTacticalLayoutQuality = true;
-	// 타일 수가 예정과 안 맞으면 셀 수 없다 → 검사를 건너뛴다고 Warning 을 남긴다.
-	// 왜: 예전엔 말없이 기다렸는데 수가 한 번도 안 맞아(타일 6 / 예정 797) 이 검사가 한 번도 안 돌았다.
-	// 나중에 바꿀 것: 타일을 HISM(묶음 부품)으로 묶은 뒤의 수로 세게 고친다.
-	if (Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount)
-	{
-		UE_LOG(LogTemp, Warning,
-			TEXT("Tactical layout quality: skipped - runtime_tiles=%d expected=%d (tile placements %d + runtime facilities %d)"),
-			Map->SpawnedRuntimeTiles.Num(), Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount,
-			Map->TileDesignPlacements.Num(), ExpectedRuntimeFacilityCount);
-		return;
-	}
+	// 타일 액터가 남아 있나. 보통은 없다: 타일은 만들자마자 묶음 메시로 합치고 지운다(MapTileSpawner).
+	// 왜 이걸 보나: 예전엔 액터 수가 맞을 때까지 기다렸는데 한 번도 안 맞아(타일 6 / 예정 797) 이 검사가 9/17 부터 안 돌았다.
+	//   - 액터가 있음 → 예전처럼 액터로 1~3번 검사
+	//   - 액터가 없음 → 1·3번은 배치 목록(TileDesignPlacements)으로, 2번(칸 밖으로 삐져나옴)은 잴 부품이 없어 건너뜀
+	// 4번(사람이 설 자리 겹침)은 월드 충돌로 재므로 어느 쪽이든 돈다.
+	const bool bTileActorsPacked =
+		Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount;
 
 	// int32 = 정수 하나(4바이트). 0부터 세는 칸들.
 	int32 GridMisalignments = 0;        // 칸 한가운데에 안 맞거나, 한 칸에 타일 두 장 겹친 타일 수
@@ -293,7 +290,20 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 
 	// SpawnedRuntimeTiles(만들어 둔 타일 액터 목록)에서 하나씩 꺼내 Actor 라고 부르며 끝까지 돈다.
 	// AActor* = 타일 액터의 주소 쪽지.
-	for (AActor* Actor : Map->SpawnedRuntimeTiles)
+	if (bTileActorsPacked)
+	{
+		// 1. 한 칸에 타일 두 장 / 3. 길 번호(0~15)·모양 번호(0~3)·회전(0~3) 범위 — 배치 목록으로.
+		for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
+		{
+			if (OccupiedCells.Contains(Placement.GridCell))
+				++GridMisalignments;
+			OccupiedCells.Add(Placement.GridCell);
+			if (Placement.ConnectionMask > 15 || Placement.LayoutVariant > 3
+				|| Placement.RotationQuarterTurns < 0 || Placement.RotationQuarterTurns > 3)
+				++InvalidMasks;
+		}
+	}
+	for (AActor* Actor : bTileActorsPacked ? TArray<TObjectPtr<AActor>>() : Map->SpawnedRuntimeTiles)
 	{
 		if (!IsValid(Actor) || Actor->ActorHasTag(TEXT("RuntimeTacticalFacility")))
 			continue;
@@ -406,6 +416,8 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 				const UPrimitiveComponent* HitComponent = Result.GetComponent();
 				return IsValid(HitActor) && HitActor != Map
 					&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
+					// 캐릭터(플레이어·몬스터)는 뺀다: 맵의 벽·물체에 막혔는지 보는 검사라서. 접속한 사람이 근처에 서 있어도 실패로 셌다.
+					&& !HitActor->IsA<APawn>()
 					&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
 					&& IsValid(HitComponent)
 					&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
@@ -422,6 +434,7 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 						const UPrimitiveComponent* HitComponent = Result.GetComponent();
 						return IsValid(HitActor) && HitActor != Map
 							&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
+							&& !HitActor->IsA<APawn>()
 							&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
 							&& IsValid(HitComponent)
 							&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
@@ -436,11 +449,12 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 	const FString UnsafeSummary = FString::Join(UnsafeAnchorSamples, TEXT(","));
 	// 5. 로그 남기기.
 	UE_LOG(LogTemp, Display,
-		TEXT("Tactical layout quality: single_cell_tiles=%d facilities=%d grid_or_duplicate=%d bounds_overflow=%d invalid_specs=%d unsafe_anchors=%d pass=%s overflow_sample=[%s] unsafe_sample=[%s]"),
+		TEXT("Tactical layout quality: source=%s single_cell_tiles=%d facilities=%d grid_or_duplicate=%d bounds_overflow=%s invalid_specs=%d unsafe_anchors=%d pass=%s overflow_sample=[%s] unsafe_sample=[%s]"),
+		bTileActorsPacked ? TEXT("placements") : TEXT("actors"),
 		Map->TileDesignPlacements.Num(),
 		ExpectedRuntimeFacilityCount,
 		GridMisalignments,
-		OutOfBoundsComponents,
+		bTileActorsPacked ? TEXT("skipped") : *FString::FromInt(OutOfBoundsComponents),
 		InvalidMasks,
 		UnsafeAnchorOverlaps,
 		GridMisalignments == 0 && OutOfBoundsComponents == 0 && InvalidMasks == 0 && UnsafeAnchorOverlaps == 0
@@ -451,24 +465,14 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 // Travel(이동) + Cove(엄폐물, 몸을 숨길 것) + Density(촘촘함) 
 // = 돌아다니는 길에 숨을 곳이 충분히 있나?
 void UMapVerifier::VerifyTravelCoverDensity()
-{// 예정된 시설 개수를 세 둔다(아래에서 타일·시설 수가 예정과 맞는지 비교할 때 쓴다).
-	int32 ExpectedRuntimeFacilityCount = 0;
-	for (const FFacilityPlacement& Placement : Map->FacilityPlacements)
-		if (Placement.VisualSet != EFacilityVisualSet::Checkpoint)
-			++ExpectedRuntimeFacilityCount;
+{
 	if (bLoggedTravelCoverDensity
 		|| Map->TileDesignPlacements.IsEmpty())
 		return;
 
 	bLoggedTravelCoverDensity = true;
-	// 타일 수가 안 맞으면 건너뛴다고 Warning (위 VerifyTacticalLayoutQuality 와 같은 이유).
-	if (Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount)
-	{
-		UE_LOG(LogTemp, Warning,
-			TEXT("Travel cover audit: skipped - runtime_tiles=%d expected=%d"),
-			Map->SpawnedRuntimeTiles.Num(), Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount);
-		return;
-	}
+	// 타일 액터 수는 보지 않는다. 이 검사는 월드에 선을 쏴서 재므로 액터 목록이 필요 없다.
+	// 왜: 예전엔 "타일 액터 수 = 예정 수" 를 기다렸는데, 타일은 만들자마자 묶음 메시로 합치고 지워서 한 번도 안 맞았다(이 검사가 9/17 부터 안 돌았음).
 	int32 SampleCount = 0;
 	int32 FullyExposedSamples = 0;
 	float LongestExposedRunCm = 0.0f;//맵을 두 줄 걸러 한줄씩, 왼쪽에서 오른쪽으로 칸마다 걸어가 본다.
