@@ -8,6 +8,7 @@
 class UDataTable;
 class UMaterialInterface;
 class UStaticMesh;
+class UUserWidget;
 
 // 맵에 쓰이는 "보이는 것" 목록 (데이터 에셋).
 // 게임에서: 숲 타일이 어떤 BP 인지, 땅이 어떤 색 머티리얼인지, 바깥 산·풀이 어떤 메시인지, 창고가 어떤 레벨인지.
@@ -195,4 +196,9 @@ public:
 	// 타일 안 덤불 잎을 바꿔 칠할 어두운 머티리얼(원래 잎이 형광색으로 너무 튀어서).
 	UPROPERTY(EditAnywhere, Category = "풀")
 	TSoftObjectPtr<UMaterialInterface> HeroShrubLeafMaterial;
+
+	// ---------- 화면 ----------
+	// 시작 구역 자리에 서기 전까지 가리는 로딩 창(WBP_PGLoadingScreen, 부모 PGLoadingScreenWidget). 비면 로딩 창 없이 시작(Error 로그).
+	UPROPERTY(EditAnywhere, Category = "화면")
+	TSoftClassPtr<UUserWidget> LoadingScreenClass;
 };
