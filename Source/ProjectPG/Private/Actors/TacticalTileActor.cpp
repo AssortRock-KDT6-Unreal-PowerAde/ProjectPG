@@ -199,6 +199,7 @@ ATacticalTileActor::ATacticalTileActor()
 	AISpawnPoint = MakeArrow(TEXT("AISpawnPoint"), FVector(550, -520, 70), 180, FColor::Red);
 	ExitPoint = MakeArrow(TEXT("ExitPoint"), FVector(600, 0, 50), 0, FColor::Emerald);
 
+	// 글자 경로로 둬도 되는 이유: /Game/PG/LevelDesign 폴더는 통째로 쿠킹된다(DefaultGame.ini 의 DirectoriesToAlwaysCook).
 	CarClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Tiles/Blueprints/Props/BP_Prop_AbandonedCar.BP_Prop_AbandonedCar_C")));
 	BarrelClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Tiles/Blueprints/Props/BP_Prop_BarrelCluster.BP_Prop_BarrelCluster_C")));
 	BarrierClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Tiles/Blueprints/Props/BP_Prop_ConcreteBarrier.BP_Prop_ConcreteBarrier_C")));
@@ -959,6 +960,8 @@ void ATacticalTileActor::RebuildTile()
 	using namespace TacticalTile;
 	// 기존 Nature 블루프린트는 컴포넌트 기본값을 저장하고 있으므로, 런타임 지형에서
 	// 잘 보이는 것이 확인된 Rural 풀 세 종류로 직접 되돌린다.
+	// 글자 경로로 둬도 되는 이유: 풀·땅 머티리얼은 통째로 쿠킹되는 /Game/PG/LevelDesign 안에 있고,
+	// Downtown 바위 두 개는 생성자에서 이미 불러와(FObjectFinder = 꼭 필요한 연결) 쿠킹에 들어간다.
 	static UStaticMesh* GrassPatchA = LoadObject<UStaticMesh>(nullptr,
 		TEXT("/Game/PG/LevelDesign/RuntimeOptimized/SM_GrassPatch_2_Runtime.SM_GrassPatch_2_Runtime"));
 	static UStaticMesh* GrassPatchB = LoadObject<UStaticMesh>(nullptr,

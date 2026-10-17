@@ -17,6 +17,7 @@ class UStaticMesh;
 // 적지 않아서, 패키징(쿠킹)이 그 연결을 못 보고 타일·시설·상자를 패키지에서 빼 버렸다(데디 서버 상자 0개).
 // 칸에 저장해 두면 DA_MapAssets 가 쿠킹될 때 여기 적힌 에셋도 따라 담긴다.
 // 여기 없는 것(엔진 큐브, 언덕 메시, 호숫가 메시)은 코드의 숫자(높이·모양)와 짝이라 C++ 에 남겼다.
+// 그래도 패키지에서 안 빠지는 이유: 언덕·호숫가 메시와 타일 소품 BP 는 통째로 쿠킹되는 /Game/PG/LevelDesign 안에 있다.
 UCLASS(BlueprintType)
 class UMapAssetSet : public UPrimaryDataAsset
 {
@@ -123,6 +124,12 @@ public:
 	// 시설 안 지점 표(행 구조 FFacilityPointRow, MapPointPlanner.h). 창고 2층 상자 자리 같은 좌표를 여기서 고친다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UDataTable> FacilityPointTable;
+
+	// 코드로 짓는 시설(AProceduralFacilityActor)의 부품 메시. 열쇠 = 부품 이름(Floors, SolidWalls, FactoryHalls …).
+	// 손으로 만든 시설 레벨·BP 가 없는 모양 세트가 이걸로 지어진다. 목록에 없는 부품은 큐브 같은 대신 모양으로 나온다.
+	// 왜 여기: 예전엔 32개 경로가 코드에 글자로 있어서 쿠킹이 못 보고, 시드마다 나오는 시설에 따라 다른 메시가 패키지에서 빠졌다.
+	UPROPERTY(EditAnywhere, Category = "시설")
+	TMap<FName, TSoftObjectPtr<UStaticMesh>> FacilityPartMeshes;
 
 	// ---------- 상자 (상자 담당) ----------
 	// 상자 자리(Loot 지점)에 놓을 상자 BP 목록. 자리마다 이 중 하나를 고른다(같은 시드면 같은 자리에 같은 상자).
