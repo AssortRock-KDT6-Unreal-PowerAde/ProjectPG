@@ -231,7 +231,7 @@ public:
 
 	// 서버: 맵 전체 길찾기 지도를 다 구웠나. 몬스터를 내보내거나 움직이게 하는 쪽은 이게 참이 된 뒤에.
 	// 왜: 굽는 데 수십 초 걸리고, 그 전엔 이동 명령(MoveTo·순찰 점 고르기)이 실패한다.
-	bool IsNavigationReady() const { return bNavigationReady; }
+	bool IsNavigationReady() const;
 	// 서버: 길찾기 지도를 다 구웠을 때 한 번 알린다(시간 제한이 지난 뒤 늦게 끝나도 그때 한 번).
 	// 이미 끝났으면 붙기 전에 IsNavigationReady() 로 먼저 확인한다.
 	FSimpleMulticastDelegate OnNavigationReady;
@@ -267,14 +267,6 @@ private:
 	void CheckFacilityDesignLevels(bool bTimedOut);
 	// 시간이 걸리는 검사를 0.1초마다 돌린다. 다 끝나거나 120초가 지나면 타이머를 끈다.
 	void RunTimedChecks();
-	// 몬스터 길찾기 지도를 만들 영역(맵 전체)을 서버에 추가한다. 맵 짓기가 바닥판 크기를 정한 직후 한 번.
-	// 왜 코드로: 이 맵 레벨 파일은 팀원 것이라 길찾기 영역 박스를 직접 놓지 않는다.
-	void AddNavigationArea();
-	// 길찾기 지도 굽기가 끝날 때마다 엔진이 부른다(문 등이 움직여 다시 구울 때도). 엔진이 부르는 함수라서 UFUNCTION.
-	UFUNCTION()
-	void HandleNavigationGenerationFinished(ANavigationData* NavigationData);
-	// 90초 안에 굽기가 안 끝났을 때: Error 로그만 남기고 계속 기다린다.
-	void HandleNavigationBuildTimeout();
 
 	// 협력객체 : 맵 자체 검사
 	// friend class : 검사기가 private 을 볼 수 있게.
@@ -336,6 +328,11 @@ private:
 	friend class UMapItemSpawner;
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapItemSpawner> ItemSpawner;
+
+	// 협력객체 : 길찾기 지도 담당(맵 크기 영역 넣기 → 뒤에서 굽기 → 다 구우면 OnNavigationReady). 서버만.
+	friend class UMapNavigationBuilder;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapNavigationBuilder> NavigationBuilder;
 
 	// ---- 기획 숫자(에디터에서 맵 액터를 골라 바꾼다) ----
 	// 워존에 놓는 2×2 마당 시설 수.
@@ -561,11 +558,6 @@ private:
 	TArray<double> FacilityLoadRequestTimeSeconds;
 
 	FTimerHandle RetryTimer;
-
-	// 길찾기 지도 굽기: 시작 시각(초), 다 구웠나, 시간 제한 타이머.
-	double NavigationBuildStartSeconds = 0.0;
-	bool bNavigationReady = false;
-	FTimerHandle NavigationBuildTimeoutTimer;
 
 	// 들어온 사람이 설계도로 받은 값(서버에서는 안 씀).
 	bool bHasReplicatedManifest = false;

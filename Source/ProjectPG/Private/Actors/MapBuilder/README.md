@@ -5,9 +5,9 @@
 ```mermaid
 flowchart TD
     A["판 시작 (BeginPlay)<br/>바닥·산 모양 끼우기, 맵 짓기 예약"] --> B["맵 짓기 (TryReserveFootprint)<br/>칸 읽기 → 시설 자리 → 타일 세우기 → 지점 찍기"]
-    B --> N["길찾기 영역 추가 (AddNavigationArea, 서버만)<br/>맵 전체 길찾기 지도를 뒤에서 굽기 시작"]
-    N -. "엔진이 다 구웠다고 알림" .-> NR["길찾기 준비 끝 (HandleNavigationGenerationFinished)<br/>로그 seconds=, OnNavigationReady 알림<br/>몬스터를 내보내거나 움직이는 쪽은 이 뒤에"]
-    N -. "90초 넘음" .-> NX["Error 로그: 남은 굽기 일 수<br/>기다리기는 계속(늦게 끝나면 late=true)"]
+    B --> N["길찾기 지도 담당 (UMapNavigationBuilder::StartBuild, 서버만)<br/>맵 크기 영역 넣고 지도를 뒤에서 굽기 시작"]
+    N -. "엔진이 다 구웠다고 알림" .-> NR["길찾기 준비 끝 (HandleGenerationFinished)<br/>로그 seconds=, OnNavigationReady 알림<br/>몬스터를 내보내거나 움직이는 쪽은 이 뒤에"]
+    N -. "DA_MapAssets 의 기다리는 시간(90초) 넘음" .-> NX["Error 로그: 남은 굽기 일 수<br/>기다리기는 계속(늦게 끝나면 late=true)"]
     B --> C["시설 레벨 불러오기 시작<br/>레벨이 다 보이면 다음 칸으로 (WatchFacilityDesignLevels)"]
     C --> D{"다 왔나?<br/>(CheckFacilityDesignLevels)"}
     D -- "아직" --> D
@@ -19,7 +19,7 @@ flowchart TD
     G --> H["시간 걸리는 검사, 0.1초 타이머 (RunTimedChecks)<br/>다 끝나면 끔, 120초 넘으면 Error 로그 후 끔"]
 ```
 
-길찾기 지도가 게임 중에 구워지려면 `Config/DefaultEngine.ini` 의 `RuntimeGeneration=Dynamic` 한 줄이 있어야 한다(없으면 영역을 넣어도 지도가 안 생김).
+길찾기 지도가 게임 중에 구워지려면 `Config/DefaultEngine.ini` 의 `RuntimeGeneration=Dynamic` 한 줄이 있어야 한다(없으면 영역을 넣어도 지도가 안 생김). 영역 높이·기다리는 시간은 `DA_MapAssets` 의 "길찾기" 칸.
 
 ## 0.1초마다 확인하는 것 (Tick) 과 이유
 

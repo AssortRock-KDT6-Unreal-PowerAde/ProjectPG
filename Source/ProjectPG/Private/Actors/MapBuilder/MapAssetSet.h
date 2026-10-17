@@ -16,6 +16,7 @@ class UStaticMesh;
 // 경로는 C++ 기본값으로 두지 않고 DA_MapAssets 칸에 저장한다. 왜: 칸 값이 C++ 기본값과 같으면 언리얼이 파일에
 // 적지 않아서, 패키징(쿠킹)이 그 연결을 못 보고 타일·시설·상자를 패키지에서 빼 버렸다(데디 서버 상자 0개).
 // 칸에 저장해 두면 DA_MapAssets 가 쿠킹될 때 여기 적힌 에셋도 따라 담긴다.
+// 맨 아래 "길찾기" 칸은 보이는 것이 아니라 조정 수치(영역 높이·기다리는 시간)다. 코드 없이 바꾸게 같이 둔다.
 // 여기 없는 것(엔진 큐브, 언덕 메시, 호숫가 메시)은 코드의 숫자(높이·모양)와 짝이라 C++ 에 남겼다.
 // 그래도 패키지에서 안 빠지는 이유: 언덕·호숫가 메시와 타일 소품 BP 는 통째로 쿠킹되는 /Game/PG/LevelDesign 안에 있다.
 UCLASS(BlueprintType)
@@ -195,4 +196,12 @@ public:
 	// 타일 안 덤불 잎을 바꿔 칠할 어두운 머티리얼(원래 잎이 형광색으로 너무 튀어서).
 	UPROPERTY(EditAnywhere, Category = "풀")
 	TSoftObjectPtr<UMaterialInterface> HeroShrubLeafMaterial;
+
+	// ---------- 길찾기 (길찾기 지도 담당, 서버만) ----------
+	// 몬스터 길찾기 영역의 위아래 높이(cm, 땅 높이 0 에서 위로 한 번, 아래로 한 번). 높은 시설·언덕 위까지 덮게 넉넉히 200 m.
+	UPROPERTY(EditAnywhere, Category = "길찾기", meta = (ClampMin = "1000"))
+	float NavigationAreaHalfHeightCm = 20000.0f;
+	// 맵 전체 지도 굽기를 기다리는 시간(초). 넘으면 Error 로그만 남기고 계속 기다린다. 에디터 서버에서 약 36초 걸린다.
+	UPROPERTY(EditAnywhere, Category = "길찾기", meta = (ClampMin = "10"))
+	float NavigationBuildTimeoutSeconds = 90.0f;
 };
