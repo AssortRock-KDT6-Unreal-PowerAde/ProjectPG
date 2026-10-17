@@ -42,10 +42,10 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		return A.X != B.X ? A.X < B.X : A.Y < B.Y;
 	});
 
-	// 깎은 땅 모양은 시설과 똑같이 칸 단위로 자리를 차지한다: 예약된 칸에는 평판도
-	// 타일 액터도 없고 땅 모양 메시가 그 자리를 채운다. 둘레 한 칸까지 자연 칸인
-	// 평범한 자연 칸만 쓸 수 있어서, 땅 모양은 도로·시작·탈출·WarZone·시설 자리와
-	// 절대 붙지 않는다 - 그 타일들의 소품은 모두 평평한 땅을 전제로 해서 떠 버린다.
+	// 언덕·웅덩이 같은 땅 모양(미리 만든 메시)도 시설처럼 칸 단위로 자리를 차지한다.
+	// 예약된 칸에는 평평한 판도 타일 액터도 없고, 땅 모양 메시가 그 자리를 채운다.
+	// 둘레 한 칸까지 전부 평범한 칸인 곳에만 놓을 수 있어서, 땅 모양은 도로·시작·탈출·WarZone·시설 자리와 절대 붙지 않는다.
+	// 그 타일들의 소품은 모두 평평한 땅을 전제로 해서, 붙으면 공중에 떠 버린다.
 	// 1) 언덕: 들판·워존 바깥쪽에 흙 언덕을 최대 28개 솟게 하고 그 위에 돌·나무·덤불을 뿌린다.
 	//    언덕이 차지한 칸은 "예약됨"(ReservedCells)이 돼서 평평한 타일을 안 깐다.
 	for (UHierarchicalInstancedStaticMeshComponent* FeatureComponent : Map->TerrainFeatureHISMs)
@@ -68,8 +68,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		OutType = (*TilePtr)->GetType();
 		return true;
 	};
-	// 땅·타일 띠가 쓰는 것과 같은 중심. 그래야 땅 모양의 머티리얼이
-	// 주변 평평한 칸과 항상 같다.
+	// 땅·타일 띠가 쓰는 것과 같은 중심을 쓴다. 그래야 땅 모양의 머티리얼(겉모습)이 주변 평평한 칸과 항상 같다.
 	FIntPoint FeatureWarZoneCenter = FIntPoint::ZeroValue;
 	for (const FFacilityPlacement& FacilityPlacement : Map->FacilityPlacements)
 	{
@@ -96,8 +95,8 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		const int32 MeshIndex = static_cast<int32>((FeatureHash >> 8) % static_cast<uint32>(FeatureMeshes.Num()));
 		const FIntPoint Footprint = FeatureMeshes[MeshIndex].Footprint;
 
-		// 자연 칸과 WarZone 칸 둘 다 쓸 수 있지만, 한 땅 모양이 둘에 걸치지는 않는다:
-		// 둘레 포함 닿는 모든 칸이 기준 칸과 같은 타입이어야 한다.
+		// 자연 칸과 WarZone 칸 둘 다 쓸 수 있지만, 땅 모양 하나가 둘에 걸치지는 않는다.
+		// 둘레까지 포함해 닿는 모든 칸이 기준 칸과 같은 종류여야 한다.
 		ETileType AnchorType = ETileType::None;
 		if (!GetCellType(FeatureAnchor, AnchorType)
 			|| (AnchorType != ETileType::None && AnchorType != ETileType::WarZone))
@@ -105,7 +104,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 			continue;
 		}
 
-		// 공업 중심부는 평평하게 둔다: 중앙 시설, 그 진입로, 가장 촘촘한 엄폐물이 있는 곳이다.
+		// 공업 중심부는 평평하게 둔다. 중앙 시설과 그 진입로가 있고, 엄폐물이 가장 촘촘한 곳이기 때문이다.
 		const int32 CoreDeltaX = FeatureAnchor.X - FeatureWarZoneCenter.X;
 		const int32 CoreDeltaY = FeatureAnchor.Y - FeatureWarZoneCenter.Y;
 		const int32 CoreDistanceSquared = CoreDeltaX * CoreDeltaX + CoreDeltaY * CoreDeltaY;
@@ -132,15 +131,15 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				ReservedCells.Add(FIntPoint(FeatureAnchor.X + OffsetX, FeatureAnchor.Y + OffsetY));
 		}
 
-		// 손작업 둘레는 로컬 Z=0 이고 공통 걷는 면은 Z=20 이므로,
-		// 중심을 거기 두면 이음새가 딱 맞는다.
+		// 손으로 만든 땅 모양의 둘레는 메시 안 높이 0(Z=0)이고 공통 걷는 면은 Z=20 이다.
+		// 그래서 메시 중심을 Z=20 에 두면 이음새가 딱 맞는다.
 		const FTerrainFeatureMesh& FeatureMesh = FeatureMeshes[MeshIndex];
 		const FVector FeatureCenter(
 			(FeatureAnchor.X + (Footprint.X - 1) * 0.5f) * DesignCellSize,
 			(FeatureAnchor.Y + (Footprint.Y - 1) * 0.5f) * DesignCellSize,
 			20.0f);
-		// 띠 판정은 BuildLightweightWorldVisuals 와 같다: d^2=225 안의 WarZone 칸은
-		// 전환용 흙 위에 있고, 그보다 바깥은 자연 땅을 같이 쓴다.
+		// 띠 판정은 BuildLightweightWorldVisuals 와 같다.
+		// 중심에서 거리 제곱(d^2)이 225 이하인 WarZone 칸은 전환용 흙 위에 있고, 그보다 바깥은 자연 땅을 같이 쓴다.
 		const int32 BandIndex = (AnchorType == ETileType::WarZone && CoreDistanceSquared <= 225) ? 1 : 0;
 		const int32 ComponentIndex = BandIndex * FeatureMeshes.Num() + MeshIndex;
 		UHierarchicalInstancedStaticMeshComponent* FeatureComponent =
@@ -151,8 +150,8 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				FTransform(FRotator::ZeroRotator, FeatureCenter, FVector::OneVector), true);
 		}
 
-		// 메시를 만들 때 쓴 높이 공식 그대로 비탈을 꾸민다. 이 칸에는 타일 액터가 없어서,
-		// 이게 없으면 땅 모양이 맨 흙덩이로만 보인다.
+		// 메시를 만들 때 쓴 높이 공식 그대로 비탈에 돌·나무·덤불을 뿌린다.
+		// 이 칸에는 타일 액터가 없어서, 이걸 안 하면 땅 모양이 맨 흙덩이로만 보인다.
 		FRandomStream DressingStream(static_cast<int32>(FeatureHash));
 		auto ScatterOnFeature = [&](
 			UHierarchicalInstancedStaticMeshComponent* Component,
@@ -162,7 +161,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				return;
 			for (int32 Index = 0; Index < Count; ++Index)
 			{
-				// 바깥 1/8 은 피해서 평평한 이음새에 걸치는 것이 없게 한다.
+				// 가장자리 1/8 은 피해서, 평평한 이음새에 걸치는 소품이 없게 한다.
 				const float U = DressingStream.FRandRange(0.12f, 0.88f);
 				const float V = DressingStream.FRandRange(0.12f, 0.88f);
 				const FVector Location = FeatureCenter + FVector(
@@ -176,8 +175,8 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 			}
 		};
 		// 움푹한 곳은 아늑한 덤불숲, 솟은 곳은 드러난 바위 꼭대기로 보이게 한다.
-		// WarZone 땅에서는 소나무를 아예 뺀다 - 공업 마당 안의 숲은
-		// 이 띠 나누기가 피하려는 바로 그런 이음새다.
+		// WarZone 땅에서는 나무(소나무)를 아예 뺀다.
+		// 공업 마당 안의 숲은 이 띠 나누기가 피하려는 바로 그런 이음새(어색한 경계)이기 때문이다.
 		const bool bHollow = FeatureMesh.Amplitude < 0.0f;
 		const bool bIndustrial = AnchorType == ETileType::WarZone;
 		ScatterOnFeature(Map->TerrainRockHISM,
@@ -218,7 +217,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 	int32 SpawnRoutedOpenings = 0;
 	int32 WalledOffSpawnConnections = 0;
 
-	// 이 단계 전체에 호수는 하나다. 모서리는 도로망을 보고 점수 매겨 고르므로
+	// 이 단계 전체에서 호수는 하나다. 모서리는 도로망을 보고 점수를 매겨 고르므로,
 	// 칸마다 다시 구하면 안 된다.
 	const FBorderLake BorderLake = GetBorderLake(
 		RaidSeed, MinCell, MaxCell, Map->BorderLakeRadiusCells, CollectTraversalCells(TileByCell));
@@ -251,17 +250,16 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				&& NeighborType != ETileType::Exit
 				&& NeighborType != ETileType::WarZone
 				&& NeighborType != ETileType::Obstacle;
-			// 진입로가 원래 화면용 칸을 차지한다. 계획된 경로 마스크로만 이어질 수 있다:
-			// 우연히 옆에 붙은 것은 연결 자리가 아니며, 한 줄 길을
-			// 커다란 사거리로 바꾸면 안 된다.
+			// 진입로는 원래 화면용으로만 있는 칸이다. 계획해 둔 경로의 방향 표시(마스크)로만 이어질 수 있다.
+			// 우연히 옆에 붙은 것은 연결 자리가 아니다. 한 줄짜리 길이 커다란 사거리로 바뀌면 안 된다.
 			if (bNeighborBecomesAccessRoad)
 				return false;
 			return IsRoadTraversalType((*Neighbor)->GetType());
 		};
 
-		// 추가 연결로는 명시된 경로 변이 원본이다. 경로가 생성기 도로를 가로지르면
-		// 명시된 변과 그 도로의 원래 이웃을 합쳐서,
-		// 양쪽 모두 서로 이어지는 연결 자리를 유지하게 한다.
+		// 추가로 깐 길은 계획된 경로의 방향 표시가 기준이다.
+		// 그 경로가 맵 생성기가 만든 도로를 가로지르면, 경로의 방향 표시와 그 도로의 원래 이웃 방향을 합친다.
+		// 그래야 양쪽 길이 서로 이어진 채로 남는다.
 		uint8 ConnectionMask = SupplementalRoadMasks.FindRef(Cell);
 		if (!bSupplementalRoad)
 		{
@@ -328,12 +326,13 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		{
 			Placement.Visual = ETileDesignVisual::Spawn;
 			Placement.VisualLevel = TSoftObjectPtr<UWorld>(SpawnLevelPath);
-			// LD_Tile_Spawn_Staging 은 담으로 둘러싸인 구역이고 손작업 동쪽 면에만 출입구가 하나 있다.
-			// 그래서 여기서 고르는 회전이 칸의 여러 연결 중 플레이어가 실제로 걸어 나갈 수 있는
-			// 하나를 정한다. 가장 낮은 비트를 골랐더니 북+동으로 이어진 시작 지점이 북쪽을 보고
-			// 동쪽 도로를 담 뒤에 막아 버렸다 - 플레이어 눈엔 WarZone 으로 가는 길이 아예 없었다.
+			// LD_Tile_Spawn_Staging 은 담으로 둘러싸인 구역이고, 손으로 만들 때 동쪽 면에만 출입구를 하나 냈다.
+			// 그래서 여기서 고르는 회전이, 칸에 이어진 여러 길 중 플레이어가 실제로 걸어 나갈 수 있는 하나를 정한다.
+			// 예전엔 가장 낮은 비트(방향 표시의 가장 작은 쪽)를 골랐다.
+			// 그랬더니 북+동으로 길이 이어진 시작 지점이 북쪽을 보고, 동쪽 도로는 담 뒤에 막혀 버렸다.
+			// 플레이어 눈엔 WarZone 으로 가는 길이 아예 없었다.
 			//
-			// 시작 지점→WarZone 보장 경로가 실제로 지나간 변을 우선한다.
+			// 시작 지점→WarZone 보장 경로가 실제로 지나간 방향을 우선한다.
 			// 그래야 출입구가 항상 어딘가로 이어진다고 약속된 길을 바라본다.
 			const uint8 RouteMask = SupplementalRoadMasks.FindRef(Cell) & ConnectionMask;
 			const uint8 PreferredMask = RouteMask != 0 ? RouteMask : ConnectionMask;
@@ -341,7 +340,7 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 				? static_cast<uint8>(1 << FMath::CountTrailingZeros(PreferredMask))
 				: EastConnection;
 			Placement.RotationQuarterTurns = FindPositiveYawRotation(EastConnection, TargetMask);
-			// 남은 연결은 이 타일의 담에 막혀 끝나는 도로다. 경로상으로는 괜찮지만
+			// 남은 연결은 이 타일의 담에 막혀 끝나는 도로다. 경로상으로는 문제없지만
 			// 어디로도 안 가는 길처럼 보이므로, 조용히 넘기지 않고 센다.
 			SpawnOpeningCount += ConnectionMask != 0 ? 1 : 0;
 			WalledOffSpawnConnections += FMath::Max(0, FMath::CountBits(ConnectionMask) - 1);
@@ -404,14 +403,14 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 			const bool bMazeBarrierBand = !bNearTraversal && !bMapBorder
 				&& MazeBandValue % 9 == 0;
 
-			// 호수가 맵 한 모서리를 파먹는다. 격자는 앞으로도 정사각형이지만 해안선까지 그럴 필요는 없다:
-			// 모서리 바깥에 중심을 둔 metaball 에 칸마다 흔들림을 더하면 들쭉날쭉한 물가가 생기고,
-			// 그래서 맵 경계가 그려 놓은 상자처럼 보이지 않는다. 물가용 에셋 - 시골 디오라마,
-			// 부두, 보트 - 에게도 마른 들판 한가운데가 아닌 어울리는 자리가 생긴다.
+			// 호수가 맵 한 모서리를 파먹어 들어온다. 격자는 계속 정사각형이지만 해안선까지 그럴 필요는 없다.
+			// 모서리 바깥에 중심을 둔 둥근 덩어리(metaball)에 칸마다 흔들림을 더하면 들쭉날쭉한 물가가 생긴다.
+			// 그러면 맵 경계가 그려 놓은 상자처럼 보이지 않는다.
+			// 물가용 에셋(시골 디오라마, 부두, 보트)도 마른 들판 한가운데가 아닌 어울리는 자리가 생긴다.
 			//
 			// 지나갈 수 있는 칸은 물로 채우지 않고, 그 이웃 칸도 채우지 않는다.
-			// 그래서 생성기가 가장자리 근처에 놓은 시작·탈출 지점은 물에 잠기지 않고
-			// 거기까지 이어진 곶(반도)을 갖는다.
+			// 그래서 생성기가 가장자리 근처에 놓은 시작·탈출 지점은 물에 잠기지 않고,
+			// 거기까지 이어진 곶(바다로 뻗은 땅)이 생긴다.
 			if (Map->BorderLakeRadiusCells > 0.0f
 				&& !bNearTraversal && Placement.Visual != ETileDesignVisual::WarZoneGround)
 			{
@@ -422,12 +421,12 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 					Placement.Visual = ETileDesignVisual::Water;
 			}
 
-			// 자연 칸을 5x5 칸 큰 묶음(biome)으로 나눠서, 결과가 잡음이 아니라
+			// 자연 칸을 5x5 칸 큰 묶음(biome, 지역 성격)으로 나눠서, 결과가 뒤죽박죽이 아니라
 			// 숲 띠, 공터, 바위 들판처럼 보이게 한다.
-			// 도로 옆 칸은 전투 시 잘 보이도록 일부러 더 트이게 둔다.
+			// 도로 옆 칸은 전투할 때 잘 보이도록 일부러 더 트이게 둔다.
 			if (Placement.Visual == ETileDesignVisual::Water)
 			{
-				// 위에서 이미 정했다. biome 굴림이 덮어쓰면 안 된다.
+				// 위에서 이미 정했다. biome 주사위가 덮어쓰면 안 된다.
 			}
 			else if (bMapBorder)
 			{
@@ -437,9 +436,9 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 			}
 			else if (bMazeBarrierBand)
 			{
-				// 5칸짜리 큰 띠가 미로의 '못 지나갈 것처럼 보이는' 지형이 된다.
+				// 5칸짜리 큰 띠가 미로의 "못 지나갈 것처럼 보이는" 지형이 된다.
 				// 원래 있던/생성된 지나갈 수 있는 칸과 그 둘레 2칸은 항상 빼므로,
-				// 서버 쪽 연결은 바꾸지 않고 경로 모양만 다듬는다.
+				// 서버 쪽 길 연결은 바꾸지 않고 길의 겉모양만 다듬는다.
 				Placement.Visual = FineRoll < 76
 					? ETileDesignVisual::NatureForestDense
 					: ETileDesignVisual::NatureRocky;
@@ -517,10 +516,10 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		Map->LayoutHash = HashCombine(Map->LayoutHash, GetTypeHash(Placement.LocalSeed));
 	}
 
-	// routed_openings 는 openings 와 같아야 한다: 모든 시작 지점의 출입구 하나가
-	// WarZone 보장 경로가 실제로 계획한 도로를 바라봐야 한다. walled_connections 는
-	// 아직 시작 지점 담에 막혀 끝나는 도로 수다 - 타일 출입구가 하나뿐이므로,
-	// 0 보다 크면 플레이어가 보기만 하고 쓸 수 없는 길이 있다는 뜻이다.
+	// routed_openings 는 openings 와 같아야 한다.
+	// 모든 시작 지점의 출입구 하나가, WarZone 보장 경로가 실제로 계획한 도로를 바라봐야 하기 때문이다.
+	// walled_connections 는 시작 지점 담에 막혀 끝나는 도로의 수다.
+	// 타일 출입구가 하나뿐이라, 0 보다 크면 보이기만 하고 쓸 수 없는 길이 있다는 뜻이다.
 	UE_LOG(LogTemp, Display,
 		TEXT("Spawn opening alignment: spawns=%d routed_openings=%d walled_connections=%d"),
 		SpawnOpeningCount, SpawnRoutedOpenings, WalledOffSpawnConnections);
@@ -599,8 +598,8 @@ void UMapTilePlanner::BuildTileDesignPlacements(
 		Map->LayoutHash = HashCombine(Map->LayoutHash, GetTypeHash(Placement.LocalSeed));
 	}
 
-	// 7) 시작 구역 칸을 "시작 대기소" 로 바꾼다(시작 구역 담당). 지문·길 연결 확인 뒤에 해야 한다
-	//    (그 확인은 길 타일 기준이라, 대기소로 바꾼 칸을 보면 틀렸다고 센다).
+	// 7) 시작 구역 칸을 "시작 대기소"로 바꾼다(시작 구역 담당). 지문·길 연결 확인이 끝난 뒤에 해야 한다.
+	//    그 확인은 길 타일을 기준으로 해서, 대기소로 바꾼 칸을 보면 "길이 안 이어졌다"고 잘못 센다.
 	Map->SpawnRegionPlanner->DressExtraSpawnRegions(MinCell, MaxCell);
 
 	UE_LOG(LogTemp, Display,

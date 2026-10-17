@@ -17,7 +17,7 @@ class UMapFacilityPlanner : public UObject
 public:
 	// 맵 주소를 받아 둔다. 맵 BeginPlay 에서 만들자마자 부른다.
 	void Init(AMapBuilder* InMap);
-	// 레벨에 시드 묻기(GameMode)에 월드가 필요 → 맵 액터의 월드를 빌려 쓴다.
+	// 판 시드를 GameMode 에 물어보려면 월드가 필요하다. 이 일꾼은 월드가 없으니 맵 액터의 월드를 빌려 쓴다.
 	virtual UWorld* GetWorld() const override;
 
 	// 건물 자리를 전부 고른다. 워존이 너무 작아 공장 단지가 안 들어가면 false(맵이 다음에 다시 부름).
@@ -44,7 +44,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<AMapBuilder> Map;
 
-	// "워존이 작아서 못 지음" 에러를 한 번만 찍으려는 스티커. 이 일꾼만 읽는다.
+	// "워존이 작아서 못 지음" 에러를 한 번만 찍으려는 "이미 찍었음" 표시. 이 일꾼만 읽는다.
 	bool bLoggedMissingWarZoneFootprint = false;
 	FIntPoint CompoundAnchorResult = FIntPoint::ZeroValue;
 	int32 CampCountResult = 0;

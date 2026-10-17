@@ -59,9 +59,9 @@ UWorld* UMapGroundBuilder::GetWorld() const
 // 도로 칸에는 연결 방향대로 아스팔트 팔을 붙이고, 호수 칸은 바닥판 + 물 한 장으로 덮는다.
 void UMapGroundBuilder::BuildLightweightWorldVisuals()
 {
-	// 엔진의 한꺼번에 넣기 경로를 쓴다. 그래야 HISM 인스턴스가 다 들어간 뒤에야
-	// 길찾기 범위를 저장한다. AddInstance 를 하나씩 부르면 중간의 잘못된 범위가
-	// 동적 길찾기 시스템에 보일 수 있다.
+	// 엔진의 "한꺼번에 넣기" 함수를 쓴다(아래에서 변환 목록을 모아 한 번에 넣는다).
+	// 그러면 HISM 하나하나(복사본)가 다 들어간 뒤에야 길찾기 범위가 저장된다.
+	// AddInstance 를 하나씩 부르면, 중간의 잘못된 범위를 길찾기 시스템이 볼 수 있다.
 	Map->RoadSurfaceHISM->SetCanEverAffectNavigation(false);
 	Map->GroundHISM->ClearInstances();
 	Map->WarZoneGroundHISM->ClearInstances();
@@ -87,10 +87,9 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 	TArray<FTransform> TransitionGroundTransforms;
 	TArray<FTransform> RoadTransforms;
 	TArray<FTransform> LakeBedTransforms;
-	// 물은 칸마다 한 장이 아니라, 모든 호수·물가 칸을 감싸는 상자 위에 한 장이다.
-	// 칸마다 깔았더니 칸끼리 맞닿은 곳에서 머티리얼의 물결 무늬가 칸 경계마다 새로 시작해
-	// 물 위에 20 m 격자가 그려져 보였다. 상자가 마른 땅과 겹치는 곳에서는
-	// 물 판이 단단한 땅판 안쪽으로 지나가므로, 실제로는 호수 부분만 그려진다.
+	// 물은 칸마다 한 장이 아니라, 모든 호수·물가 칸을 감싸는 큰 상자 위에 한 장만 깐다.
+	// 칸마다 깔았더니 칸 경계마다 물결 무늬(머티리얼)가 새로 시작해서, 물 위에 20 m 격자가 그려져 보였다.
+	// 상자가 마른 땅과 겹치는 곳에서는 물 판이 단단한 땅판 안쪽에 묻히므로, 실제로는 호수 부분만 보인다.
 	TArray<FTransform> LakeWaterTransforms;
 	FIntPoint LakeSheetMin(TNumericLimits<int32>::Max(), TNumericLimits<int32>::Max());
 	FIntPoint LakeSheetMax(TNumericLimits<int32>::Min(), TNumericLimits<int32>::Min());
@@ -100,10 +99,10 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 	TransitionGroundTransforms.Reserve(512);
 	RoadTransforms.Reserve(256);
 	TSet<FIntPoint> FacilityCells;
-	// 모든 땅판과 시설 바닥판이 같이 쓰는 밑면 하나. 예전엔 판마다 자기 윗면 바로 밑을
-	// 밑면으로 골라서, -70 cm 로 꺼진 바닥판과 이웃 칸의 -10 cm 밑면 사이에 틈이 났다:
-	// 구덩이 벽에 구멍이 보였고 플레이어가 그리로 뚫고 나갈 수 있었다.
-	// 가장 깊은 바닥을 한 번 구해서 쓰면 지형 전체가 하나의 단단한 덩어리가 된다.
+	// 모든 땅판과 시설 바닥판이 같이 쓰는 밑면 높이 하나.
+	// 예전엔 판마다 자기 윗면 바로 밑을 밑면으로 골랐다. 그러면 -70 cm 로 꺼진 바닥판과
+	// 이웃 칸의 -10 cm 밑면 사이에 틈이 났다. 구덩이 벽에 구멍이 보였고, 플레이어가 그리로 빠져나갈 수 있었다.
+	// 가장 깊은 바닥을 한 번 구해서 모두 그 높이를 쓰면, 지형 전체가 틈 없는 하나의 덩어리가 된다.
 	float TerrainSolidBottomZ = -10.0f;
 	for (const FFacilityPlacement& FacilityPlacement : Map->FacilityPlacements)
 	{
@@ -113,12 +112,12 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 			? BaseGroundSurfaceZ : FacilityPlacement.BaseElevationCm;
 		TerrainSolidBottomZ = FMath::Min(TerrainSolidBottomZ, FacilitySurfaceZ - 60.0f);
 	}
-	// 호수 바닥이 세계에서 가장 깊은 곳이라, 그 둑을 이루는 땅판은 그보다 더 내려가야 한다.
-	// 상자를 키워도 인스턴스 수는 늘지 않는다.
+	// 호수 바닥이 세계에서 가장 깊은 곳이라, 그 둑을 이루는 땅판은 그보다 더 깊이 내려가야 한다.
+	// 상자를 깊게 키워도 땅판 개수(HISM 하나하나)는 늘지 않는다.
 	TerrainSolidBottomZ = FMath::Min(TerrainSolidBottomZ, LakeBedZ - 40.0f);
 
-	// 물가 메시가 있는 칸에는 평평한 땅판을 깔지 않는다: 거기선 메시가 곧 땅이고,
-	// Z=20 판을 깔면 모래사장을 그대로 뚫고 지나간다.
+	// 물가 메시가 있는 칸에는 평평한 땅판을 깔지 않는다. 거기선 물가 메시가 곧 땅이고,
+	// 높이 20(Z=20) 판을 깔면 모래사장을 뚫고 판이 튀어나온다.
 	TSet<FIntPoint> LakeCells;
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
 		if (Placement.Visual == ETileDesignVisual::Water)
@@ -140,18 +139,19 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 	}
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
 	{
-		// 20x20 m 칸이 모두 땅 렌더러 하나를 같이 쓴다. 윗면은 Z=20 으로
-		// ATacticalTileActor 의 소품/풀 기준 높이와 같다. 칸 크기를 딱 맞춰서
-		// 이웃 윗면이 겹치지 않고 가장자리끼리 딱 붙는다.
+		// 20x20 m 칸이 모두 땅 그리기 부품(HISM) 하나를 같이 쓴다.
+		// 윗면 높이는 Z=20 으로, ATacticalTileActor 가 소품/풀을 놓는 기준 높이와 같다.
+		// 칸 크기에 딱 맞춰서, 이웃 칸의 윗면이 겹치지 않고 가장자리끼리 딱 붙는다.
 		const int32 WarZoneDeltaX = Placement.GridCell.X - VisualWarZoneCenter.X;
 		const int32 WarZoneDeltaY = Placement.GridCell.Y - VisualWarZoneCenter.Y;
 		const int32 WarZoneDistanceSquared = WarZoneDeltaX * WarZoneDeltaX + WarZoneDeltaY * WarZoneDeltaY;
 		const bool bLogicalWarZoneCell = Placement.Visual == ETileDesignVisual::WarZoneGround;
 		const bool bIndustrialCoreGround = bLogicalWarZoneCell && WarZoneDistanceSquared <= 64;
-		// SpawnRuntimeBlueprintTiles 의 WarZone_Mid 타일 띠와 맞춘 값이다. 그쪽은 같은 중심 칸에서
-		// d^2 <= 225 까지 간다. 예전에 땅은 144 에서 멈춰서, 반지름 12~15 칸은 공업용 컨테이너/공장
-		// 타일인데 초록 자연 땅 위에 서 있었다 - WarZone 이 자기 가장자리에 닿기도 전에 눈에 띄게
-		// 끊겨 보였다. 225 밖의 자연 땅은 의도한 것이다: 그게 WarZone_Outer 자연 완충 띠다.
+		// 225 는 SpawnRuntimeBlueprintTiles 의 WarZone_Mid 타일 띠와 맞춘 값이다.
+		// 그쪽은 같은 중심 칸에서 거리 제곱(d^2)이 225 이하인 곳까지 간다.
+		// 예전엔 땅이 144 에서 멈췄다. 그러자 반지름 12~15 칸 구간은 공업용 컨테이너/공장 타일인데
+		// 초록 자연 땅 위에 서 있어서, WarZone 이 끝나기도 전에 눈에 띄게 끊겨 보였다.
+		// 225 바깥의 자연 땅은 의도한 것이다. WarZone_Outer 라는 자연 완충 띠다.
 		const bool bTransitionGround = bLogicalWarZoneCell
 			&& WarZoneDistanceSquared > 64
 			&& WarZoneDistanceSquared <= 225;
@@ -161,19 +161,19 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 		TArray<FTransform>& TargetGroundTransforms = bIndustrialCoreGround
 			? WarZoneGroundTransforms
 			: (bTransitionGround ? TransitionGroundTransforms : GroundTransforms);
-		// 네 모서리가 다 젖은 땅 칸은 물에 잠긴 것이다: 걷는 높이가 아니라 호수 바닥에 속한다.
-		// 이게 없으면 양쪽 처리에서 다 빠져서 물가 한가운데 Z=20 평판이 혼자 남았다.
+		// 네 모서리가 다 젖은 땅 칸은 물에 잠긴 것이다. 걷는 높이가 아니라 호수 바닥에 속한다.
+		// 이 검사가 없으면 두 처리(땅판, 호수) 모두에서 빠져서, 물가 한가운데에 높이 20 짜리 평평한 판이 혼자 남았다.
 		const TPair<int32, int32>* ShoreEntry = ShoreTileByCell.Find(Placement.GridCell);
 		const bool bSubmergedCell = ShoreEntry != nullptr
 			&& ShoreEntry->Key == SubmergedShoreVariant;
 		if (Placement.Visual == ETileDesignVisual::Water || bSubmergedCell)
 		{
-			// 평평한 칸 판 대신 꺼진 바닥 + 같이 쓰는 물 판.
-			// LakeSurfaceZ 와 이웃 땅 윗면 사이의 둑이 호수를 못 건너게 만드는 것이므로,
+			// 평평한 칸 판 대신, 꺼진 바닥판과 모두가 같이 쓰는 물 판(위에서 큰 상자 하나로 깔기로 한 것)을 쓴다.
+			// 호수를 못 건너게 막는 건 수면(LakeSurfaceZ)과 이웃 땅 윗면 사이의 둑이므로,
 			// 여기서는 아무것도 공통 높이까지 올라오지 않는다.
-			// 호수 바닥부터 공통 밑면까지 꽉 채운다. 예전 높이는
-			// Max(20, LakeBedZ - TerrainSolidBottomZ) 였는데, 바닥이 밑면보다 아래면 이 식이 음수가 되어
-			// 20 cm 판으로 잘려 물속에 떠 있었고 그 위로 속이 비쳐 보이는 띠가 생겼다.
+			// 호수 바닥부터 공통 밑면까지 꽉 채운다. 예전 높이는 Max(20, LakeBedZ - TerrainSolidBottomZ) 였다.
+			// 그런데 바닥이 밑면보다 아래면 이 식이 음수가 되어 20 cm 판으로 잘렸고,
+			// 판이 물속에 떠서 그 위로 속이 비쳐 보이는 띠가 생겼다.
 			LakeBedTransforms.Add(MakeCubeTransform(
 				Map->LakeBedHISM,
 				Placement.WorldLocation + FVector(0.0f, 0.0f, (LakeBedZ + TerrainSolidBottomZ) * 0.5f),
@@ -191,16 +191,15 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 
 		if (ShoreEntry != nullptr)
 		{
-			// 이제 물가 메시는 모래사장 표면만이고, 그 아래 단단한 부분은 물 칸과 같은
-			// 이 바닥판이다. 윗면은 젖은 모서리에서 모래사장과 딱 만나고
-			// 나머지 곳에서는 모래사장 아래에 있다.
+			// 물가 메시는 이제 모래사장 표면뿐이고, 그 아래 단단한 부분은 물 칸과 같은 이 바닥판이다.
+			// 바닥판 윗면은 젖은 모서리에서 모래사장과 딱 만나고, 나머지 곳에서는 모래사장 아래에 있다.
 			LakeBedTransforms.Add(MakeCubeTransform(
 				Map->LakeBedHISM,
 				Placement.WorldLocation + FVector(0.0f, 0.0f, (LakeBedZ + TerrainSolidBottomZ) * 0.5f),
 				FVector(DesignCellSize, DesignCellSize,
 					FMath::Max(40.0f, LakeBedZ - TerrainSolidBottomZ))));
-			// 모래사장은 젖은 모서리 근처에서 물 아래로 내려가므로, 같이 쓰는 물 판이 물가 칸까지
-			// 덮어야 한다 - 안 그러면 모래사장마다 호수 옆에 물 없는 올리브색 웅덩이가 생겼다.
+			// 모래사장은 젖은 모서리 근처에서 물 아래로 내려가므로, 같이 쓰는 물 판이 물가 칸까지 덮어야 한다.
+			// 안 덮으면 모래사장마다 호수 옆에 물 없는 올리브색 웅덩이가 생겼다.
 			LakeSheetMin = FIntPoint(
 				FMath::Min(LakeSheetMin.X, Placement.GridCell.X),
 				FMath::Min(LakeSheetMin.Y, Placement.GridCell.Y));
@@ -234,11 +233,12 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 			continue;
 
 		++RoadTileCount;
-		// 예전 도로판은 두께 2 cm 로 공통 지형보다 1 cm 위에 있었다. 그러면 아랫면이 땅 윗면과
-		// 딱 같은 높이가 되고 걷는 면은 겨우 2 cm 위다. 가까이선 깊이 버퍼가 구분하지만
-		// 900 m 맵 전체에선 못 해서 둘이 깜빡였다 - 겹친 면 검사에서 간격 0.00 cm 인 칸 쌍이
-		// 174 개 나왔다. 그래서 걷는 면을 연석처럼 10 cm 올리고(45 cm 턱 높이보다 한참 낮다),
-		// 아랫면은 땅 상자 안 20 cm 깊이에 묻어 어떤 면과도 같은 높이가 되지 않게 한다.
+		// 예전 도로판은 두께 2 cm 로 공통 지형보다 1 cm 위에 있었다.
+		// 그러면 도로판 아랫면이 땅 윗면과 딱 같은 높이가 되고, 걷는 면은 땅 위로 겨우 2 cm 였다.
+		// 가까이서는 화면이 두 면을 구분하지만, 900 m 맵 전체에서는 구분을 못 해서 둘이 깜빡였다.
+		// 겹친 면 검사에서 간격이 0.00 cm 인 칸 쌍이 174 개나 나왔다.
+		// 그래서 걷는 면을 보도 턱처럼 10 cm 올리고(45 cm 턱 높이보다 한참 낮다),
+		// 아랫면은 땅 안쪽 20 cm 깊이에 묻어서 어떤 면과도 같은 높이가 되지 않게 한다.
 		const FVector Center = Placement.WorldLocation
 			+ FVector(0.0f, 0.0f, SurfaceZ + RoadSurfaceLiftCm - RoadSurfaceThicknessCm * 0.5f);
 		RoadTransforms.Add(MakeCubeTransform(
@@ -251,8 +251,8 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 			const float ThisSurfaceZ = Map->GetSurfaceElevationForCell(Placement.GridCell);
 			const float NeighbourSurfaceZ = Map->GetSurfaceElevationForCell(Placement.GridCell + Direction);
 			const FVector Direction3D(static_cast<float>(Direction.X), static_cast<float>(Direction.Y), 0.0f);
-			// 갈래 부분도 가운데 판과 같은 높이를 써서, 도로 표면 전체가
-			// 올린 높이에서 끊김 없는 한 면으로 이어진다.
+			// 갈래(팔) 부분도 가운데 판과 같은 높이를 쓴다.
+			// 그래야 도로 표면 전체가 올린 높이에서 끊김 없이 한 면으로 이어진다.
 			const float ArmCenterOffsetZ = RoadSurfaceLiftCm - RoadSurfaceThicknessCm * 0.5f;
 			const FVector Start = Placement.WorldLocation + Direction3D * 300.0f
 				+ FVector(0.0f, 0.0f, ThisSurfaceZ + ArmCenterOffsetZ);
@@ -271,8 +271,8 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 		AddRoadArm(FIntPoint(-1, 0), WestConnection);
 	}
 
-	// 여러 칸짜리 시설마다 2x1, 2x2, 3x3(또는 회전한) 차지 칸에 딱 맞는 이어진 지형판 하나를 갖는다.
-	// 안쪽 이음새가 없어지고, 건물·소품·충돌·진입로 부품이
+	// 여러 칸짜리 시설마다 2x1, 2x2, 3x3(또는 회전한) 차지 칸에 딱 맞는, 이음새 없는 지형판을 하나씩 깐다.
+	// 그러면 안쪽 이음새가 없어지고, 건물·소품·충돌·진입로 부품이
 	// 모두 같은 윗면 높이 하나를 기준으로 삼는다.
 	int32 RaisedPadCount = 0;
 	int32 LoweredPadCount = 0;
@@ -280,9 +280,9 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 	{
 		if (FacilityPlacement.OccupiedCells.IsEmpty())
 			continue;
-		// 자기 깎은 땅이 있는 시설에는 평평한 바닥판을 깔지 않는다: 바닥판이 기준 높이에서
-		// 지형 메시를 그대로 잘라 그 아래가 다 가려진다
-		// - 시골 디오라마라면 물가, 물, 보트 두 척이 다 가려진다.
+		// 자기 땅 모양이 따로 있는 시설에는 평평한 바닥판을 깔지 않는다.
+		// 바닥판이 기준 높이에서 그 땅 메시를 잘라 버려서, 바닥판 아래가 다 가려지기 때문이다.
+		// (예: 시골 디오라마라면 물가, 물, 보트 두 척이 다 가려진다.)
 		if (FacilityBringsOwnTerrain(FacilityPlacement.VisualSet))
 			continue;
 		int32 MinX = MAX_int32;
@@ -325,13 +325,13 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 		TEXT("Facility terrain pads: total=%d raised=%d lowered=%d continuous_rectangles=true"),
 		Map->FacilityPlacements.Num(), RaisedPadCount, LoweredPadCount);
 
-	// 물가 꾸미기. 물인지 아닌지가 칸마다 정해지므로 물가 선이 20 m 격자 따라 계단진다.
-	// 얕은 물에 세운 강돌과 갈대가 그 선을 흐트러뜨린다.
+	// 물가 꾸미기. 칸마다 물인지 아닌지가 정해지므로 물가 선이 20 m 격자를 따라 계단처럼 보인다.
+	// 얕은 물에 세운 강돌과 갈대가 그 선을 흐트러뜨려 가려 준다.
 	//
-	// 처음엔 기울인 둑 판을 써 봤다가 뺐다: 27 m 짜리 상자를 돌리면 먼 쪽 끝이 Z=20 땅보다
-	// 3 m 넘게 떠서, 물가가 아니라 땅에서 판이 삐죽 튀어나와 보였다.
-	// 진짜 곡선 물가는 칸보다 잘게 나눈 모양이 필요하다
-	// - 돌린 상자가 아니라 SM_Terrain_Mound_2x2 같은 손작업 물가 메시.
+	// 처음엔 기울인 둑 판을 써 봤다가 뺐다. 27 m 짜리 상자를 비스듬히 돌리면
+	// 먼 쪽 끝이 높이 20 땅보다 3 m 넘게 떠서, 물가가 아니라 땅에서 판이 삐죽 튀어나와 보였다.
+	// 진짜 곡선 물가는 칸보다 잘게 나눈 모양이 필요하다.
+	// 돌린 상자가 아니라, SM_Terrain_Mound_2x2 처럼 손으로 만든 물가 메시를 써야 한다.
 	Map->ShoreRockHISM->ClearInstances();
 	Map->ShoreReedHISM->ClearInstances();
 	TArray<FTransform> ShoreRockTransforms;
@@ -396,9 +396,8 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 		}
 	}
 
-	// 물가 메시를 놓는다. 로컬 원점이 이미 칸 중심에 있고 땅 쪽 면이 Z=20 이라,
-	// 필요한 건 칸 위치와, 메시의 물 쪽 면이 호수를 향하게 하는
-	// 90도 회전뿐이다.
+	// 물가 메시를 놓는다. 메시의 기준점이 이미 칸 중심에 있고 땅 쪽 면 높이가 20(Z=20)이라,
+	// 필요한 건 칸 위치와, 메시의 물 쪽 면이 호수를 향하게 하는 90도 단위 회전뿐이다.
 	int32 ShoreTransitionCount = 0;
 	for (int32 VariantIndex = 0; VariantIndex < Map->ShoreTransitionHISMs.Num(); ++VariantIndex)
 	{
@@ -429,8 +428,8 @@ void UMapGroundBuilder::BuildLightweightWorldVisuals()
 		}
 		if (Component->GetStaticMesh() == nullptr)
 		{
-			// 놓을 메시가 없다. 평판을 뺀 자리에 구멍만 남기지 말고 한 번 알린다
-			// - PG.BuildShoreMeshes 를 돌릴 것.
+			// 놓을 메시가 없다. 평평한 판을 뺀 자리에 구멍만 조용히 남기지 말고 경고를 남긴다.
+			// 해결: 콘솔 명령 PG.BuildShoreMeshes 를 돌려 물가 메시를 만든다.
 			UE_LOG(LogTemp, Warning,
 				TEXT("Shore mesh missing for variant %d - run PG.BuildShoreMeshes"), VariantIndex);
 			continue;
@@ -523,11 +522,11 @@ void UMapGroundBuilder::BuildBorderMountains()
 		(MaxCell.X - MinCell.X + 1) * DesignCellSize,
 		(MaxCell.Y - MinCell.Y + 1) * DesignCellSize) * 0.5f;
 
-	// 팩의 배경 산 메시로 엇갈린 고리 두 겹을 만든다. 숫자는 Downtown_West 데모가
-	// 자기 지평선을 꾸민 방식을 따랐다: 중심에서 550 m 이상, 크기 0.4-1.5,
-	// 15-34 m 묻어서 능선만 골짜기 바닥 위로 솟게 한다. 안쪽 고리가 윤곽을 만들고,
-	// 더 듬성하고 큰 바깥 고리가 산줄기에 깊이를 줘서
-	// 언덕 울타리처럼 보이지 않게 한다.
+	// 에셋 팩의 배경 산 메시로, 서로 엇갈린 고리 두 겹을 만든다.
+	// 숫자는 팩의 Downtown_West 데모가 지평선을 꾸민 방식을 따랐다.
+	// 중심에서 550 m 이상 떨어뜨리고, 크기는 0.4-1.5 배, 15-34 m 를 땅에 묻어서 능선만 골짜기 바닥 위로 솟게 한다.
+	// 안쪽 고리가 산의 윤곽을 만들고, 더 듬성하고 큰 바깥 고리가 산줄기에 깊이를 준다.
+	// 그래서 산이 언덕 울타리처럼 보이지 않는다.
 	const int64 RaidSeed = Map->GetRaidSeed();
 	FRandomStream MountainStream(static_cast<int32>(GetTypeHash(RaidSeed) ^ 0x304Au));
 	TArray<FTransform> MountainTransforms;
@@ -585,10 +584,10 @@ void UMapGroundBuilder::BuildPCGDressingGraph()
 	int32 CandidateCellCount = 0;
 	int32 MeadowCellCount = 0;
 	int32 ScrubCellCount = 0;
-	// 시설 자리에는 따로 올리거나 내린 지형판과 진입 경사로가 있는데, 이 단계는 그걸 모른다
-	// (TileDesignPlacements 에는 높이 조정 전 평평한 Z 만 있다). 시설 자리 한 칸 바깥에
-	// 놓인 풀 덩어리가 그 판 위에 뜨거나 파묻힐 수 있으므로,
-	// 높이를 짐작하지 말고 시설마다 둘레 한 칸을 비워 둔다.
+	// 시설 자리에는 따로 올리거나 내린 지형판과 진입 경사로가 있는데, 이 단계는 그걸 모른다.
+	// (TileDesignPlacements 에는 높이를 조정하기 전의 평평한 Z 만 들어 있다.)
+	// 시설 바로 옆 한 칸에 놓인 풀 덩어리가 그 판 위에 뜨거나 파묻힐 수 있다.
+	// 높이를 짐작하지 말고, 시설마다 둘레 한 칸을 비워 둔다.
 	auto IsNearFacilityFootprint = [this](const FIntPoint& Cell)
 	{
 		for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
@@ -614,13 +613,13 @@ void UMapGroundBuilder::BuildPCGDressingGraph()
 			continue;
 		}
 
-		// 풀밭용 꾸미기만 한다. 숲/바위/매복/정비 캠프 타일은 ATacticalTileActor 에서
-		// 자기 HISM 꾸미기를 직접 갖는다. 이 단계는 그 사이에서 맨땅이 반복돼 보이는
-		// 열린 풀밭, 덤불, 폐허, 공터 타일을 채운다. 칸 나누기 값(cell divisor)은 해당 칸 중
-		// 몇 칸에 덩어리를 놓을지, 덩어리 수(clump count)는 고른 칸 하나에 몇 개를 놓을지 정한다.
-		// 둘을 합쳐 레벨 디자인 계획의 "풀밭은 꽉 차 보이고, 덤불 지대는 듬성듬성" 밀도 차이를
-		// 흉내 낸다. SpawnRuntimeBlueprintTiles 가 자기 HISM 밀도용으로 쓰는
-		// WarZone 띠 판정 로직을 복사하지 않기 위해서다.
+		// 풀밭용 꾸미기만 한다. 숲/바위/매복/정비 캠프 타일은 ATacticalTileActor 가
+		// 자기 꾸미기(HISM)를 직접 갖고 있다. 이 단계는 그 사이에서 맨땅이 반복돼 보이는
+		// 열린 풀밭, 덤불, 폐허, 공터 타일을 채운다.
+		// - 칸 나누기 값(cell divisor): 해당 칸 중 몇 칸에 한 번 덩어리를 놓을지.
+		// - 덩어리 수(clump count): 고른 칸 하나에 덩어리를 몇 개 놓을지.
+		// 둘을 합쳐서 레벨 디자인 계획의 "풀밭은 꽉 차 보이고, 덤불 지대는 듬성듬성" 밀도 차이를 흉내 낸다.
+		// SpawnRuntimeBlueprintTiles 가 자기 꾸미기 밀도에 쓰는 WarZone 띠 판정 로직을 복사하지 않으려고 이렇게 했다.
 		int32 CellDivisor;
 		int32 ClumpCount;
 		const bool bIsMeadow = Placement.Visual == ETileDesignVisual::NatureMeadow;
@@ -670,8 +669,8 @@ void UMapGroundBuilder::BuildPCGDressingGraph()
 		Entry.Descriptor.InstanceEndCullDistance = 18000;
 		Entry.Descriptor.ComponentTags.Add(TEXT("PCG_Dressing"));
 	}
-	// 풀보다 비중을 낮게 준다(2 x 비중1 대 3 x 비중3). 그래야 덤불이 땅의 절반이 아니라
-	// 가끔 보이는 포인트로 보인다.
+	// 덤불은 풀보다 나올 확률(비중)을 낮게 준다(2 x 비중 1 대 3 x 비중 3).
+	// 그래야 덤불이 땅의 절반을 덮지 않고, 가끔 보이는 포인트로 보인다.
 	for (const TSoftObjectPtr<UStaticMesh>& ShrubMesh : ShrubMeshes)
 	{
 		FPCGMeshSelectorWeightedEntry& Entry = MeshSelector->MeshEntries.Emplace_GetRef(ShrubMesh, 1);

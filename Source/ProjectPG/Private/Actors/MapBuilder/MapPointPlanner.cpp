@@ -52,9 +52,9 @@ void UMapPointPlanner::BuildPoints()
 			if (Placement.Visual == ETileDesignVisual::Exit && ManhattanDistance < 2)
 				return true; // 탈출 지점 표시 위에 바로 진 치지 않게
 		}
-		// 보트 상륙 지점도 시작 지점이지만, Spawn 타일이 아니라 시골 마을 위의 게임플레이 지점이라
-		// 위의 띠 검사가 못 본다. 이게 없으면 들판 교전 지점이 상륙 지점 49.5 m 까지 다가왔고,
-		// 마을 자체가 '상주 AI 가 없는 시설'로 집계됐다.
+		// 보트 상륙 지점도 시작 지점이다. 그런데 시작 타일(Spawn)이 아니라 시골 마을 위에 있는 지점이라, 위의 띠 검사가 못 본다.
+		// 이 검사가 없으면 들판 교전 지점이 상륙 지점 49.5 m 앞까지 다가왔고,
+		// 마을 자체는 "상주 AI 가 없는 시설"로 집계됐다.
 		if (Map->bHasBorderLake)
 		{
 			for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
@@ -107,9 +107,9 @@ void UMapPointPlanner::BuildPoints()
 			Cell.X * DesignCellSize,
 			Cell.Y * DesignCellSize,
 			120.0f + Map->GetSurfaceElevationForCell(Cell)) + TacticalOffset;
-		// 손으로 정한 위치를 먼저 쓰지만, 무작위 전술 변형이 그 자리에 엄폐물을 놓을 수 있다.
-		// 매번 똑같은 3x3 주변을 찾아서, 내보내는 모든 지점이 실제로 스폰 가능하게 한다.
-		// 고른 타일이나 layout hash 는 바뀌지 않는다.
+		// 손으로 정한 위치를 먼저 쓴다. 다만 무작위로 바뀌는 타일 배치가 그 자리에 엄폐물을 놓았을 수 있다.
+		// 그러면 매번 같은 순서로 주변 3x3 자리를 차례로 살펴서, 막히지 않은 곳을 쓴다. 그래야 내보내는 모든 지점에 실제로 스폰할 수 있다.
+		// 고른 타일이나 layout hash 는 이것 때문에 바뀌지 않는다.
 		const FVector CandidateOffsets[] = {
 			FVector::ZeroVector,
 			FVector(320, 0, 0), FVector(-320, 0, 0), FVector(0, 320, 0), FVector(0, -320, 0),
@@ -171,11 +171,11 @@ void UMapPointPlanner::BuildPoints()
 			continue;
 		if (Placement.Visual == ETileDesignVisual::Spawn)
 		{
-			// 추가 시작 구역(1번부터)의 자리는 아래(칸 돌기가 끝난 뒤)에서 넣는다.
-			// 왜: 검사기가 "첫 번째 시작 지점" 을 출발점으로 쓴다. 칸 순서대로 넣으면 첫 자리가 다른 구역으로 바뀐다.
+			// 추가 시작 구역(1번부터)의 자리는 칸을 다 돈 뒤, 아래에서 넣는다.
+			// 왜: 검사기가 "첫 번째 시작 지점"을 출발점으로 쓴다. 칸 순서대로 넣으면 첫 자리가 다른 구역으로 바뀔 수 있다.
 			if (Map->SpawnRegionCells.IndexOfByKey(Placement.GridCell) > 0)
 				continue;
-			// 후보를 네 개 둬서, 나중에 분대가 캡슐 하나에 겹쳐 나오지 않게 한다.
+			// 시작 자리를 4개 둔다. 그래야 나중에 분대원이 한 자리에 겹쳐서 나오지 않는다.
 			AddPoint(ELevelDesignPointType::Spawn, Placement.GridCell, FVector(0, -430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
 			AddPoint(ELevelDesignPointType::Spawn, Placement.GridCell, FVector(0, 430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
 			AddPoint(ELevelDesignPointType::Spawn, Placement.GridCell, FVector(360, -430, 0), TEXT("SpawnPoint"), TEXT("PlayerSquad"), 1, 130, 1);
@@ -210,9 +210,9 @@ void UMapPointPlanner::BuildPoints()
 			|| Placement.Visual == ETileDesignVisual::NatureDitch;
 		if (bNaturalTile)
 		{
-			// 매번 똑같이 나오는 낮은 밀도의 격자로 900m 들판 전체를 루트 슈터에 쓸모 있게 만든다.
-			// 서버가 나중에 이 표시들을 manifest 에 담아 보낼 수 있다.
-			// 클라이언트 쪽 무작위 선택은 없다.
+			// 매번 똑같이 나오는 듬성한 격자로 900m 들판 전체에 아이템·전투 자리를 깔아서, 들판 어디든 쓸모 있게 만든다.
+			// 서버가 나중에 이 표시들을 설계도에 담아 보낼 수 있다.
+			// 접속한 사람 쪽에서 무작위로 고르는 것은 없다.
 			const int32 StableX = Placement.GridCell.X + 64;
 			const int32 StableY = Placement.GridCell.Y + 64;
 			const bool bNaturalLoot = (StableX % 7 == 0 && StableY % 7 == 0)
@@ -238,7 +238,7 @@ void UMapPointPlanner::BuildPoints()
 		}
 	}
 
-	// 추가 시작 구역(1번부터)마다 자리 4개. 0번(형님 시작 칸) 자리보다 뒤에 넣는다(위 주석).
+	// 추가 시작 구역(1번부터)마다 자리 4개. 0번(형님 시작 칸) 자리보다 뒤에 넣는다(이유는 위 칸 돌기 안의 주석).
 	for (int32 RegionIndex = 1; RegionIndex < Map->SpawnRegionCells.Num(); ++RegionIndex)
 	{
 		const FIntPoint& RegionCell = Map->SpawnRegionCells[RegionIndex];
@@ -314,9 +314,9 @@ void UMapPointPlanner::BuildPoints()
 		// 호숫가 마을의 "보트 타고 도착" 시작 자리. 호수 위치가 판마다 달라서 표의 고정 좌표로는 못 적는다.
 		if (Facility.VisualSet == EFacilityVisualSet::RuralHideout && Map->bHasBorderLake)
 		{
-			// "보트로 도착": 마을의 물 쪽 가장자리에 있는 시작 지점. 호수 모서리는 시드마다 바뀌므로,
-			// 기록된 호수 중심을 향하게 하고 시설의 회전(yaw)을 되돌린다. 위치를 고정해 두면
-			// 마을이 우연히 원래 방향으로 돌아간 시드에서만 물을 바라본다.
+			// "보트로 도착": 마을의 물 쪽 가장자리에 있는 시작 지점. 호수 모서리는 시드마다 바뀐다.
+			// 그래서 기록해 둔 호수 중심 쪽으로 향하게 하되, 시설이 돌아간 만큼(yaw)은 되돌려 계산한다.
+			// 위치를 고정해 두면, 마을이 우연히 원래 방향으로 돌아간 시드에서만 물을 바라보게 된다.
 			const FVector FacilityCentre = Map->GetDesignFootprintCenter(Facility);
 			const FVector2D ToLake = (Map->BorderLakeCentreCell * DesignCellSize
 				- FVector2D(FacilityCentre.X, FacilityCentre.Y)).GetSafeNormal();
@@ -330,7 +330,7 @@ void UMapPointPlanner::BuildPoints()
 
 	RebuildHash();
 
-	// 다른 담당에게 알린다. 재시도로 다시 만들어져도 첫 확정만 알린다.
+	// 지점이 만들어졌다고 다른 담당에게 알린다. 다시 만들어져도 처음 확정됐을 때 한 번만 알린다.
 	if (!Map->bLevelDesignPointsBuilt)
 	{
 		Map->bLevelDesignPointsBuilt = true;
@@ -348,8 +348,8 @@ void UMapPointPlanner::BuildPoints()
 		Map->GameplayPointHash);
 }
 
-// 사람 한 명(캡슐 반지름 55·반높이 95)이 Location 바닥에 설 수 있나. 맵 바닥·지점 표시·사람은 막힘으로 안 친다.
-// 지점 찍기와 끼임 정리가 같은 기준을 써야 해서 한 곳에 둔다(예전엔 두 군데에 같은 코드가 있었다).
+// 사람 한 명(충돌 캡슐 반지름 55·반높이 95)이 Location 바닥에 설 수 있나. 맵 바닥·지점 표시·사람은 막힘으로 안 친다.
+// 지점 찍기와 끼임 정리가 같은 기준을 써야 해서 한 곳에 둔다(예전엔 두 군데에 같은 코드가 따로 있었다).
 bool UMapPointPlanner::IsSpotBlocked(const FVector& Location) const
 {
 	TArray<FOverlapResult> Overlaps;
@@ -362,7 +362,7 @@ bool UMapPointPlanner::IsSpotBlocked(const FVector& Location) const
 		const AActor* HitActor = Result.GetActor();
 		const UPrimitiveComponent* HitComponent = Result.GetComponent();
 		return IsValid(HitActor) && HitActor != Map
-			&& !HitActor->IsA<APawn>() // 사람·몬스터는 맵이 아니다(리슨 서버에서 들어온 사람 쪽엔 이미 캐릭터가 서 있어 자리가 달라졌음)
+			&& !HitActor->IsA<APawn>() // 사람·몬스터는 막힘으로 안 친다(방장이 서버를 겸하는 방식[리슨 서버]에서 들어온 쪽엔 이미 캐릭터가 서 있어서 판정이 달라졌다)
 			&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
 			&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
 			&& IsValid(HitComponent)
@@ -375,8 +375,8 @@ void UMapPointPlanner::RebuildHash()
 	uint32 Hash = 0;
 	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
 	{
-		// FName 의 실행 중 비교 번호는 그 프로세스 안에서만 유효하다. 저장되는 문자열 내용으로
-		// 해시해야 서버와 클라이언트가 따로 켜져도 같은 값을 낸다.
+		// FName 이 가진 비교용 번호는 그 프로그램이 켜져 있는 동안에만 같다.
+		// 그래서 번호가 아니라 글자 내용으로 해시해야, 서버와 접속한 쪽이 따로 켜져도 같은 값이 나온다.
 		Hash = HashCombine(Hash, FCrc::StrCrc32(*Point.PointId.ToString()));
 		Hash = HashCombine(Hash, FCrc::StrCrc32(*Point.ArchetypeId.ToString()));
 		Hash = HashCombine(Hash, GetTypeHash(Point.GridCell.X));
@@ -392,11 +392,11 @@ void UMapPointPlanner::RebuildHash()
 	Map->GameplayPointHash = Hash;
 }
 
-// 끼임 정리. 시설 레벨이 다 보인 뒤에야 벽 위치를 알 수 있어서, 지점 찍기와 따로 나중에 한다.
-// 막힌 자리는 칸 가운데 둘레 9×9(225cm 간격)를 가까운 순서로 훑어 첫 빈 곳으로 옮긴다.
+// 끼임 정리. 시설 레벨이 다 불러와진 뒤에야 벽 위치를 알 수 있어서, 지점 찍기와 따로 나중에 한다.
+// 막힌 자리는 칸 가운데 둘레 9×9 칸(225cm 간격)을 가까운 순서로 훑어서, 처음 나오는 빈 곳으로 옮긴다.
 void UMapPointPlanner::ResolveSafety()
 {
-	// 시설 레벨 기다리기가 끝난 뒤 맵이 한 번 부른다(AMapBuilder::CheckFacilityDesignLevels).
+	// 시설 레벨이 다 불러와지고 나면 맵이 한 번 부른다(AMapBuilder::CheckFacilityDesignLevels).
 	if (Map->bResolvedGameplayPointSafety || !Map->bFacilityLevelsSettled || Map->LevelDesignPoints.IsEmpty())
 		return;
 
