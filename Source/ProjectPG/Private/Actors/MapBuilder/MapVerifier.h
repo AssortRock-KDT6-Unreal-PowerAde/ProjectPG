@@ -35,7 +35,7 @@ public:
 	virtual UWorld* GetWorld()const override;
 	// PCG뿌리는 기계.
 	// DressingPCGComponent 맵 액터에 달린 풀 뿌리는 기계.
-	// 맵 액터(AMapBuilder)의 Tick 이 매 프레임 부른다.
+	// 시간 걸리는 검사 묶음(TickTimedChecks)에서 부른다.
 	// bLoggedPCGDressing 가 true 면 바로 끝낸다. 아니면 true 로 바꾸고 로그를 찍는다.
 	void VerifyPCGDressing();
 	// 칸마다 위에서 아래로 막대기(선)을 꽂아 바닥 구멍 찾기. 
@@ -69,7 +69,14 @@ public:
 	// 맵이 다 깔린 뒤 50프레임 평균 fps·액터 수·메모리를 로그에 남긴다(합격/불합격 없이 숫자만).
 	void VerifyLocalPerformance(float DeltaSeconds);
 
-	
+	// 언제 부르나(10/17, 예전엔 맵 Tick 이 11개를 매 프레임 불렀다):
+	// 1) RunFinalChecks: 상자까지 놓인 뒤 맵이 한 번 부른다. 기다릴 것이 없는 검사 7개.
+	// 2) TickTimedChecks: 그다음 맵 타이머가 0.1초마다 부른다. 시간이 걸리는 검사 4개
+	//    (풀 뿌리기 끝, 길찾기 지도 최대 20초, 출구 길, 성능 50번 재기). 다 끝나면 true → 맵이 타이머를 끈다.
+	//    bGiveUp 이면 안 끝난 검사 이름을 Warning 으로 남기고 true.
+	void RunFinalChecks();
+	bool TickTimedChecks(bool bGiveUp);
+
 private:
 	// 언리얼 한테 포인터 관리해달라.
 	UPROPERTY()

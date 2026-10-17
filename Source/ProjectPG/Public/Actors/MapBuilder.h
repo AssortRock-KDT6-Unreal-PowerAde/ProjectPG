@@ -248,7 +248,6 @@ private:
 	void BuildShoreTransitionMap(
 		const TSet<FIntPoint>& LakeCells,
 		TMap<FIntPoint, TPair<int32, int32>>& OutShoreTileByCell) const;
-	bool AreAllFacilityLevelsLoaded() const;
 	FVector GetDesignFootprintCenter(const FFacilityPlacement& Placement) const;
 
 	// 시설 레벨 기다리기(이벤트 방식, 10/17). 예전엔 Tick 이 매 프레임 "다 보이나?" 를 물었고,
@@ -263,6 +262,8 @@ private:
 	void HandleFacilityLoadTimeout();
 	// bTimedOut 이 참이면 아직 안 온 레벨이 있어도 끝낸다.
 	void CheckFacilityDesignLevels(bool bTimedOut);
+	// 검사기 중 시간이 걸리는 것(길찾기 지도 등)을 0.1초마다. 다 끝나면(또는 120초) 타이머를 끈다.
+	void TickTimedChecks();
 
 	// 협력객체 : 맵 자체 검사
 	// friend class : 검사기가 private볼 수 있게.
@@ -547,6 +548,8 @@ private:
 	// 시설 레벨 기다리기가 끝났나(다 왔거나, 실패·시간 제한으로 포기). 끼임 정리·상자 놓기는 이게 참일 때만.
 	bool bFacilityLevelsSettled = false;
 	FTimerHandle FacilityLoadTimeoutTimer;
+	FTimerHandle TimedChecksTimer;
+	double TimedChecksStartSeconds = 0.0;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
 	double NavigationValidationStartTimeSeconds = 0.0;
 	FIntPoint LastPlayerNavigationBlockerCell = FIntPoint(MAX_int32, MAX_int32);
