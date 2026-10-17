@@ -1,0 +1,364 @@
+# 게임 소리 에셋을 한 번에 만든다(가져오기 → 감쇠 → 물리 재질 → 메타사운드 → 소리 표).
+# 설명: Source/ProjectPG/Public/Audio/README.md
+#
+# 돌리는 법(에디터 없이):
+#   UnrealEditor-Cmd.exe ProjectPG.uproject -run=pythonscript -script="Tools/audio/build_pg_sounds.py" -EnablePlugins=PythonScriptPlugin -unattended -nullrhi
+#   소리 원본 폴더는 환경 변수 PG_SOUND_SRC (기본 E:\SoundSources\PG_Processed).
+# 다시 돌려도 됨: 있는 에셋은 덮어쓰고, 소리 표는 매번 새로 채운다(손으로 바꾼 값은 사라짐 → 손으로 고칠 거면 이 스크립트를 고칠 것).
+import os
+import unreal
+
+SRC = os.environ.get("PG_SOUND_SRC", r"E:\SoundSources\PG_Processed")
+ROOT = "/Game/PG/Audio"
+WAVES = ROOT + "/Waves"
+MS = ROOT + "/MetaSounds"
+ATT = ROOT + "/Attenuation"
+PM = ROOT + "/PhysMats"
+
+assets = unreal.EditorAssetLibrary
+tools = unreal.AssetToolsHelpers.get_asset_tools()
+log = unreal.log
+errors = []
+
+
+def fail(msg):
+    errors.append(msg)
+    unreal.log_error("[PGSound] " + msg)
+
+
+# ---------- 1) wav 가져오기: 원본 하위 폴더 이름 그대로 Waves/<폴더> ----------
+def import_folder(folder):
+    src_dir = os.path.join(SRC, folder)
+    if not os.path.isdir(src_dir):
+        fail("원본 폴더 없음: " + src_dir)
+        return []
+    tasks = []
+    for name in sorted(os.listdir(src_dir)):
+        if not name.lower().endswith(".wav"):
+            continue
+        t = unreal.AssetImportTask()
+        t.filename = os.path.join(src_dir, name)
+        t.destination_path = WAVES + "/" + folder
+        t.automated = True
+        t.replace_existing = True
+        t.save = True
+        tasks.append(t)
+    tools.import_asset_tasks(tasks)
+    return load_waves(folder)
+
+
+def load_waves(folder, contains=None, exclude=None):
+    out = []
+    for path in sorted(assets.list_assets(WAVES + "/" + folder, recursive=False)):
+        a = assets.load_asset(path.split(".")[0])
+        if not isinstance(a, unreal.SoundWave):
+            continue
+        n = a.get_name()
+        if contains and not any(c in n for c in contains):
+            continue
+        if exclude and any(x in n for x in exclude):
+            continue
+        out.append(a)
+    if not out:
+        fail("녹음이 하나도 없음: %s %s" % (folder, contains or ""))
+    return out
+
+
+# ---------- 2) 감쇠: 거리 → 크기 + 멀수록 고음 깎기 ----------
+def make_attenuation(name, inner, falloff, lpf_far_hz):
+    path = ATT + "/" + name
+    a = assets.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(name, ATT, unreal.SoundAttenuation, None)
+    s = a.get_editor_property("attenuation")
+    s.set_editor_property("attenuate", True)
+    s.set_editor_property("spatialize", True)
+    s.set_editor_property("distance_algorithm", unreal.AttenuationDistanceModel.NATURAL_SOUND)
+    s.set_editor_property("attenuation_shape", unreal.AttenuationShape.SPHERE)
+    s.set_editor_property("attenuation_shape_extents", unreal.Vector(inner, 0, 0))
+    s.set_editor_property("falloff_distance", falloff)
+    s.set_editor_property("attenuate_with_lpf", True)
+    s.set_editor_property("lpf_radius_min", inner)
+    s.set_editor_property("lpf_radius_max", inner + falloff)
+    s.set_editor_property("lpf_frequency_at_min", 20000.0)
+    s.set_editor_property("lpf_frequency_at_max", lpf_far_hz)
+    a.set_editor_property("attenuation", s)
+    assets.save_loaded_asset(a)
+    return a
+
+
+# ---------- 3) 물리 재질 ----------
+def make_physmat(name, surface):
+    path = PM + "/" + name
+    a = assets.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(name, PM, unreal.PhysicalMaterial, unreal.PhysicalMaterialFactoryNew())
+    a.set_editor_property("surface_type", surface)
+    assets.save_loaded_asset(a)
+
+
+# ---------- 4) 메타사운드 ----------
+bs = unreal.get_engine_subsystem(unreal.MetaSoundBuilderSubsystem)
+es = unreal.get_editor_subsystem(unreal.MetaSoundEditorSubsystem)
+
+
+def cls(ns, name, var=""):
+    c = unreal.MetasoundFrontendClassName()
+    c.set_editor_property("namespace", ns)
+    c.set_editor_property("name", name)
+    c.set_editor_property("variant", var)
+    return c
+
+
+class Graph:
+    def __init__(self, name, one_shot=True):
+        r = bs.create_source_builder(name, unreal.MetaSoundOutputAudioFormat.MONO, one_shot)
+        self.b, self.on_play, self.on_finished, self.outs = r[0], r[1], r[2], list(r[3])
+        self.name = name
+
+    def ok(self, r, what):
+        res = r[-1] if isinstance(r, tuple) else r
+        if "SUCCEEDED" not in str(res):
+            fail("%s: %s 실패 (%s)" % (self.name, what, res))
+        return r[0] if isinstance(r, tuple) else r
+
+    def node(self, ns, name, var=""):
+        return self.ok(self.b.add_node_by_class_name(cls(ns, name, var)), "노드 %s" % name)
+
+    def pin_in(self, node, pin):
+        return self.ok(self.b.find_node_input_by_name(node, pin), "입력칸 " + pin)
+
+    def pin_out(self, node, pin):
+        return self.ok(self.b.find_node_output_by_name(node, pin), "출력칸 " + pin)
+
+    def link(self, out_handle, node, pin):
+        self.ok(self.b.connect_nodes(out_handle, self.pin_in(node, pin)), "연결 → " + pin)
+
+    def set(self, node, pin, value):
+        lit = bs.create_float_meta_sound_literal(float(value))
+        lit = lit[0] if isinstance(lit, tuple) else lit
+        self.ok(self.b.set_node_input_default(self.pin_in(node, pin), lit), "값 " + pin)
+
+    def input(self, name, data_type, default):
+        if data_type == "Float":
+            lit = bs.create_float_meta_sound_literal(float(default))
+        else:
+            lit = bs.create_object_meta_sound_literal(default)
+        lit = lit[0] if isinstance(lit, tuple) else lit
+        return self.ok(self.b.add_graph_input_node(name, data_type, lit), "그래프 입력 " + name)
+
+    def interface_input(self, name):
+        r = self.b.find_graph_input_node(name)
+        node = r[0]
+        return self.pin_out(node, name)
+
+    def save(self):
+        r = es.build_to_asset(self.b, "ProjectPG", self.name, MS)
+        self.ok(r, "에셋 저장")
+        a = assets.load_asset(MS + "/" + self.name)
+        assets.save_loaded_asset(a)
+        return a
+
+
+def build_one_shot():
+    # 녹음 하나 틀고 끝. 어떤 녹음인지는 C++ 이 "Wave" 입력으로 넘김.
+    g = Graph("MS_OneShot")
+    wave = g.input("Wave", "WaveAsset", None)
+    wp = g.node("UE", "Wave Player", "Mono")
+    g.link(g.on_play, wp, "Play")
+    g.link(wave, wp, "Wave Asset")
+    g.ok(g.b.connect_nodes(g.pin_out(wp, "Out Mono"), g.outs[0]), "출력 연결")
+    g.ok(g.b.connect_nodes(g.pin_out(wp, "On Finished"), g.on_finished), "끝 연결")
+    return g.save()
+
+
+def build_gunshot():
+    # 총소리 한 발 = 가까운 녹음 + 먼 녹음(거리로 섞음) + 합성 저음 "쿵" + 메아리(실내면 진하게).
+    # 거리는 감쇠 인터페이스가 듣는 사람마다 따로 넣어 줌 → 같은 총도 사람마다 다르게 들림.
+    g = Graph("MS_Gunshot")
+    g.ok(g.b.add_interface("UE.Attenuation"), "감쇠 인터페이스")
+    dist = g.interface_input("UE.Attenuation.Distance")
+    wave = g.input("Wave", "WaveAsset", None)
+    far_wave = g.input("FarWave", "WaveAsset", None)
+    indoor = g.input("Indoor", "Float", 0.0)
+    near_d = g.input("NearDistance", "Float", 1500.0)   # 이 거리까진 가까운 녹음만
+    far_d = g.input("FarDistance", "Float", 8000.0)     # 이 거리부터 먼 녹음만
+    thump = g.input("ThumpLevel", "Float", 0.6)         # 가까이서만 들리는 저음 크기
+    tail = g.input("TailLevel", "Float", 0.35)          # 실내 메아리 크기
+
+    near = g.node("UE", "Wave Player", "Mono")
+    far = g.node("UE", "Wave Player", "Mono")
+    for wp, w in ((near, wave), (far, far_wave)):
+        g.link(g.on_play, wp, "Play")
+        g.link(w, wp, "Wave Asset")
+
+    # t = clamp((거리 - Near) / (Far - Near), 0, 1) → 먼 녹음 크기, 1 - t → 가까운 녹음 크기
+    sub = g.node("UE", "Subtract", "Float"); g.link(dist, sub, "PrimaryOperand"); g.link(near_d, sub, "AdditionalOperands")
+    span = g.node("UE", "Subtract", "Float"); g.link(far_d, span, "PrimaryOperand"); g.link(near_d, span, "AdditionalOperands")
+    div = g.node("UE", "Divide", "Float"); g.link(g.pin_out(sub, "Out"), div, "PrimaryOperand"); g.link(g.pin_out(span, "Out"), div, "AdditionalOperands")
+    clamp = g.node("Clamp", "Clamp", "Float"); g.link(g.pin_out(div, "Out"), clamp, "In"); g.set(clamp, "Min", 0); g.set(clamp, "Max", 1)
+    t = g.pin_out(clamp, "Value")
+    inv = g.node("UE", "Subtract", "Float"); g.set(inv, "PrimaryOperand", 1); g.link(t, inv, "AdditionalOperands")
+    near_gain = g.pin_out(inv, "Out")
+
+    layers = g.node("AudioMixer", "Audio Mixer (Mono, 2)")
+    g.link(g.pin_out(near, "Out Mono"), layers, "In 0"); g.link(near_gain, layers, "Gain 0")
+    g.link(g.pin_out(far, "Out Mono"), layers, "In 1"); g.link(t, layers, "Gain 1")
+
+    # 합성 저음: 잡음 → 저역만 남김 → 짧게 "쿵" 하고 사라지는 모양 → 가까울수록 크게
+    noise = g.node("UE", "Noise", "Audio")
+    lpf = g.node("UE", "One-Pole Low Pass Filter", "Audio"); g.link(g.pin_out(noise, "Audio"), lpf, "In"); g.set(lpf, "Cutoff Frequency", 140)
+    env = g.node("AD Envelope", "AD Envelope", "Audio"); g.link(g.on_play, env, "Trigger"); g.set(env, "Attack Time", 0.002); g.set(env, "Decay Time", 0.28)
+    shaped = g.node("UE", "Multiply", "Audio"); g.link(g.pin_out(lpf, "Out"), shaped, "PrimaryOperand"); g.link(g.pin_out(env, "Out Envelope"), shaped, "AdditionalOperands")
+    thump_gain = g.node("UE", "Multiply", "Float"); g.link(thump, thump_gain, "PrimaryOperand"); g.link(near_gain, thump_gain, "AdditionalOperands")
+
+    body = g.node("AudioMixer", "Audio Mixer (Mono, 2)")
+    g.link(g.pin_out(layers, "Out"), body, "In 0"); g.set(body, "Gain 0", 1)
+    g.link(g.pin_out(shaped, "Out"), body, "In 1"); g.link(g.pin_out(thump_gain, "Out"), body, "Gain 1")
+
+    # 메아리: 밖에선 옅은 되울림, 실내면 Indoor(0/1) × TailLevel 만큼 진하고 길게
+    wet_in = g.node("UE", "Multiply", "Float"); g.link(indoor, wet_in, "PrimaryOperand"); g.link(tail, wet_in, "AdditionalOperands")
+    wet = g.node("UE", "Add", "Float"); g.set(wet, "PrimaryOperand", 0.12); g.link(g.pin_out(wet_in, "Out"), wet, "AdditionalOperands")
+    fb_in = g.node("UE", "Multiply", "Float"); g.link(indoor, fb_in, "PrimaryOperand"); g.set(fb_in, "AdditionalOperands", 0.35)
+    fb = g.node("UE", "Add", "Float"); g.set(fb, "PrimaryOperand", 0.2); g.link(g.pin_out(fb_in, "Out"), fb, "AdditionalOperands")
+    delay = g.node("UE", "Delay", "Audio")
+    g.link(g.pin_out(body, "Out"), delay, "In")
+    g.set(delay, "Delay Time", 0.085); g.set(delay, "Dry Level", 1.0)
+    g.link(g.pin_out(wet, "Out"), delay, "Wet Level"); g.link(g.pin_out(fb, "Out"), delay, "Feedback")
+    g.ok(g.b.connect_nodes(g.pin_out(delay, "Out"), g.outs[0]), "출력 연결")
+
+    # 메아리 꼬리까지 들리게 3초 뒤에 끝냄(녹음은 3초 이하로 잘라 둠).
+    life = g.node("AD Envelope", "AD Envelope", "Audio"); g.link(g.on_play, life, "Trigger"); g.set(life, "Attack Time", 0); g.set(life, "Decay Time", 3.0)
+    g.ok(g.b.connect_nodes(g.pin_out(life, "On Done"), g.on_finished), "끝 연결")
+    return g.save()
+
+
+# ---------- 5) 소리 표 ----------
+def cue(sound, waves, att, volume=1.0, jitter=0.05, far=None, two_d=False, indoor=False):
+    c = unreal.PGSoundCue()
+    c.set_editor_property("sound", sound)
+    c.set_editor_property("waves", waves)
+    if far:
+        c.set_editor_property("far_waves", far)
+    if att:
+        c.set_editor_property("attenuation", att)
+    c.set_editor_property("volume", volume)
+    c.set_editor_property("pitch_jitter", jitter)
+    c.set_editor_property("b2d", two_d)
+    c.set_editor_property("check_indoor", indoor)
+    return c
+
+
+def montage(path):
+    return assets.load_asset(path) if assets.does_asset_exist(path) else None
+
+
+def main():
+    folders = ["Weapon_Fire", "Debris_Impact", "Footstep_Concrete", "Footstep_Grass", "Footstep_Metal", "Footstep_Soft",
+               "Footstep_Wood", "Land", "UI_Announce", "Container_Open", "Door_Open", "Door_Close", "Explosion_Barrel",
+               "Ground_Collapse", "Monster_Attack", "Monster_Death", "WigBeam_Fire", "WigBeam_Impact",
+               "Finale_Arrival", "Finale_Dragon", "Finale_Hover", "Finale_Launch", "Finale_Victory", "Finale_Warning",
+               "Impact_Concrete", "Impact_Dirt", "Impact_Metal", "Impact_Wood", "Impact_Flesh", "Hit_React", "Body_Fall",
+               "UI_Click", "UI_Hover", "UI_Open", "UI_Close", "UI_Error", "Reload"]
+    w = {f: import_folder(f) for f in folders}
+
+    att_gun = make_attenuation("ATT_Gunshot", 600, 15000, 2500)
+    att_impact = make_attenuation("ATT_Impact", 200, 4000, 3000)
+    att_step = make_attenuation("ATT_Footstep", 150, 2500, 4000)
+    att_body = make_attenuation("ATT_Body", 200, 2000, 4000)
+    att_big = make_attenuation("ATT_Big", 1000, 30000, 1500)
+
+    S = unreal.PhysicalSurface
+    for name, s in (("PM_Concrete", S.SURFACE_TYPE1), ("PM_Metal", S.SURFACE_TYPE2), ("PM_Wood", S.SURFACE_TYPE3),
+                    ("PM_Dirt", S.SURFACE_TYPE4), ("PM_Grass", S.SURFACE_TYPE5), ("PM_Flesh", S.SURFACE_TYPE6)):
+        make_physmat(name, s)
+
+    one = build_one_shot()
+    gun = build_gunshot()
+
+    fire = "Weapon_Fire"
+    far = load_waves(fire, contains=["_FAR"], exclude=["TRANSIENT"])
+    rifle = load_waves(fire, contains=["Assault_Rifle", "Dragunov_7_62_54R_DESIGNED"], exclude=["TRANSIENT"])
+    shotgun = load_waves(fire, contains=["Saiga", "Shotgun_Fire"], exclude=["TRANSIENT"])
+    pistol = load_waves(fire, contains=["Assault_Rifle_Shot_Single_4_01_TRANSIENT", "Dragunov_7_62_54R_DESIGNED_Single_Shot_Core_Lon_01_TRANSIENT"])
+
+    da_path = ROOT + "/DA_PGSounds"
+    da = assets.load_asset(da_path) if assets.does_asset_exist(da_path) else tools.create_asset("DA_PGSounds", ROOT, unreal.PGSoundSet, unreal.DataAssetFactory())
+    W = unreal.WeaponType
+    da.set_editor_property("gunshots", {
+        W.RIFLE: cue(gun, rifle, att_gun, 1.0, 0.04, far, indoor=True),
+        W.SHOTGUN: cue(gun, shotgun, att_gun, 1.0, 0.04, far, indoor=True),
+        W.PISTOL: cue(gun, pistol, att_gun, 0.8, 0.06, far, indoor=True),
+    })
+    da.set_editor_property("bullet_impacts", {
+        S.SURFACE_TYPE_DEFAULT: cue(one, w["Impact_Concrete"], att_impact, 0.7, 0.08),
+        S.SURFACE_TYPE1: cue(one, w["Impact_Concrete"], att_impact, 0.7, 0.08),
+        S.SURFACE_TYPE2: cue(one, w["Impact_Metal"], att_impact, 0.7, 0.08),
+        S.SURFACE_TYPE3: cue(one, w["Impact_Wood"], att_impact, 0.7, 0.08),
+        S.SURFACE_TYPE4: cue(one, w["Impact_Dirt"], att_impact, 0.7, 0.08),
+        S.SURFACE_TYPE5: cue(one, w["Impact_Dirt"], att_impact, 0.5, 0.08),
+        S.SURFACE_TYPE6: cue(one, w["Impact_Flesh"], att_impact, 0.8, 0.08),
+    })
+    da.set_editor_property("footsteps", {
+        S.SURFACE_TYPE_DEFAULT: cue(one, w["Footstep_Concrete"], att_step, 0.5, 0.06),
+        S.SURFACE_TYPE1: cue(one, w["Footstep_Concrete"], att_step, 0.5, 0.06),
+        S.SURFACE_TYPE2: cue(one, w["Footstep_Metal"], att_step, 0.5, 0.06),
+        S.SURFACE_TYPE3: cue(one, w["Footstep_Wood"], att_step, 0.5, 0.06),
+        S.SURFACE_TYPE4: cue(one, w["Footstep_Soft"], att_step, 0.5, 0.06),
+        S.SURFACE_TYPE5: cue(one, w["Footstep_Grass"], att_step, 0.45, 0.06),
+    })
+    da.set_editor_property("landing", cue(one, w["Land"], att_step, 0.7, 0.05))
+
+    reload_w = w["Reload"] + w["Container_Open"]
+    cues = {
+        "UI.Click": cue(one, w["UI_Click"], None, 0.5, 0.03, two_d=True),
+        "UI.Hover": cue(one, w["UI_Hover"], None, 0.25, 0.03, two_d=True),
+        "UI.Open": cue(one, w["UI_Open"], None, 0.5, 0.02, two_d=True),
+        "UI.Close": cue(one, w["UI_Close"], None, 0.5, 0.02, two_d=True),
+        "UI.Error": cue(one, w["UI_Error"], None, 0.5, 0.0, two_d=True),
+        "UI.Announce": cue(one, w["UI_Announce"], None, 0.7, 0.0, two_d=True),
+        "Reload": cue(one, reload_w, att_body, 0.6, 0.05),
+        "Hit.React": cue(one, w["Hit_React"], att_body, 0.8, 0.06),
+        "Death.Body": cue(one, w["Body_Fall"], att_body, 0.9, 0.05),
+        # 아래는 아직 게임에 기능이 없어서 붙는 곳이 없다. 기능이 생기면 BP 에서 PlayPGSound(이름) 로 부른다.
+        "Container.Open": cue(one, w["Container_Open"], att_body, 0.7),
+        "Door.Open": cue(one, w["Door_Open"], att_body, 0.8),
+        "Door.Close": cue(one, w["Door_Close"], att_body, 0.8),
+        "Explosion.Barrel": cue(one, w["Explosion_Barrel"], att_big, 1.0, 0.04, indoor=True),
+        "Ground.Collapse": cue(one, w["Ground_Collapse"], att_big, 1.0, 0.03),
+        "Monster.Attack": cue(one, w["Monster_Attack"], att_body, 0.9, 0.06),
+        "Monster.Death": cue(one, w["Monster_Death"], att_body, 1.0, 0.04),
+        "WigBeam.Fire": cue(one, w["WigBeam_Fire"], att_gun, 0.9, 0.04),
+        "WigBeam.Impact": cue(one, w["WigBeam_Impact"], att_impact, 0.8, 0.05),
+        "Finale.Arrival": cue(one, w["Finale_Arrival"], att_big, 1.0, 0.0),
+        "Finale.Dragon": cue(one, w["Finale_Dragon"], att_big, 1.0, 0.03),
+        "Finale.Hover": cue(one, w["Finale_Hover"], att_big, 0.8, 0.0),
+        "Finale.Launch": cue(one, w["Finale_Launch"], att_big, 1.0, 0.0),
+        "Finale.Victory": cue(one, w["Finale_Victory"], None, 0.8, 0.0, two_d=True),
+        "Finale.Warning": cue(one, w["Finale_Warning"], None, 0.7, 0.0, two_d=True),
+    }
+    da.set_editor_property("cues", cues)
+
+    mont = []
+    for base in ("/Game/PG/Animations/Montages", "/Game/PG/Animations/Meta/Montages"):
+        for name, c, delay in [("AM_Reload_Pistol", "Reload", 0.1), ("AM_Reload_Rifle_Hip", "Reload", 0.1),
+                               ("AM_Reload_Rifle_Ironsights", "Reload", 0.1), ("AM_Reload_Shotgun_Hip", "Reload", 0.1),
+                               ("AM_Reload_Shotgun_Ironsights", "Reload", 0.1),
+                               ("AM_Hit_React_1", "Hit.React", 0), ("AM_Hit_React_2", "Hit.React", 0),
+                               ("AM_Hit_React_3", "Hit.React", 0), ("AM_Hit_React_4", "Hit.React", 0),
+                               ("AM_Death_Hip", "Death.Body", 0.6), ("AM_Death_Ironsights", "Death.Body", 0.6)]:
+            m = montage(base + "/" + name)
+            if not m:
+                continue
+            e = unreal.PGMontageSound()
+            e.set_editor_property("montage", m)
+            e.set_editor_property("cue", c)
+            e.set_editor_property("delay", delay)
+            mont.append(e)
+    if not mont:
+        fail("몽타주를 하나도 못 찾음 → 장전·피격·죽음 소리가 안 남")
+    da.set_editor_property("montage_sounds", mont)
+    assets.save_loaded_asset(da)
+
+    log("[PGSound] 끝. 몽타주 %d개 연결, 오류 %d개" % (len(mont), len(errors)))
+    for e in errors:
+        unreal.log_error("[PGSound] 오류: " + e)
+
+
+main()
