@@ -12,7 +12,7 @@ public class ProjectPG : ModuleRules
 		{
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "WebSockets", "Json", "JsonUtilities",
 			"AIModule", "GameplayTags", "GameplayTasks", "GameplayAbilities", "Slate", "SlateCore", "NavigationSystem",
-			"PCG", "Landscape", "UMG"
+			"PCG", "Landscape", "UMG", "StateTreeModule", "GameplayStateTreeModule"
 		});
 
 		// PG.BuildShoreMeshes 같은 에디터 전용 에셋 생성 명령용.
@@ -25,6 +25,7 @@ public class ProjectPG : ModuleRules
 				"GeometryScriptingCore",
 				"GeometryScriptingEditor",
 				"EditorScriptingUtilities",
+				"StateTreeEditorModule", // PGBuildEnemyAI 명령: 몬스터 StateTree 에셋을 코드로 만들 때만 씀
 				"UnrealEd"
 			});
 		}
