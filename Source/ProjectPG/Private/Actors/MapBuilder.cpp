@@ -31,6 +31,9 @@
 #include "NavigationPath.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "NavigationSystem.h"
+#include "NavMesh/NavMeshBoundsVolume.h"
+#include "Components/BrushComponent.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "PCGComponent.h"
 #include "PCGGraph.h"
 #include "PCGNode.h"
@@ -530,6 +533,8 @@ void AMapBuilder::TryReserveFootprint()
 		NavigationFloor->SetRelativeScale3D(
 			FVector(NavigationFloorScale, NavigationFloorScale, 0.2f));
 	}
+	// 바닥판 크기가 정해졌으니 그 크기만큼 길찾기 지도 영역을 추가한다(서버만).
+	AddNavigationArea();
 
 	// 칸마다 어떤 타일을 몇 도 돌려 놓을지는 칸 모양 담당이 정한다(흙길은 그 안에서 흙길 담당에게 묻는다).
 	TilePlanner->BuildTileDesignPlacements(TileByCell);
@@ -835,6 +840,45 @@ void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
 	Verifier->RunFinalChecks();
 	TimedChecksStartSeconds = GetWorld()->GetTimeSeconds();
 	GetWorldTimerManager().SetTimer(TimedChecksTimer, this, &AMapBuilder::RunTimedChecks, 0.1f, true);
+}
+
+// 몬스터 길찾기 지도 영역 추가 (서버만, 맵 짓기 중 한 번).
+// 왜: 서버에 길찾기 지도가 없어서 몬스터 AI 의 이동(MoveTo·순찰 점 고르기)이 전부 실패했다.
+//     맵이 판마다 새로 지어지니 지도는 게임 중에 만든다: DefaultEngine.ini 에서 길찾기 지도를 "Dynamic"(게임 중 굽기)으로 바꿔 뒀다.
+//     (그 한 줄이 없으면 영역을 넣어도 지도가 안 생긴다.)
+//     영역 박스는 맵 크기가 판마다 정해지므로 코드로 만든다. 코드로 만든 박스는 모양이 없어서 상자 모양을 직접 넣는다.
+// 부담: 맵 전체(약 900 m)를 처음 한 번 굽는다. 걸린 시간은 길찾기 검사 로그의 elapsed_ms 로 본다.
+void AMapBuilder::AddNavigationArea()
+{
+	if (GetWorld()->GetNetMode() == NM_Client || !IsValid(NavigationFloor))
+		return;
+	UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (!NavigationSystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Navigation area not added: no navigation system in this world - monsters cannot path"));
+		return;
+	}
+
+	const FBox Floor = NavigationFloor->Bounds.GetBox();
+	// 높이는 넉넉히 위아래 200 m: 높은 시설·언덕 위도 덮게.
+	const FVector HalfSize(Floor.GetExtent().X, Floor.GetExtent().Y, 20000.0f);
+	FActorSpawnParameters Parameters;
+	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ANavMeshBoundsVolume* Volume = GetWorld()->SpawnActor<ANavMeshBoundsVolume>(
+		FVector(Floor.GetCenter().X, Floor.GetCenter().Y, 0.0f), FRotator::ZeroRotator, Parameters);
+	if (!IsValid(Volume))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Navigation area not added: could not spawn the bounds volume - monsters cannot path"));
+		return;
+	}
+	UBrushComponent* Brush = Volume->GetBrushComponent();
+	UBodySetup* BoxShape = NewObject<UBodySetup>(Brush);
+	BoxShape->AggGeom.BoxElems.Add(FKBoxElem(HalfSize.X * 2.0f, HalfSize.Y * 2.0f, HalfSize.Z * 2.0f));
+	Brush->BrushBodySetup = BoxShape;
+	Brush->UpdateBounds();
+	NavigationSystem->OnNavigationBoundsUpdated(Volume);
+	UE_LOG(LogTemp, Display, TEXT("Navigation area added: center=(%.0f,%.0f) half_size_cm=(%.0f,%.0f,%.0f)"),
+		Floor.GetCenter().X, Floor.GetCenter().Y, HalfSize.X, HalfSize.Y, HalfSize.Z);
 }
 
 void AMapBuilder::RunTimedChecks()

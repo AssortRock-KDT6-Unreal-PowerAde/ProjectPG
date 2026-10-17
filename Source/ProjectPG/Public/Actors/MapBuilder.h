@@ -260,6 +260,9 @@ private:
 	void CheckFacilityDesignLevels(bool bTimedOut);
 	// 시간이 걸리는 검사를 0.1초마다 돌린다. 다 끝나거나 120초가 지나면 타이머를 끈다.
 	void RunTimedChecks();
+	// 몬스터 길찾기 지도를 만들 영역(맵 전체)을 서버에 추가한다. 맵 짓기가 바닥판 크기를 정한 직후 한 번.
+	// 왜 코드로: 이 맵 레벨 파일은 팀원 것이라 길찾기 영역 박스를 직접 놓지 않는다.
+	void AddNavigationArea();
 
 	// 협력객체 : 맵 자체 검사
 	// friend class : 검사기가 private 을 볼 수 있게.
