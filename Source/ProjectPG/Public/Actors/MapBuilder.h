@@ -251,6 +251,19 @@ private:
 	bool AreAllFacilityLevelsLoaded() const;
 	FVector GetDesignFootprintCenter(const FFacilityPlacement& Placement) const;
 
+	// 시설 레벨 기다리기(이벤트 방식, 10/17). 예전엔 Tick 이 매 프레임 "다 보이나?" 를 물었고,
+	// 패키지에서 레벨 하나가 빠지면 경고 없이 끝없이 기다려 상자가 0개였다.
+	// 이제: 레벨마다 "보였다" 이벤트(OnLevelShown)를 걸고 → 올 때마다 세고 → 다 오면
+	// 끼임 정리(ResolveSafety) → 상자 놓기(SpawnLootOnce) 를 한 번. 못 불러온 레벨·시간 제한을 넘긴 레벨은
+	// 이름을 Error 로 남기고 있는 것만으로 진행한다.
+	void WatchFacilityDesignLevels();
+	// OnLevelShown 은 동적 델리게이트라 UFUNCTION 이어야 붙는다. 어느 레벨인지는 안 알려 줘서 전부 다시 센다.
+	UFUNCTION()
+	void HandleFacilityLevelShown();
+	void HandleFacilityLoadTimeout();
+	// bTimedOut 이 참이면 아직 안 온 레벨이 있어도 끝낸다.
+	void CheckFacilityDesignLevels(bool bTimedOut);
+
 	// 협력객체 : 맵 자체 검사
 	// friend class : 검사기가 private볼 수 있게.
 	friend class UMapVerifier;
@@ -322,6 +335,9 @@ private:
 	// 몬스터 길찾기 막힘을 갱신하는 반경(cm). 플레이어 주변·맵 가운데 둘 다 이 값.
 	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "1000"))
 	float NavigationBlockerRadiusCm = 6000.0f;
+	// 시설 레벨을 기다리는 최대 시간(초). 넘기면 안 온 레벨 이름을 Error 로 남기고 상자를 놓는다.
+	UPROPERTY(EditAnywhere, Category = "Design Numbers", meta = (ClampMin = "1"))
+	float FacilityLoadTimeoutSeconds = 30.0f;
 
 	// ---- 시작 구역(멀티) ---- 고르는 규칙은 MapSpawnRegionPlanner.cpp 주석.
 	// 시작 구역 최대 수. 1번은 형님 생성기가 준 시작 칸, 나머지는 가장자리 빈 땅에서 더 고른다. 1 이면 예전처럼 한 곳.
@@ -527,9 +543,10 @@ private:
 	TObjectPtr<UPCGGraph> RuntimeDressingGraph;
 
 	TSet<int32> LoggedFacilityDesignLevelIndices;
-	// 길찾기 검사 끝남
-	bool bLoggedAllFacilityDesignLevelsLoaded = false;
 	bool bResolvedGameplayPointSafety = false;
+	// 시설 레벨 기다리기가 끝났나(다 왔거나, 실패·시간 제한으로 포기). 끼임 정리·상자 놓기는 이게 참일 때만.
+	bool bFacilityLevelsSettled = false;
+	FTimerHandle FacilityLoadTimeoutTimer;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
 	double NavigationValidationStartTimeSeconds = 0.0;
 	FIntPoint LastPlayerNavigationBlockerCell = FIntPoint(MAX_int32, MAX_int32);

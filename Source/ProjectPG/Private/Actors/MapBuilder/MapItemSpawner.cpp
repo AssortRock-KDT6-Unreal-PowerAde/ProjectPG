@@ -183,14 +183,10 @@ void UMapItemSpawner::ResetRecordedLootSlots()
 // 결과를 지문(loot_hash)으로 남긴다. 같은 시드면 같은 값이어야 한다(검사 기준).
 void UMapItemSpawner::SpawnLootOnce()
 {
-	if (bSpawned || !Map->bResolvedGameplayPointSafety)
+	// 시설 레벨이 다 들어온 뒤(또는 실패·시간 제한으로 포기한 뒤) 맵이 끼임 정리 다음에 한 번 부른다
+	// (AMapBuilder::CheckFacilityDesignLevels). 레벨에 놓은 Loot Slot 은 레벨이 들어와야 찾을 수 있다.
+	if (bSpawned || !Map->bResolvedGameplayPointSafety || !Map->bFacilityLevelsSettled)
 		return;
-	// 시설 레벨이 다 들어올 때까지 기다린다. 레벨에 놓은 Loot Slot 은 레벨이 들어와야 찾을 수 있다.
-	// 왜 따로 보나: 지점 정리(bResolvedGameplayPointSafety)는 검문소 레벨만 기다려서, 큰 시설(시내 6x6 등)은
-	// 아직 불러오는 중일 수 있다. 그때 놓으면 그 시설의 자리는 통째로 빠진다.
-	for (const ULevelStreamingDynamic* Instance : Map->FacilityDesignLevelInstances)
-		if (IsValid(Instance) && (!Instance->IsLevelLoaded() || !Instance->IsLevelVisible()))
-			return;
 	bSpawned = true;
 	// 서버만 놓는다. 들어온 사람은 서버가 놓은 상자를 복제로 받는다(여기서 또 놓으면 두 벌이 된다).
 	// 확인용: 몇 초 뒤 받은 상자 수와 그 안의 아이템 수를 로그에 남긴다(가까운 것만 오므로 서버 수보다 적을 수 있다).
@@ -288,6 +284,9 @@ void UMapItemSpawner::SpawnLootOnce()
 	for (const FLootSlotRecord& Slot : AllSlots)
 		SlotGroups.FindOrAdd(Slot.GroupKey).Add(&Slot);
 
+	// 묶음 순서를 이름으로 고정한다. 액터를 찾는 순서는 시설 레벨이 들어온 때에 따라 판마다 달라서,
+	// 안 고치면 놓이는 상자는 같아도 loot_hash(순서를 타는 지문)가 판마다 달랐다(10/17 확인).
+	SlotGroups.KeySort(TLess<FString>());
 	int32 SlotContainerCount = 0;
 	const int64 RaidSeed = Map->GetRaidSeed();
 	for (TPair<FString, TArray<const FLootSlotRecord*>>& Group : SlotGroups)

@@ -379,56 +379,17 @@ void AMapBuilder::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	for (int32 Index = 0; Index < FacilityDesignLevelInstances.Num(); ++Index)
-	{
-		ULevelStreamingDynamic* Instance = FacilityDesignLevelInstances[Index];
-		if (LoggedFacilityDesignLevelIndices.Contains(Index)
-			|| !IsValid(Instance)
-			|| !Instance->IsLevelLoaded()
-			|| !Instance->IsLevelVisible())
-		{
-			continue;
-		}
-
-		LoggedFacilityDesignLevelIndices.Add(Index);
-		const ULevel* LoadedLevel = Instance->GetLoadedLevel();
-		const int32 LoadedActorCount = IsValid(LoadedLevel) ? LoadedLevel->Actors.Num() : 0;
-		const double RequestedAt = FacilityLoadRequestTimeSeconds.IsValidIndex(Index)
-			? FacilityLoadRequestTimeSeconds[Index] : FPlatformTime::Seconds();
-		UE_LOG(LogTemp, Display,
-			TEXT("Facility design level loaded: index=%d type=%d actors=%d visible=true load_ms=%.2f package=%s"),
-			Index,
-			FacilityPlacements.IsValidIndex(Index) ? static_cast<int32>(FacilityPlacements[Index].VisualSet) : -1,
-			LoadedActorCount,
-			(FPlatformTime::Seconds() - RequestedAt) * 1000.0,
-			*Instance->GetWorldAssetPackageName());
-	}
-	if (!bLoggedAllFacilityDesignLevelsLoaded
-		&& !FacilityPlacements.IsEmpty()
-		&& AreAllFacilityLevelsLoaded())
-	{
-		bLoggedAllFacilityDesignLevelsLoaded = true;
-		int32 LoadedLevelCount = 0;
-		for (const ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
-			if (IsValid(Instance) && Instance->IsLevelLoaded() && Instance->IsLevelVisible())
-				++LoadedLevelCount;
-		UE_LOG(LogTemp, Display,
-			TEXT("All facility visuals ready: placements=%d runtime_blueprints=%d streamed_levels=%d"),
-			FacilityPlacements.Num(),
-			Algo::CountIf(SpawnedRuntimeTiles, [](const AActor* Actor)
-			{
-				return IsValid(Actor) && Actor->Tags.Contains(TEXT("RuntimeTacticalFacility"));
-			}),
-			LoadedLevelCount);
-	}
-
+	// 시설 레벨 기다리기·끼임 정리·상자 놓기는 Tick 에서 뺐다(이벤트 방식: WatchFacilityDesignLevels).
+	// 여기 남은 것은 매번 봐야 하는 것뿐이다.
 	Verifier->VerifyDesignLevelSeparation();
 	Verifier->VerifyWorldCollision();
-	// 시설 레벨이 다 보이면 벽 속 지점을 빈 곳으로 옮긴다(한 번만).
-	PointPlanner->ResolveSafety();
-	// 끼임 정리가 끝나면 상자 자리마다 아이템을 놓는다(한 번만).
-	ItemSpawner->SpawnLootOnce();
 	// 들어온 플레이어를 시작 구역에 나눠 세운다(서버만, 새로 들어온 사람만). 시작 자리 정리가 끝난 뒤부터 일한다.
+	// Tick 에 남긴 이유: "들어왔다" 하나로 끝나지 않는다. 캐릭터 없이 들어온 사람은 2초 기다렸다 세우고,
+	// 자리에 못 세우면 2초 뒤 다시, 게임모드가 나중에 캐릭터를 바꿔 주면(폰이 바뀌면) 같은 자리에 다시 세운다.
+	// 이벤트로 바꾸려면 세 가지가 다 필요하다: 접속 이벤트(FGameModeEvents::GameModePostLoginEvent),
+	// 사람마다 폰 바뀜 이벤트(APlayerController::OnPossessedPawnChanged), 2초 재시도 타이머.
+	// 형님 게임모드는 안 고치고 엔진 이벤트만으로 되지만, 멀티(서버+2명) 시험을 따로 해야 해서 이번엔 그대로 둔다.
+	// 할 일이 없으면 바로 돌아가는 가벼운 반복이다.
 	SpawnRegionPlanner->PlaceJoinedPlayers();
 	//Tactical(전투용)+Layout(배치)+Quality(품질) = 전투하기 좋게 타일이 제대로 놓였니? 
 	Verifier->VerifyTacticalLayoutQuality();
@@ -597,6 +558,8 @@ void AMapBuilder::TryReserveFootprint()
 	LoggedFacilityDesignLevelIndices.Reset();
 	for (int32 FacilityIndex = 0; FacilityIndex < FacilityPlacements.Num(); ++FacilityIndex)
 		TileSpawner->LoadFacilityDesignLevel(FacilityPlacements[FacilityIndex], FacilityIndex);
+	// 레벨마다 "보였다" 이벤트를 건다. 다 오면 끼임 정리 → 상자 놓기.
+	WatchFacilityDesignLevels();
 	GroundBuilder->BuildBorderMountains();
 
 	// 팀원이 만든 AMapTile 액터는 계속 논리 기록의 원본이다. 변환이 끝나면
@@ -801,6 +764,106 @@ bool AMapBuilder::AreAllFacilityLevelsLoaded() const
 		if (!IsValid(Instance) || !Instance->IsLevelLoaded() || !Instance->IsLevelVisible())
 			return false;
 	return true;
+}
+
+// 시설 레벨마다 "보였다" 이벤트를 걸고 시간 제한 타이머를 켠다.
+// 처음 세기는 다음 프레임에: 이미 보이는 레벨도 거기서 센다. 시설이 0개이거나 레벨 없는 시설뿐이면 거기서 바로 진행.
+void AMapBuilder::WatchFacilityDesignLevels()
+{
+	bFacilityLevelsSettled = false;
+	for (ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
+		if (IsValid(Instance))
+			Instance->OnLevelShown.AddUniqueDynamic(this, &AMapBuilder::HandleFacilityLevelShown);
+	GetWorldTimerManager().SetTimer(
+		FacilityLoadTimeoutTimer, this, &AMapBuilder::HandleFacilityLoadTimeout, FacilityLoadTimeoutSeconds, false);
+	GetWorldTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateUObject(this, &AMapBuilder::CheckFacilityDesignLevels, false));
+}
+
+// 레벨 스트리밍 갱신 도중에 불린다. 충돌 검사·액터 만들기는 갱신이 끝난 다음 프레임에 한다.
+void AMapBuilder::HandleFacilityLevelShown()
+{
+	GetWorldTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateUObject(this, &AMapBuilder::CheckFacilityDesignLevels, false));
+}
+
+void AMapBuilder::HandleFacilityLoadTimeout()
+{
+	CheckFacilityDesignLevels(true);
+}
+
+void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
+{
+	if (bFacilityLevelsSettled)
+		return;
+
+	TArray<FString> PendingLevels;
+	TArray<FString> FailedLevels;
+	int32 LoadedLevelCount = 0;
+	for (int32 Index = 0; Index < FacilityPlacements.Num(); ++Index)
+	{
+		// 레벨 없이 블루프린트로만 세우는 시설은 기다릴 것이 없다.
+		if (FacilityPlacements[Index].FacilityLevel.IsNull())
+			continue;
+		ULevelStreamingDynamic* Instance = FacilityDesignLevelInstances.IsValidIndex(Index)
+			? FacilityDesignLevelInstances[Index].Get() : nullptr;
+		// 요청부터 실패(패키지가 없음 — 패키지 빌드에서 쿠킹이 빠졌을 때)이거나 불러오다 실패.
+		if (!IsValid(Instance) || Instance->GetLevelStreamingState() == ELevelStreamingState::FailedToLoad)
+		{
+			FailedLevels.Add(FString::Printf(TEXT("%d:%s"), Index, *FacilityPlacements[Index].FacilityLevel.ToString()));
+			continue;
+		}
+		if (!Instance->IsLevelLoaded() || !Instance->IsLevelVisible())
+		{
+			PendingLevels.Add(FString::Printf(TEXT("%d:%s"), Index, *Instance->GetWorldAssetPackageName()));
+			continue;
+		}
+
+		++LoadedLevelCount;
+		if (LoggedFacilityDesignLevelIndices.Contains(Index))
+			continue;
+		LoggedFacilityDesignLevelIndices.Add(Index);
+		const ULevel* LoadedLevel = Instance->GetLoadedLevel();
+		const int32 LoadedActorCount = IsValid(LoadedLevel) ? LoadedLevel->Actors.Num() : 0;
+		const double RequestedAt = FacilityLoadRequestTimeSeconds.IsValidIndex(Index)
+			? FacilityLoadRequestTimeSeconds[Index] : FPlatformTime::Seconds();
+		UE_LOG(LogTemp, Display,
+			TEXT("Facility design level loaded: index=%d type=%d actors=%d visible=true load_ms=%.2f package=%s"),
+			Index,
+			static_cast<int32>(FacilityPlacements[Index].VisualSet),
+			LoadedActorCount,
+			(FPlatformTime::Seconds() - RequestedAt) * 1000.0,
+			*Instance->GetWorldAssetPackageName());
+	}
+	if (!PendingLevels.IsEmpty() && !bTimedOut)
+		return;
+
+	bFacilityLevelsSettled = true;
+	GetWorldTimerManager().ClearTimer(FacilityLoadTimeoutTimer);
+	for (ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
+		if (IsValid(Instance))
+			Instance->OnLevelShown.RemoveDynamic(this, &AMapBuilder::HandleFacilityLevelShown);
+
+	if (!FailedLevels.IsEmpty())
+		UE_LOG(LogTemp, Error,
+			TEXT("Facility design level failed to load: count=%d levels=[%s] - its walls and loot slots are missing; in a packaged build check the cook list"),
+			FailedLevels.Num(), *FString::Join(FailedLevels, TEXT(", ")));
+	if (!PendingLevels.IsEmpty())
+		UE_LOG(LogTemp, Error,
+			TEXT("Facility design level timed out: after=%.0fs count=%d levels=[%s] - spawning loot with what is loaded"),
+			FacilityLoadTimeoutSeconds, PendingLevels.Num(), *FString::Join(PendingLevels, TEXT(", ")));
+	UE_LOG(LogTemp, Display,
+		TEXT("All facility visuals ready: placements=%d runtime_blueprints=%d streamed_levels=%d failed=%d timed_out=%d"),
+		FacilityPlacements.Num(),
+		Algo::CountIf(SpawnedRuntimeTiles, [](const AActor* Actor)
+		{
+			return IsValid(Actor) && Actor->Tags.Contains(TEXT("RuntimeTacticalFacility"));
+		}),
+		LoadedLevelCount, FailedLevels.Num(), PendingLevels.Num());
+
+	// 시설 벽이 다 들어왔으니 벽 속 지점을 빈 곳으로 옮기고(한 번), 상자 자리마다 상자를 놓는다(한 번, 서버만).
+	PointPlanner->ResolveSafety();
+	ItemSpawner->SpawnLootOnce();
 }
 
 FVector AMapBuilder::GetDesignFootprintCenter(
