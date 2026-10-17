@@ -396,7 +396,8 @@ void UMapPointPlanner::RebuildHash()
 // 막힌 자리는 칸 가운데 둘레 9×9(225cm 간격)를 가까운 순서로 훑어 첫 빈 곳으로 옮긴다.
 void UMapPointPlanner::ResolveSafety()
 {
-	if (Map->bResolvedGameplayPointSafety || !Map->AreAllFacilityLevelsLoaded() || Map->LevelDesignPoints.IsEmpty())
+	// 시설 레벨 기다리기가 끝난 뒤 맵이 한 번 부른다(AMapBuilder::CheckFacilityDesignLevels).
+	if (Map->bResolvedGameplayPointSafety || !Map->bFacilityLevelsSettled || Map->LevelDesignPoints.IsEmpty())
 		return;
 
 	TArray<FVector> CandidateOffsets;
