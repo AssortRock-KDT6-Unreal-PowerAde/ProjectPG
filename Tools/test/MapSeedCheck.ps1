@@ -1,6 +1,7 @@
 ﻿<#
 맵 같은 시드 시험: "같은 시드면 같은 맵·같은 상자" 를 명령 하나로 확인한다.
 에디터 빌드 → 서버(-server -nullrhi) + 클라 1개를 띄움 → 서버 로그에서 지문을 뽑아 기대값 파일과 비교 → 합격/불합격.
+언제 쓰나: 코드 고친 뒤 '같은 시드에 맵·상자가 그대로인가'를 에디터로 빠르게 볼 때. 패키지에서만 깨지는지(쿠킹 누락·접속·크래시)는 패키지 확인 도구로 본다(작성자 PC: %USERPROFILE%\.claude\tools\ue_package_check.ps1).
 
 쓰는 법 (저장소 맨 위에서):
   powershell -ExecutionPolicy Bypass -File Tools\test\MapSeedCheck.ps1

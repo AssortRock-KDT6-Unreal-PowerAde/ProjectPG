@@ -784,6 +784,8 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				// 회전은 이 시설의 차지 칸이 생성된 도로망과 어떻게 이어지는지로 정한다.
 				// 시설 안쪽 모양(변형)은 서버가 정한 이 시설 고유의 시드로, 회전과 따로 매번 똑같이 정해진다.
 				const uint8 FacilityLayoutVariant = static_cast<uint8>(Placement.LocalSeed) & 3;
+				// 부품 메시는 DA_MapAssets 의 "시설 부품" 칸에서. Configure 가 이 목록으로 시설을 짓는다.
+				ProceduralFacility->SetPartMeshes(Map->GetMapAssets().FacilityPartMeshes);
 				ProceduralFacility->Configure(FacilityKind, Placement.LocalSeed, FacilityLayoutVariant);
 			}
 			Facility = ProceduralFacility;

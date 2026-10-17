@@ -7,15 +7,6 @@
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 
-namespace
-{
-	UStaticMesh* LoadFacilityMesh(const TCHAR* Path, UStaticMesh* Fallback)
-	{
-		if (UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, Path))
-			return Mesh;
-		return Fallback;
-	}
-}
 
 AProceduralFacilityActor::AProceduralFacilityActor()
 {
@@ -99,6 +90,25 @@ void AProceduralFacilityActor::OnConstruction(const FTransform& Transform)
 	Rebuild();
 }
 
+void AProceduralFacilityActor::SetPartMeshes(const TMap<FName, TSoftObjectPtr<UStaticMesh>>& InPartMeshes)
+{
+	PartMeshes = InPartMeshes;
+}
+
+UStaticMesh* AProceduralFacilityActor::GetPartMesh(
+	const UHierarchicalInstancedStaticMeshComponent* Component,
+	UStaticMesh* Fallback) const
+{
+	if (const TSoftObjectPtr<UStaticMesh>* Entry = PartMeshes.Find(Component->GetFName()))
+		if (UStaticMesh* Mesh = Entry->LoadSynchronous())
+			return Mesh;
+	// 목록을 받았는데 이 부품만 없으면 말없이 큐브로 나오지 않게 남긴다(에디터에 놓기만 한 경우는 목록이 비어 있어 조용히).
+	if (!PartMeshes.IsEmpty())
+		UE_LOG(LogTemp, Warning, TEXT("Facility part mesh missing in DA_MapAssets FacilityPartMeshes: %s - using fallback"),
+			*Component->GetName());
+	return Fallback;
+}
+
 void AProceduralFacilityActor::Configure(EProceduralFacilityKind InKind, int64 InSeed, uint8 InVariant)
 {
 	FacilityKind = InKind;
@@ -137,39 +147,39 @@ void AProceduralFacilityActor::ConfigureMeshComponent(
 void AProceduralFacilityActor::Rebuild()
 {
 	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
-	Floors->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/TSL_CQBModularCore/Static_meshes/SM_Floor_2x2.SM_Floor_2x2"), Cube));
-	SolidWalls->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/TSL_CQBModularCore/Static_meshes/SM_Wall_Solid_2m.SM_Wall_Solid_2m"), Cube));
-	WindowWalls->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/TSL_CQBModularCore/Static_meshes/SM_Wall_Window.SM_Wall_Window"), SolidWalls->GetStaticMesh()));
+	Floors->SetStaticMesh(GetPartMesh(Floors, Cube));
+	SolidWalls->SetStaticMesh(GetPartMesh(SolidWalls, Cube));
+	WindowWalls->SetStaticMesh(GetPartMesh(WindowWalls, SolidWalls->GetStaticMesh()));
 	Roofs->SetStaticMesh(Floors->GetStaticMesh());
-	Stairs->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_Stair_2_Closed.SM_Stair_2_Closed"), Cube));
-	Covers->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_shelf_1.SM_shelf_1"), Cube));
-	Containers->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM__Container.SM__Container"), Cube));
-	Railings->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_fence_2_a.SM_fence_2_a"), SolidWalls->GetStaticMesh()));
-	FactoryHalls->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_full_hall.SM_full_hall"), Cube));
-	FactoryChimneys->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_chimney.SM_chimney"), Cube));
-	FactoryTanks->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_Tank.SM_Tank"), Cube));
-	FactoryFences->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_fence_2_a.SM_fence_2_a"), Cube));
-	DowntownStorefronts->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Downtown_West/Assets/building_b/SM_build_b_mod_lvl1_storefront_a_5m.SM_build_b_mod_lvl1_storefront_a_5m"), SolidWalls->GetStaticMesh()));
-	DowntownUpperWalls->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Downtown_West/Assets/building_b/SM_build_b_mod_lvl2_doublewindow.SM_build_b_mod_lvl2_doublewindow"), WindowWalls->GetStaticMesh()));
-	DowntownStreetlights->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Downtown_West/Assets/props/props_streetlight/SM_light_streetlight_complete.SM_light_streetlight_complete"), Cube));
-	DowntownPlanters->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Downtown_West/Assets/ground/SM_ground_mod_garden_planter_tall_a.SM_ground_mod_garden_planter_tall_a"), Cube));
-	DowntownBenches->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Downtown_West/Assets/props/prop_bench_wood/SM_bench_wood_a.SM_bench_wood_a"), Cube));
-	RuralWalls->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Modular_Rural_Cabin/Meshes/Modular/Wall_4m.Wall_4m"), SolidWalls->GetStaticMesh()));
-	RuralWindowWalls->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Modular_Rural_Cabin/Meshes/Modular/Wall_Window_4m.Wall_Window_4m"), WindowWalls->GetStaticMesh()));
-	RuralDoorWalls->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Modular_Rural_Cabin/Meshes/Modular/Wall_Door_4m.Wall_Door_4m"), SolidWalls->GetStaticMesh()));
-	RuralRoofs->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Modular_Rural_Cabin/Meshes/Modular/Roof_4m.Roof_4m"), Roofs->GetStaticMesh()));
-	RuralCaravans->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Modular_Rural_Cabin/Meshes/Props/Caravan.Caravan"), Cube));
-	RuralFences->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Modular_Rural_Cabin/Meshes/Props/Fence_Old_1_2m.Fence_Old_1_2m"), FactoryFences->GetStaticMesh()));
-	RuralPicnicTables->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Modular_Rural_Cabin/Meshes/Props/Picnic_Table.Picnic_Table"), Cube));
-	FactoryCranes->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_big_crane_1.SM_big_crane_1"), Cube));
-	FactorySiteHouses->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_small_house.SM_small_house"), Cube));
-	FactoryPipes->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_Double_pipe.SM_Double_pipe"), Cube));
-	FactoryPallets->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_pallet.SM_pallet"), Cube));
-	FactoryBarrels->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_barrel_1.SM_barrel_1"), Cube));
-	FactoryWorkTables->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_Table_1.SM_Table_1"), Cube));
-	FactoryDoors->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_door_frame.SM_door_frame"), Cube));
-	FactoryPowerBoxes->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_power_box_1.SM_power_box_1"), Cube));
-	FactoryLamps->SetStaticMesh(LoadFacilityMesh(TEXT("/Game/Factory_Pack_V1/Meshes/SM_lamp_2.SM_lamp_2"), Cube));
+	Stairs->SetStaticMesh(GetPartMesh(Stairs, Cube));
+	Covers->SetStaticMesh(GetPartMesh(Covers, Cube));
+	Containers->SetStaticMesh(GetPartMesh(Containers, Cube));
+	Railings->SetStaticMesh(GetPartMesh(Railings, SolidWalls->GetStaticMesh()));
+	FactoryHalls->SetStaticMesh(GetPartMesh(FactoryHalls, Cube));
+	FactoryChimneys->SetStaticMesh(GetPartMesh(FactoryChimneys, Cube));
+	FactoryTanks->SetStaticMesh(GetPartMesh(FactoryTanks, Cube));
+	FactoryFences->SetStaticMesh(GetPartMesh(FactoryFences, Cube));
+	DowntownStorefronts->SetStaticMesh(GetPartMesh(DowntownStorefronts, SolidWalls->GetStaticMesh()));
+	DowntownUpperWalls->SetStaticMesh(GetPartMesh(DowntownUpperWalls, WindowWalls->GetStaticMesh()));
+	DowntownStreetlights->SetStaticMesh(GetPartMesh(DowntownStreetlights, Cube));
+	DowntownPlanters->SetStaticMesh(GetPartMesh(DowntownPlanters, Cube));
+	DowntownBenches->SetStaticMesh(GetPartMesh(DowntownBenches, Cube));
+	RuralWalls->SetStaticMesh(GetPartMesh(RuralWalls, SolidWalls->GetStaticMesh()));
+	RuralWindowWalls->SetStaticMesh(GetPartMesh(RuralWindowWalls, WindowWalls->GetStaticMesh()));
+	RuralDoorWalls->SetStaticMesh(GetPartMesh(RuralDoorWalls, SolidWalls->GetStaticMesh()));
+	RuralRoofs->SetStaticMesh(GetPartMesh(RuralRoofs, Roofs->GetStaticMesh()));
+	RuralCaravans->SetStaticMesh(GetPartMesh(RuralCaravans, Cube));
+	RuralFences->SetStaticMesh(GetPartMesh(RuralFences, FactoryFences->GetStaticMesh()));
+	RuralPicnicTables->SetStaticMesh(GetPartMesh(RuralPicnicTables, Cube));
+	FactoryCranes->SetStaticMesh(GetPartMesh(FactoryCranes, Cube));
+	FactorySiteHouses->SetStaticMesh(GetPartMesh(FactorySiteHouses, Cube));
+	FactoryPipes->SetStaticMesh(GetPartMesh(FactoryPipes, Cube));
+	FactoryPallets->SetStaticMesh(GetPartMesh(FactoryPallets, Cube));
+	FactoryBarrels->SetStaticMesh(GetPartMesh(FactoryBarrels, Cube));
+	FactoryWorkTables->SetStaticMesh(GetPartMesh(FactoryWorkTables, Cube));
+	FactoryDoors->SetStaticMesh(GetPartMesh(FactoryDoors, Cube));
+	FactoryPowerBoxes->SetStaticMesh(GetPartMesh(FactoryPowerBoxes, Cube));
+	FactoryLamps->SetStaticMesh(GetPartMesh(FactoryLamps, Cube));
 
 	for (UHierarchicalInstancedStaticMeshComponent* Component : {
 		Floors, SolidWalls, WindowWalls, Roofs, Stairs, Covers, Containers,
