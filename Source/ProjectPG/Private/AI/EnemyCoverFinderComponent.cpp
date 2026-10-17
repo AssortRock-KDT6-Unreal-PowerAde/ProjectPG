@@ -1,6 +1,7 @@
 // 몬스터 AI 전체 흐름 그림: Source/ProjectPG/Private/AI/README.md
 
 #include "AI/EnemyCoverFinderComponent.h"
+#include "AI/EnemyAILog.h"
 #include "AI/EnemyAIConfig.h"
 #include "Characters/CustomEnemyCharacter.h"
 #include "EnvironmentQuery/EnvQuery.h"
@@ -9,7 +10,6 @@
 #include "TimerManager.h"
 #include "Engine/World.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogEnemyAI, Log, All);
 
 namespace
 {

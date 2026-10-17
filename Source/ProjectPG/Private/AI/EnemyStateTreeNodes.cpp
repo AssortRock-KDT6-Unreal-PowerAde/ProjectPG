@@ -1,13 +1,13 @@
 // 몬스터 AI 전체 흐름 그림: Source/ProjectPG/Private/AI/README.md
 
 #include "AI/EnemyStateTreeNodes.h"
+#include "AI/EnemyAILog.h"
 #include "AI/CustomEnemyAIController.h"
 #include "AI/EnemyAIConfig.h"
 #include "Characters/CustomEnemyCharacter.h"
 #include "StateTreeExecutionContext.h"
 #include "StateTreeAsyncExecutionContext.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogEnemyAI, Log, All);
 
 namespace
 {

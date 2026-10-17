@@ -1,6 +1,7 @@
 // 몬스터 AI 전체 흐름 그림: Source/ProjectPG/Private/AI/README.md
 
 #include "AI/CustomEnemyAIController.h"
+#include "AI/EnemyAILog.h"
 #include "AI/EnemyAIConfig.h"
 #include "AI/EnemyAITags.h"
 #include "AI/EnemyCoverFinderComponent.h"
@@ -20,7 +21,7 @@
 #include "TimerManager.h"
 #include "Engine/World.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogEnemyAI, Log, All);
+DEFINE_LOG_CATEGORY(LogEnemyAI);
 
 ACustomEnemyAIController::ACustomEnemyAIController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
