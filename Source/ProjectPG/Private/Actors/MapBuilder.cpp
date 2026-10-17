@@ -847,7 +847,8 @@ void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
 //     맵이 판마다 새로 지어지니 지도는 게임 중에 만든다: DefaultEngine.ini 에서 길찾기 지도를 "Dynamic"(게임 중 굽기)으로 바꿔 뒀다.
 //     (그 한 줄이 없으면 영역을 넣어도 지도가 안 생긴다.)
 //     영역 박스는 맵 크기가 판마다 정해지므로 코드로 만든다. 코드로 만든 박스는 모양이 없어서 상자 모양을 직접 넣는다.
-// 부담: 맵 전체(약 900 m)를 처음 한 번 굽는다. 걸린 시간은 길찾기 검사 로그의 elapsed_ms 로 본다.
+// 부담: 맵 전체(600 m × 600 m, 조각 약 3900개)를 판 시작 때 한 번, 게임을 멈추지 않고 뒤에서 굽는다(에디터 서버에서 약 36초).
+//       다 구우면 "Navigation build finished" 로그와 OnNavigationReady 알림이 나간다.
 void AMapBuilder::AddNavigationArea()
 {
 	if (GetWorld()->GetNetMode() == NM_Client || !IsValid(NavigationFloor))
@@ -876,9 +877,41 @@ void AMapBuilder::AddNavigationArea()
 	BoxShape->AggGeom.BoxElems.Add(FKBoxElem(HalfSize.X * 2.0f, HalfSize.Y * 2.0f, HalfSize.Z * 2.0f));
 	Brush->BrushBodySetup = BoxShape;
 	Brush->UpdateBounds();
+	// 굽기가 끝나는 순간을 엔진 알림으로 받는다(매 프레임 "다 됐나?" 묻지 않음). 영역을 넣기 전에 붙여야 놓치지 않는다.
+	NavigationSystem->OnNavigationGenerationFinishedDelegate.AddUniqueDynamic(this, &AMapBuilder::HandleNavigationGenerationFinished);
+	NavigationBuildStartSeconds = FPlatformTime::Seconds();
+	GetWorldTimerManager().SetTimer(NavigationBuildTimeoutTimer, this, &AMapBuilder::HandleNavigationBuildTimeout, 90.0f, false);
 	NavigationSystem->OnNavigationBoundsUpdated(Volume);
 	UE_LOG(LogTemp, Display, TEXT("Navigation area added: center=(%.0f,%.0f) half_size_cm=(%.0f,%.0f,%.0f)"),
 		Floor.GetCenter().X, Floor.GetCenter().Y, HalfSize.X, HalfSize.Y, HalfSize.Z);
+}
+
+// 길찾기 지도 굽기가 끝났을 때 (서버, 엔진이 부름).
+// 처음 한 번만 "다 구웠다" 로 친다. 그 뒤 문·상자가 움직여 일부만 다시 구울 때도 불리지만 그때는 할 일 없음.
+// 90초 시간 제한이 지난 뒤 늦게 끝나도 여기서 다 구운 것으로 치고 알린다(로그에 late=true).
+void AMapBuilder::HandleNavigationGenerationFinished(ANavigationData* NavigationData)
+{
+	if (bNavigationReady)
+		return;
+	bNavigationReady = true;
+	const bool bLate = !GetWorldTimerManager().IsTimerActive(NavigationBuildTimeoutTimer);
+	GetWorldTimerManager().ClearTimer(NavigationBuildTimeoutTimer);
+	if (UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+		NavigationSystem->OnNavigationGenerationFinishedDelegate.RemoveDynamic(this, &AMapBuilder::HandleNavigationGenerationFinished);
+
+	UE_LOG(LogTemp, Display, TEXT("Navigation build finished: seconds=%.1f late=%s nav_data=%s"),
+		FPlatformTime::Seconds() - NavigationBuildStartSeconds, bLate ? TEXT("true") : TEXT("false"), *GetNameSafe(NavigationData));
+	OnNavigationReady.Broadcast();
+}
+
+// 90초가 지나도 굽기가 안 끝났을 때: 무엇이 남았는지 Error 로 남긴다.
+// 기다리기는 그만두지 않는다: 늦게라도 끝나면 HandleNavigationGenerationFinished 가 알린다.
+void AMapBuilder::HandleNavigationBuildTimeout()
+{
+	const UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	UE_LOG(LogTemp, Error, TEXT("Navigation build not finished after 90 s: remaining_tasks=%d running_tasks=%d - monsters cannot path yet"),
+		NavigationSystem ? NavigationSystem->GetNumRemainingBuildTasks() : -1,
+		NavigationSystem ? NavigationSystem->GetNumRunningBuildTasks() : -1);
 }
 
 void AMapBuilder::RunTimedChecks()
