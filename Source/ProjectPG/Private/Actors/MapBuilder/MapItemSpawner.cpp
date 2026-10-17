@@ -6,6 +6,7 @@
 #include "Actors/LootSlotComponent.h"
 #include "Actor/InteractActor.h"
 #include "Components/InventoryComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/LevelStreamingDynamic.h"
@@ -135,7 +136,21 @@ void UMapItemSpawner::AppendSlotsOf(AActor* Owner, TArray<FLootSlotRecord>& OutS
 	if (!bLevelSlot)
 	{
 		// BP 하나 = 타일 하나(또는 여러 칸짜리 시설). 가장자리 25% 는 빼고 센다(옆 칸으로 삐져나온 소품 때문에 칸 수가 늘지 않게).
-		const FBox Bounds = Owner->GetComponentsBoundingBox(true);
+		// 크기가 0 인 부품(인스턴스가 하나도 없는 묶음 메시 등)은 빼고 잰다.
+		// 왜: 그런 부품의 상자는 맵 한가운데(0,0)에 찍혀서, 에디터에서는 타일 하나가 한가운데까지 수십 칸을 차지한 것으로 셌다.
+		//     패키지에서는 그 부품이 안 섞여 같은 시드인데 칸 수·상자 수가 달랐다(에디터 807칸·398개, 패키지 783칸·405개).
+		FBox Bounds(ForceInit);
+		Owner->ForEachComponent<UPrimitiveComponent>(false, [&Bounds](const UPrimitiveComponent* Primitive)
+		{
+			if (!Primitive->IsRegistered() || Primitive->Bounds.BoxExtent.IsNearlyZero())
+				return;
+			if (const UInstancedStaticMeshComponent* Instanced = Cast<UInstancedStaticMeshComponent>(Primitive))
+				if (Instanced->GetInstanceCount() == 0)
+					return;
+			Bounds += Primitive->Bounds.GetBox();
+		});
+		if (!Bounds.IsValid)
+			Bounds = FBox(Owner->GetActorLocation(), Owner->GetActorLocation());
 		const float Margin = MapBuild::DesignCellSize * 0.25f;
 		const FIntPoint MinCell = CellOf(Bounds.Min.X + Margin, Bounds.Min.Y + Margin);
 		const FIntPoint MaxCell = CellOf(Bounds.Max.X - Margin, Bounds.Max.Y - Margin);
