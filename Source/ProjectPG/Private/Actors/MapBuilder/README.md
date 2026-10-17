@@ -26,6 +26,32 @@ flowchart TD
    - 왜 매번 확인: 캐릭터는 계속 움직이는데, "40 m 칸을 넘었다"고 엔진이 따로 알려 주지 않는다.
    - 부담: 칸이 바뀔 때만 실제로 새로 고친다. 평소엔 칸 비교 한 번.
 
+## 로딩 창과 시작 무적
+
+접속 직후 폰은 아무 데나 생기고, 맵이 다 지어져 시작 구역 자리에 설 때까지 시간이 걸린다. 그 사이 몬스터에게 죽지 않게 막고, 화면은 로딩 창으로 가린다.
+
+```mermaid
+flowchart TD
+    subgraph 서버["서버 (MapSpawnRegionPlanner, 0.1초마다)"]
+        S1["처음 보는 PlayerController<br/>→ 자리 알림 부품(UMapSeatStatus) 붙이기"] --> S2["폰이 있으면 막기<br/>충돌 끔 + 제자리 멈춤 + 데미지 안 받음"]
+        S2 --> S3{"맵 준비 끝?<br/>(끼임 정리 끝)"}
+        S3 -- "예" --> S4["자리에 세우기 (PlaceAtSeat)<br/>→ 막기 풀기 → bSeated = true"]
+        S3 -- "아직" --> S5{"60초 넘음?"}
+        S5 -- "예" --> S6["막기 풀기 + Error 로그"]
+        S5 -- "아니오" --> S2
+    end
+    subgraph 화면["화면 있는 쪽 (클라·방장·혼자)"]
+        C1["맵 BeginPlay → 로딩 창 띄움<br/>(DA_MapAssets 의 Loading Screen Class)"] --> C2{"bSeated 도착(OnRep_Seated)<br/>+ 내 맵도 다 지음(끼임 정리 끝)?"}
+        C2 -- "둘 다 예" --> C3["0.6초 흐려지며 닫힘"]
+        C2 -- "75초 넘음" --> C4["닫고 Error 로그"]
+    end
+    S4 -. "값 복제 (주인에게만)" .-> C2
+```
+
+- 충돌까지 끄는 이유: 팀원 캐릭터의 피해 처리(`Hit`)는 `CanBeDamaged` 를 안 본다. 충돌을 끄면 총알 선·근접 공격이 몸에 안 닿는다. 캐릭터 파일은 안 고친다.
+- "섰다" 를 값(`bSeated`)으로 보내는 이유: 한 번 보내는 함수는 부품이 클라에 생기기 전에 오면 사라질 수 있다. 값은 늦게라도 온다.
+- 로딩 창 코드는 ProjectTest2 의 `PGLoadingScreenSubsystem` 에서 가져왔다(시작 로고·안내 문구 부분은 뺐다). WBP 부모 이름이 그대로라 `DefaultEngine.ini` 의 `ProjectPGTest2 → ProjectPG` 줄로 이어진다.
+
 흐름이 헷갈리면 Rider 의 Find Usages 로 함수를 거꾸로 따라가면 된다.
 
 ## 고친 뒤 확인 (같은 시드 시험)
