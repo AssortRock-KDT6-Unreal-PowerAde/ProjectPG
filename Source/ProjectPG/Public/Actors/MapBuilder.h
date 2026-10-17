@@ -349,6 +349,10 @@ private:
 	// 맵 가장자리에서 이 칸 수 안쪽만 후보(출발은 바깥, 워존은 가운데).
 	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "1"))
 	int32 SpawnRegionEdgeBandCells = 5;
+	// 자리에 서기 전 무적(충돌 끔·멈춤)을 최대 몇 초까지 둘지. 넘기면 풀고 Error 로그(영영 무적보다 낫다).
+	// 로딩 창이 기다리는 시간(WBP 의 Wait Limit Seconds)보다 조금 짧게 둔다.
+	UPROPERTY(EditAnywhere, Category = "Spawn Regions", meta = (ClampMin = "5"))
+	float SpawnProtectionTimeoutSeconds = 60.0f;
 	// 이번 판 시작 구역 칸(0번 = 형님 시작 칸).
 	UPROPERTY(VisibleInstanceOnly, Category = "Spawn Regions")
 	TArray<FIntPoint> SpawnRegionCells;
