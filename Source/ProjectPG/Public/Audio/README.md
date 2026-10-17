@@ -11,22 +11,36 @@ Wwise 없이 엔진 내장 메타사운드만 쓴다. 팀원 누구나 플러그
 
 ## 흐름
 
+말로 된 흐름 (그림과 같은 내용):
+
+- 서버가 총쏘기·장전·맞기·죽기 애니메이션을 틀면 → 모든 클라에 알림이 간다(팀원 코드가 이미 하는 일).
+  - 각 클라의 "캐릭터 소리 담당"이 받아서 다음을 한다.
+    - 총 쏘는 순간 → 총소리
+    - 총알이 닿은 곳 → 재질별 탄착음
+    - 장전·맞기·죽기 → 소리 표에서 골라 재생
+- 0.1초마다 움직임을 확인한다.
+  - 한 걸음 걸었으면 → 발소리
+  - 공중에서 땅에 닿았으면 → 착지 소리
+  - 이벤트가 아니라 반복 확인인 이유: 걸음은 "끝나는 순간"이 없는 계속 바뀌는 값이고, 엔진이 걸음마다 알려 주지 않는다. 멈춰 있으면 속도만 보고 바로 끝난다.
+- 버튼을 누르거나 버튼 위에 올리면 → UI 소리
+- 문·상자 같은 BP 이벤트 → "소리 틀기" 노드(`PlayPGSound`)
+- 모든 소리는 "오디오 담당"을 거쳐 거리에 따라 작아지고 먹먹해진다. 각 클라의 귀 위치 기준이라 사람마다 다르게 들린다.
+
 ```mermaid
 flowchart TD
-  S[서버: 발사·장전·피격·죽음 몽타주 재생] -->|이미 있는 멀티캐스트| C[모든 클라: 같은 몽타주 재생]
-  C -->|몽타주 시작 알림| K[UPGCharacterSoundComponent<br/>클라에만, 캐릭터마다 자동으로 붙음]
-  K -->|발사 표시 시각까지 기다림| G[OnGunshot → MS_Gunshot<br/>Wave/FarWave 입력]
-  K -->|보이기용 선 직접 쏨| I[OnBulletImpact → 재질별 탄착음]
-  K -->|소리 표 MontageSounds| M[OnMontageSound → 장전·피격·죽음]
-  MV[0.1초마다 이동 확인] --> K
-  K -->|걸은 거리 ≥ 보폭| F[OnFootstep → 재질별 발소리]
-  K -->|공중 → 땅| L[착지 소리]
-  UI[마우스 입력 엿보기] -->|버튼 위에서 누름/올라감| U[UI.Click / UI.Hover]
-  BP[BP 이벤트: 문·상자·피날레 등] -->|PlayPGSound 노드| N[Cues 이름 소리]
-  G & I & M & F & L & U & N --> P[UPGAudioSubsystem::PlayCue<br/>녹음 하나 고르기 + 음높이 흔들기]
-  P --> A[감쇠 에셋 ATT_*: 거리 → 크기·고음 깎기<br/>각 클라 귀 위치 기준이라 사람마다 다르게 들림]
+  ServerMontage["서버: 쏘기·장전·맞기·죽기 애니"] -->|모든 클라에 알림| ClientMontage["각 클라: 같은 애니 재생"]
+  ClientMontage --> CharSound["캐릭터 소리 담당 (UPGCharacterSoundComponent)"]
+  MoveCheck["0.1초마다 움직임 확인"] --> CharSound
+  CharSound -->|쏘는 순간| Gunshot["총소리 (MS_Gunshot)"]
+  CharSound -->|총알 닿은 곳| Impact["재질별 탄착음"]
+  CharSound -->|장전·맞기·죽기| MontageSound["소리 표에서 골라 재생"]
+  CharSound -->|한 걸음| Footstep["재질별 발소리"]
+  CharSound -->|공중 → 땅| Landing["착지 소리"]
+  UIInput["마우스 입력 엿보기"] -->|버튼 누름·올림| UIClick["UI 소리"]
+  BPEvent["BP 이벤트 (문·상자 등)"] -->|PlayPGSound| CueSound["이름으로 고른 소리"]
+  Gunshot & Impact & MontageSound & Footstep & Landing & UIClick & CueSound --> AudioSub["오디오 담당 (UPGAudioSubsystem): 녹음 하나 고르고 음높이 살짝 흔듦"]
+  AudioSub --> Attenuation["거리 감쇠 (ATT_*): 멀수록 작고 먹먹하게"]
 ```
-
 ## 메타사운드 입력 이름 (C++ 과 맞춰야 함)
 
 - `Wave` (WaveAsset): 가까이서 들리는 녹음. 매번 표의 후보 중 하나.

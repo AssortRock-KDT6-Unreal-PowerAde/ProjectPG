@@ -35,6 +35,7 @@ void UPGCharacterSoundComponent::BeginPlay()
 	if (!OwnerCharacter) return;
 
 	TryBindAnimInstance();
+	// 발소리는 반복 확인: 걸음은 끝나는 순간이 없는 계속 바뀌는 값이라 엔진이 걸음마다 알려 주지 않음. 멈춰 있으면 속도만 보고 바로 끝남.
 	GetWorld()->GetTimerManager().SetTimer(MoveTimer, this, &UPGCharacterSoundComponent::CheckMovement, MoveCheckInterval, true,
 		FMath::FRandRange(0.f, MoveCheckInterval)); // 캐릭터마다 시작을 흩어서 같은 프레임에 몰리지 않게
 }

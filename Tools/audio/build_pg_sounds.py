@@ -296,8 +296,11 @@ def main():
 
     # 물리 재질이 없는 맵 메시(서드파티 팩)의 재질을 이름으로 짐작. 위에서부터 처음 맞는 것.
     rules = []
-    for words, s in ((["grass", "shrub", "bush", "foliage", "leaf", "leaves", "hedge"], S.SURFACE_TYPE5),
-                     (["dirt", "mud", "sand", "soil", "gravel", "ground", "terrain", "earth"], S.SURFACE_TYPE4),
+    # 맵 생성기 바닥판(MI_RuntimeGround_*)은 이름이 "ground" 라 따로 먼저 정함: 전투 구역 = 포장, 나머지 = 흙.
+    for words, s in ((["RuntimeGround_WarZone"], S.SURFACE_TYPE1),
+                     (["RuntimeGround_Transition", "RuntimeGround_Nature"], S.SURFACE_TYPE4),
+                     (["grass", "shrub", "bush", "foliage", "leaf", "leaves", "hedge"], S.SURFACE_TYPE5),
+                     (["dirt", "mud", "sand", "soil", "gravel", "terrain", "earth"], S.SURFACE_TYPE4),
                      (["metal", "steel", "iron", "alumin", "container", "pipe", "rail", "tank", "vehicle", "truck", "car_",
                        "sherman", "scaffold", "barrel", "locker", "vent", "duct", "fence_metal", "chain"], S.SURFACE_TYPE2),
                      (["wood", "plank", "crate", "pallet", "cabin", "log", "timber", "board", "door", "table", "chair", "shelf"], S.SURFACE_TYPE3),

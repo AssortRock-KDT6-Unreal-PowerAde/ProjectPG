@@ -217,14 +217,20 @@ EPhysicalSurface UPGAudioSubsystem::GuessSurfaceByName(const UPrimitiveComponent
 	const UObject* Key = Material ? Material : static_cast<const UObject*>(Component);
 	if (const TEnumAsByte<EPhysicalSurface>* Known = GuessedSurfaces.Find(Key)) return *Known;
 
-	FString Names = GetNameSafe(Material);
-	if (const UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(Component)) Names += TEXT(" ") + GetNameSafe(Mesh->GetStaticMesh());
-	Names += TEXT(" ") + GetNameSafe(Component->GetOwner());
-
+	// 머티리얼 이름을 먼저 다 맞춰 보고, 안 맞을 때만 메시 → 액터 이름을 본다.
+	// (예: 콘크리트 머티리얼을 쓴 "Container" 메시 → 메시 이름보다 머티리얼이 맞음)
+	const UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(Component);
+	const FString Names[] = { GetNameSafe(Material), Mesh ? GetNameSafe(Mesh->GetStaticMesh()) : FString(), GetNameSafe(Component->GetOwner()) };
 	EPhysicalSurface Found = SurfaceType_Default;
-	for (const FPGSurfaceKeyword& Rule : SoundSet->SurfaceKeywords)
-		if (!Rule.Keyword.IsEmpty() && Names.Contains(Rule.Keyword, ESearchCase::IgnoreCase)) { Found = Rule.Surface; break; }
-	UE_LOG(LogPGAudio, Verbose, TEXT("재질 짐작: '%s' → %d"), *Names, static_cast<int32>(Found));
+	bool bMatched = false;
+	for (const FString& Name : Names)
+	{
+		for (const FPGSurfaceKeyword& Rule : SoundSet->SurfaceKeywords)
+			if (!Rule.Keyword.IsEmpty() && Name.Contains(Rule.Keyword, ESearchCase::IgnoreCase)) { Found = Rule.Surface; bMatched = true; break; }
+		if (bMatched) break;
+	}
+	// 물체 종류마다 한 번만 찍힘(기억해 두니까). 소리가 재질과 안 맞으면 이 줄을 보고 표의 SurfaceKeywords 를 고친다.
+	UE_LOG(LogPGAudio, Log, TEXT("재질 짐작: '%s / %s / %s' → %d"), *Names[0], *Names[1], *Names[2], static_cast<int32>(Found));
 	GuessedSurfaces.Add(Key, Found);
 	return Found;
 }
