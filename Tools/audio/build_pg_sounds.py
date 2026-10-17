@@ -36,6 +36,10 @@ def import_folder(folder):
     for name in sorted(os.listdir(src_dir)):
         if not name.lower().endswith(".wav"):
             continue
+        # 이미 가져온 녹음은 건너뜀(다시 가져오면 내용이 같아도 파일이 새로 저장돼 바뀐 것으로 잡힘).
+        # 원본 녹음을 고쳤으면 그 에셋을 지우고 다시 돌릴 것.
+        if assets.does_asset_exist(WAVES + "/" + folder + "/" + os.path.splitext(name)[0]):
+            continue
         t = unreal.AssetImportTask()
         t.filename = os.path.join(src_dir, name)
         t.destination_path = WAVES + "/" + folder
@@ -149,6 +153,9 @@ class Graph:
         return self.pin_out(node, name)
 
     def save(self):
+        # 이미 있으면 덮어쓰기가 안 돼서(build_to_asset 실패) 지우고 새로 만든다. 소리 표는 아래에서 다시 채워 연결이 복구됨.
+        if assets.does_asset_exist(MS + "/" + self.name):
+            assets.delete_asset(MS + "/" + self.name)
         r = es.build_to_asset(self.b, "ProjectPG", self.name, MS)
         self.ok(r, "에셋 저장")
         a = assets.load_asset(MS + "/" + self.name)
@@ -156,10 +163,10 @@ class Graph:
         return a
 
 
-def build_one_shot():
+def build_one_shot(preview):
     # 녹음 하나 틀고 끝. 어떤 녹음인지는 C++ 이 "Wave" 입력으로 넘김.
     g = Graph("MS_OneShot")
-    wave = g.input("Wave", "WaveAsset", None)
+    wave = g.input("Wave", "WaveAsset", preview)  # 기본값 = 에디터 미리듣기용(게임에선 C++ 이 매번 덮어씀)
     wp = g.node("UE", "Wave Player", "Mono")
     g.link(g.on_play, wp, "Play")
     g.link(wave, wp, "Wave Asset")
@@ -168,14 +175,14 @@ def build_one_shot():
     return g.save()
 
 
-def build_gunshot():
+def build_gunshot(preview_near, preview_far):
     # 총소리 한 발 = 가까운 녹음 + 먼 녹음(거리로 섞음) + 합성 저음 "쿵" + 메아리(실내면 진하게).
     # 거리는 감쇠 인터페이스가 듣는 사람마다 따로 넣어 줌 → 같은 총도 사람마다 다르게 들림.
     g = Graph("MS_Gunshot")
     g.ok(g.b.add_interface("UE.Attenuation"), "감쇠 인터페이스")
     dist = g.interface_input("UE.Attenuation.Distance")
-    wave = g.input("Wave", "WaveAsset", None)
-    far_wave = g.input("FarWave", "WaveAsset", None)
+    wave = g.input("Wave", "WaveAsset", preview_near)  # 기본값 = 에디터 미리듣기용
+    far_wave = g.input("FarWave", "WaveAsset", preview_far)
     indoor = g.input("Indoor", "Float", 0.0)
     near_d = g.input("NearDistance", "Float", 1500.0)   # 이 거리까진 가까운 녹음만
     far_d = g.input("FarDistance", "Float", 8000.0)     # 이 거리부터 먼 녹음만
@@ -269,12 +276,11 @@ def main():
                     ("PM_Dirt", S.SURFACE_TYPE4), ("PM_Grass", S.SURFACE_TYPE5), ("PM_Flesh", S.SURFACE_TYPE6)):
         make_physmat(name, s)
 
-    one = build_one_shot()
-    gun = build_gunshot()
-
     fire = "Weapon_Fire"
     far = load_waves(fire, contains=["_FAR"], exclude=["TRANSIENT"])
     rifle = load_waves(fire, contains=["Assault_Rifle", "Dragunov_7_62_54R_DESIGNED"], exclude=["TRANSIENT"])
+    one = build_one_shot(w["UI_Click"][0])
+    gun = build_gunshot(rifle[0], far[0])
     shotgun = load_waves(fire, contains=["Saiga", "Shotgun_Fire"], exclude=["TRANSIENT"])
     pistol = load_waves(fire, contains=["Assault_Rifle_Shot_Single_4_01_TRANSIENT", "Dragunov_7_62_54R_DESIGNED_Single_Shot_Core_Lon_01_TRANSIENT"])
 
