@@ -27,3 +27,7 @@ flowchart TD
    - 부담: 칸이 바뀔 때만 실제로 새로 고친다. 평소엔 칸 비교 한 번.
 
 흐름이 헷갈리면 Rider 의 Find Usages 로 함수를 거꾸로 따라가면 된다.
+
+## 고친 뒤 확인 (같은 시드 시험)
+
+`powershell -ExecutionPolicy Bypass -File Tools\test\MapSeedCheck.ps1` → 빌드하고 서버+클라를 띄워 상자 수·지문을 `Tools\test\MapSeedExpected.txt` 와 비교한다(약 4분). 맵을 일부러 바꿨으면 기대값 파일을 고친다.
