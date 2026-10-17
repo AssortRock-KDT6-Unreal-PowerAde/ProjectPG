@@ -9,14 +9,15 @@
 class AActor;
 class AInteractActor;
 
-// 상자 자리 하나를 적어 둔 것. 타일 액터는 맵이 메시를 묶음(HISM)으로 옮긴 뒤 지우므로,
-// 지우기 전에 자리 표시(ULootSlotComponent)의 위치·설정을 여기에 옮겨 적는다.
+// 상자 자리 하나를 적어 둔 것.
+// 타일 액터는 맵이 메시를 HISM(같은 메시를 한 덩어리로 그리는 부품)으로 옮긴 뒤 지워 버린다.
+// 그래서 지우기 전에 자리 표시(ULootSlotComponent)의 위치·설정을 여기에 옮겨 적어 둔다.
 struct FLootSlotRecord
 {
-	// 같은 값끼리 한 묶음(타일 하나 + SlotGroup).
+	// 이 값이 같은 자리끼리 한 묶음이다(타일 하나 + SlotGroup).
 	FString GroupKey;
 	FName SlotGroup;
-	// 노란 선 아래면 가운데 = 상자 바닥 점.
+	// 에디터에서 보이는 노란 상자 선의 아랫면 가운데 = 상자가 놓일 바닥 점.
 	FVector Bottom = FVector::ZeroVector;
 	float Yaw = 0.0f;
 	TArray<TSoftClassPtr<AInteractActor>> ContainerClasses;
@@ -24,8 +25,9 @@ struct FLootSlotRecord
 
 // 상자 자리에 나오는 아이템 한 줄 (데이터 테이블 DT_LootSpawn 의 한 줄).
 // 게임에서: "붕대는 흔하게(무게 5), 1~3개씩, 아무 자리에서나" / "에픽 소총은 드물게(무게 1), 좋은 자리(3)에서만".
-// 왜 표로 뺐나: 무엇이 얼마나 자주 나오는지는 기획·밸런스 값이라 코드 없이 바꿀 수 있어야 해서.
-// 지금은 맵이 상자 안을 채우지 않는다(형님 쪽 AInteractActor 가 채운다). DT_LootSpawn 에셋이 이 구조라 지우지 않고 남겨 둔다.
+// 왜 표로 뺐나: 무엇이 얼마나 자주 나오는지는 기획·밸런스 값이라, 코드 없이 바꿀 수 있어야 해서.
+// 지금은 맵이 상자 안을 채우지 않는다(형님 쪽 AInteractActor 가 채운다).
+// DT_LootSpawn 에셋이 이 구조를 쓰고 있어서, 지우지 않고 남겨 둔다.
 USTRUCT(BlueprintType)
 struct FLootSpawnRow : public FTableRowBase
 {
@@ -55,7 +57,8 @@ struct FLootSpawnRow : public FTableRowBase
 //           상자는 DA_MapAssets 의 상자 BP 목록(부모 AInteractActor)에서 자리마다 하나 고른다.
 //           안은 채우지 않는다 — 무엇이 들지는 형님 쪽(AInteractActor)이 정한다.
 // 같은 시드 = 같은 자리에 같은 상자. 자리마다 정해진 씨앗(PointSeed)으로만 주사위를 굴린다.
-// 서버만 놓는다. 들어온 사람은 복제로 받는다(타일처럼 각자 만들면 서로 모르는 상자가 두 개 생긴다).
+// 서버만 놓는다. 접속한 사람은 서버가 놓은 상자를 자동으로 전달(복제)받는다.
+// 타일처럼 각자 만들면, 서버 상자와 내 상자가 따로 생겨서 서로 모르는 상자가 두 개가 된다.
 UCLASS(Transient)
 class UMapItemSpawner : public UObject
 {
@@ -65,7 +68,7 @@ public:
 	virtual UWorld* GetWorld() const override;
 
 	// 상자 자리마다 상자 놓기. 맵 Tick 이 매번 부르지만, 지점 끼임 정리가 끝난 뒤 딱 한 번만 일한다.
-	// 왜 그때: 끼임 정리 전에는 자리가 벽 속일 수 있고, 시설 레벨(창고 바닥)이 아직 안 보여서 바닥을 못 찾는다.
+	// 왜 그때 하나: 정리 전에는 자리가 벽 속일 수 있고, 시설 레벨(창고 바닥)이 아직 안 불러와져서 바닥을 못 찾는다.
 	void SpawnLootOnce();
 
 	// (테스트용) 에디터에서 플레이할 때만: 시작 자리에서 바라보는 쪽 2.5m 앞에 상자 하나를 놓는다.
