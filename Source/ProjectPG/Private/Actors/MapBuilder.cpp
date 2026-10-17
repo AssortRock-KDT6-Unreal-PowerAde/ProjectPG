@@ -379,10 +379,9 @@ void AMapBuilder::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	// 시설 레벨 기다리기·끼임 정리·상자 놓기는 Tick 에서 뺐다(이벤트 방식: WatchFacilityDesignLevels).
-	// 여기 남은 것은 매번 봐야 하는 것뿐이다.
-	Verifier->VerifyDesignLevelSeparation();
-	Verifier->VerifyWorldCollision();
+	// 시설 레벨 기다리기·끼임 정리·상자 놓기·검사기는 Tick 에서 뺐다
+	// (이벤트 방식: WatchFacilityDesignLevels → CheckFacilityDesignLevels, 검사기는 그 끝에서 한 번 + 타이머).
+	// 여기 남은 것은 플레이어 세우기와 플레이어 주변 길찾기 갱신뿐이다.
 	// 들어온 플레이어를 시작 구역에 나눠 세운다(서버만, 새로 들어온 사람만). 시작 자리 정리가 끝난 뒤부터 일한다.
 	// Tick 에 남긴 이유: "들어왔다" 하나로 끝나지 않는다. 캐릭터 없이 들어온 사람은 2초 기다렸다 세우고,
 	// 자리에 못 세우면 2초 뒤 다시, 게임모드가 나중에 캐릭터를 바꿔 주면(폰이 바뀌면) 같은 자리에 다시 세운다.
@@ -391,16 +390,6 @@ void AMapBuilder::Tick(float DeltaSeconds)
 	// 형님 게임모드는 안 고치고 엔진 이벤트만으로 되지만, 멀티(서버+2명) 시험을 따로 해야 해서 이번엔 그대로 둔다.
 	// 할 일이 없으면 바로 돌아가는 가벼운 반복이다.
 	SpawnRegionPlanner->PlaceJoinedPlayers();
-	//Tactical(전투용)+Layout(배치)+Quality(품질) = 전투하기 좋게 타일이 제대로 놓였니? 
-	Verifier->VerifyTacticalLayoutQuality();
-	Verifier->VerifyTravelCoverDensity();
-	Verifier->VerifyGameplayPointDistribution();
-	Verifier->VerifyNavigation();
-	Verifier->VerifyCriticalRoutes();
-	Verifier->VerifyTraversableElevation();
-	Verifier->VerifyCoplanarSurfaces();
-	Verifier->VerifyPCGDressing();
-	Verifier->VerifyLocalPerformance(DeltaSeconds);
 
 	// 지금 조작 중인 플레이어 폰(팀 캐릭터) 주변 60 m 길찾기 차단을 갱신한다.
 	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
@@ -737,35 +726,6 @@ void AMapBuilder::GetFacilityAccessEdges(
 	}
 }
 
-bool AMapBuilder::AreAllFacilityLevelsLoaded() const
-{
-	if (FacilityPlacements.IsEmpty())
-		return false;
-
-	if (bUseRuntimeBlueprintTiles)
-	{
-		for (int32 Index = 0; Index < FacilityPlacements.Num(); ++Index)
-		{
-			if (FacilityPlacements[Index].VisualSet != EFacilityVisualSet::Checkpoint)
-				continue;
-			if (!FacilityDesignLevelInstances.IsValidIndex(Index))
-				return false;
-			const ULevelStreamingDynamic* Instance = FacilityDesignLevelInstances[Index];
-			if (!IsValid(Instance) || !Instance->IsLevelLoaded() || !Instance->IsLevelVisible())
-				return false;
-		}
-		return true;
-	}
-
-	if (FacilityDesignLevelInstances.Num() != FacilityPlacements.Num()
-		|| FacilityDesignLevelInstances.IsEmpty())
-		return false;
-	for (const ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
-		if (!IsValid(Instance) || !Instance->IsLevelLoaded() || !Instance->IsLevelVisible())
-			return false;
-	return true;
-}
-
 // 시설 레벨마다 "보였다" 이벤트를 걸고 시간 제한 타이머를 켠다.
 // 처음 세기는 다음 프레임에: 이미 보이는 레벨도 거기서 센다. 시설이 0개이거나 레벨 없는 시설뿐이면 거기서 바로 진행.
 void AMapBuilder::WatchFacilityDesignLevels()
@@ -864,6 +824,19 @@ void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
 	// 시설 벽이 다 들어왔으니 벽 속 지점을 빈 곳으로 옮기고(한 번), 상자 자리마다 상자를 놓는다(한 번, 서버만).
 	PointPlanner->ResolveSafety();
 	ItemSpawner->SpawnLootOnce();
+
+	// 검사기: 기다릴 것 없는 검사는 지금 한 번, 시간이 걸리는 검사(길찾기 지도 최대 20초 등)는 0.1초 타이머로.
+	// 다 끝나면 타이머를 끈다. 120초가 지나도 안 끝나면 안 끝난 이름을 Warning 으로 남기고 끈다.
+	Verifier->RunFinalChecks();
+	TimedChecksStartSeconds = GetWorld()->GetTimeSeconds();
+	GetWorldTimerManager().SetTimer(TimedChecksTimer, this, &AMapBuilder::TickTimedChecks, 0.1f, true);
+}
+
+void AMapBuilder::TickTimedChecks()
+{
+	const bool bGiveUp = GetWorld()->GetTimeSeconds() - TimedChecksStartSeconds > 120.0;
+	if (Verifier->TickTimedChecks(bGiveUp))
+		GetWorldTimerManager().ClearTimer(TimedChecksTimer);
 }
 
 FVector AMapBuilder::GetDesignFootprintCenter(

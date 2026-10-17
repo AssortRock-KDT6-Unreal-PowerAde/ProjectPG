@@ -54,6 +54,39 @@ UWorld* UMapVerifier::GetWorld()const
 {
 	return Map ? Map->GetWorld() : nullptr;
 }
+
+// 상자까지 놓인 뒤 한 번. 기다릴 것이 없는 검사들(시설 레벨·끼임 정리는 이미 끝났다).
+void UMapVerifier::RunFinalChecks()
+{
+	VerifyDesignLevelSeparation();
+	VerifyWorldCollision();
+	VerifyTacticalLayoutQuality();
+	VerifyTravelCoverDensity();
+	VerifyGameplayPointDistribution();
+	VerifyTraversableElevation();
+	VerifyCoplanarSurfaces();
+}
+
+// 0.1초마다. 길찾기 검사가 끝나야 출구 길·성능 검사가 시작한다(순서 신호 bLoggedNavigation).
+bool UMapVerifier::TickTimedChecks(bool bGiveUp)
+{
+	VerifyPCGDressing();
+	VerifyNavigation();
+	VerifyCriticalRoutes();
+	VerifyLocalPerformance(0.0f);
+	const bool bDone = bLoggedPCGDressing && bLoggedNavigation && bLoggedCriticalRoutes && PerformanceSampleCount >= 50;
+	if (bDone || !bGiveUp)
+		return bDone;
+
+	TArray<FString> Pending;
+	if (!bLoggedPCGDressing) Pending.Add(TEXT("PCGDressing"));
+	if (!bLoggedNavigation) Pending.Add(TEXT("Navigation"));
+	if (!bLoggedCriticalRoutes) Pending.Add(TEXT("CriticalRoutes"));
+	if (PerformanceSampleCount < 50) Pending.Add(FString::Printf(TEXT("LocalPerformance(%d/50)"), PerformanceSampleCount));
+	UE_LOG(LogTemp, Warning, TEXT("Map timed checks gave up: pending=[%s]"), *FString::Join(Pending, TEXT(", ")));
+	return true;
+}
+
 void UMapVerifier::VerifyPCGDressing()
 {
 	if (bLoggedPCGDressing || !IsValid(Map->DressingPCGComponent) || Map->DressingPCGComponent->IsGenerating())
@@ -78,7 +111,7 @@ void UMapVerifier::VerifyPCGDressing()
 void UMapVerifier::VerifyWorldCollision()
 {
 	if (bLoggedWorldCollision
-		|| !Map->AreAllFacilityLevelsLoaded())
+		|| !Map->bFacilityLevelsSettled)
 	{
 		return;
 	}
@@ -122,9 +155,9 @@ void UMapVerifier::VerifyWorldCollision()
 
 void UMapVerifier::VerifyDesignLevelSeparation()
 {
-	// 시설 조각이 다 끼워질때까지 기다린다. 
-	// AreAllFacilityLevelsLoaded : 시설 조각 다 끼워졌나? 
-	if (bLoggedDesignLevelSeparation || !Map->AreAllFacilityLevelsLoaded())
+	// 시설 조각 기다리기가 끝난 뒤에만(bFacilityLevelsSettled: 다 왔거나, 실패·시간 제한으로 포기).
+	// 못 온 조각이 있으면 그 조각은 빼고 잰다(어느 조각인지는 맵이 Error 로 이미 남겼다).
+	if (bLoggedDesignLevelSeparation || !Map->bFacilityLevelsSettled)
 	{
 		return;
 	}
@@ -226,13 +259,21 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 	if (bLoggedTacticalLayoutQuality
 		// 타일 배치 목록이 비었나?
 		|| Map->TileDesignPlacements.IsEmpty()
-		// 만들어진 개수가 "타일 개수+방금 센 개수와 다른가?"
-		|| Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount
-		// 시설 레벨이 아직 다 안불려 왔나?
-		|| !Map->AreAllFacilityLevelsLoaded())
+		// 시설 레벨 기다리기가 아직 안 끝났나?
+		|| !Map->bFacilityLevelsSettled)
 		return;
-	// 스티커 붙이기: 이 검사 로그를 이제 찍는다고 표시. 다음 프레임부턴 위 if 에서 바로 return.
+	// 스티커 붙이기: 이 검사 로그를 이제 찍는다고 표시. 한 번만 부르므로 아래에서 건너뛰어도 붙인다.
 	bLoggedTacticalLayoutQuality = true;
+	// 만들어진 개수가 "타일 개수 + 방금 센 개수" 와 다르면 셀 수 없다. 예전엔 여기서 말없이 돌아가 매 프레임 기다렸고,
+	// 실제로는 한 번도 안 맞아 이 검사 로그가 한 번도 안 찍혔다(10/17 확인). 이제는 건너뛴다고 남긴다.
+	if (Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("Tactical layout quality: skipped - runtime_tiles=%d expected=%d (tile placements %d + runtime facilities %d)"),
+			Map->SpawnedRuntimeTiles.Num(), Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount,
+			Map->TileDesignPlacements.Num(), ExpectedRuntimeFacilityCount);
+		return;
+	}
 
 	// int32 = 정수 하나(4바이트). 0부터 세는 칸들.
 	int32 GridMisalignments = 0;        // 칸 한가운데에 안 맞거나, 한 칸에 타일 두 장 겹친 타일 수
@@ -415,11 +456,18 @@ void UMapVerifier::VerifyTravelCoverDensity()
 		if (Placement.VisualSet != EFacilityVisualSet::Checkpoint)
 			++ExpectedRuntimeFacilityCount;
 	if (bLoggedTravelCoverDensity
-		|| Map->TileDesignPlacements.IsEmpty()
-		|| Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount)
+		|| Map->TileDesignPlacements.IsEmpty())
 		return;
 
 	bLoggedTravelCoverDensity = true;
+	// 위 VerifyTacticalLayoutQuality 와 같은 개수 조건. 안 맞으면 말없이 기다리지 말고 건너뛴다고 남긴다.
+	if (Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("Travel cover audit: skipped - runtime_tiles=%d expected=%d"),
+			Map->SpawnedRuntimeTiles.Num(), Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount);
+		return;
+	}
 	int32 SampleCount = 0;
 	int32 FullyExposedSamples = 0;
 	float LongestExposedRunCm = 0.0f;//맵을 두 줄 걸러 한줄씩, 왼쪽에서 오른쪽으로 칸마다 걸어가 본다.
