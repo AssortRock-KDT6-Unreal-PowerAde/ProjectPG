@@ -10,7 +10,9 @@
 #include "EngineUtils.h"
 #include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Components/StaticMeshComponent.h"
 #include "GameFramework/Character.h"
+#include "LandscapeProxy.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Sound/SoundWave.h"
 
@@ -199,9 +201,32 @@ UAudioComponent* UPGAudioSubsystem::PlayCueByName(FName CueName, const FVector& 
 EPhysicalSurface UPGAudioSubsystem::SurfaceOf(const FHitResult& Hit)
 {
 	const EPhysicalSurface Surface = UPhysicalMaterial::DetermineSurfaceType(Hit.PhysMaterial.Get());
-	// 캐릭터·몬스터 몸에는 물리 재질을 따로 안 붙여 둠 → 재질이 비었고 맞은 게 폰이면 살(Flesh)로 봄.
-	if (Surface == SurfaceType_Default && Cast<APawn>(Hit.GetActor())) return SurfaceType6; // DefaultEngine.ini: SurfaceType6 = Flesh
-	return Surface;
+	if (Surface != SurfaceType_Default) return Surface;
+	// 캐릭터·몬스터 몸에는 물리 재질을 따로 안 붙여 둠 → 맞은 게 폰이면 살(Flesh)로 봄.
+	if (Cast<APawn>(Hit.GetActor())) return SurfaceType6; // DefaultEngine.ini: SurfaceType6 = Flesh
+	if (!SoundSet) return Surface;
+	if (Cast<ALandscapeProxy>(Hit.GetActor())) return SoundSet->LandscapeSurface;
+	return GuessSurfaceByName(Hit.GetComponent());
+}
+
+EPhysicalSurface UPGAudioSubsystem::GuessSurfaceByName(const UPrimitiveComponent* Component)
+{
+	if (!Component || SoundSet->SurfaceKeywords.Num() == 0) return SurfaceType_Default;
+	// 머티리얼 이름이 재질을 제일 잘 말해 줌(M_Metal_Rusty 등). 없으면 메시 이름, 그다음 액터 이름.
+	const UObject* Material = Component->GetMaterial(0);
+	const UObject* Key = Material ? Material : static_cast<const UObject*>(Component);
+	if (const TEnumAsByte<EPhysicalSurface>* Known = GuessedSurfaces.Find(Key)) return *Known;
+
+	FString Names = GetNameSafe(Material);
+	if (const UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(Component)) Names += TEXT(" ") + GetNameSafe(Mesh->GetStaticMesh());
+	Names += TEXT(" ") + GetNameSafe(Component->GetOwner());
+
+	EPhysicalSurface Found = SurfaceType_Default;
+	for (const FPGSurfaceKeyword& Rule : SoundSet->SurfaceKeywords)
+		if (!Rule.Keyword.IsEmpty() && Names.Contains(Rule.Keyword, ESearchCase::IgnoreCase)) { Found = Rule.Surface; break; }
+	UE_LOG(LogPGAudio, Verbose, TEXT("재질 짐작: '%s' → %d"), *Names, static_cast<int32>(Found));
+	GuessedSurfaces.Add(Key, Found);
+	return Found;
 }
 
 bool UPGAudioSubsystem::IsIndoors(const FVector& Location) const

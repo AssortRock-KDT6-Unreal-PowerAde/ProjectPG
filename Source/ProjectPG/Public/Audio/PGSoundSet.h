@@ -69,6 +69,20 @@ struct FPGMontageSound
 	float Delay = 0.f;
 };
 
+// 물리 재질이 안 붙은 물체의 재질을 이름으로 짐작하는 규칙 한 줄. 예: "metal" → Metal.
+USTRUCT(BlueprintType)
+struct FPGSurfaceKeyword
+{
+	GENERATED_BODY()
+
+	// 머티리얼·메시·액터 이름에 이 글자가 들어 있으면(대소문자 무시) 아래 재질로 봄.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Sound")
+	FString Keyword;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Sound")
+	TEnumAsByte<EPhysicalSurface> Surface = SurfaceType_Default;
+};
+
 // 게임 소리 전부를 담는 표 한 장(DA_PGSounds). 어느 것을 쓸지는 프로젝트 설정 → PG Audio 에서 고른다.
 UCLASS(BlueprintType)
 class PROJECTPG_API UPGSoundSet : public UPrimaryDataAsset
@@ -91,6 +105,14 @@ public:
 	// 점프 뒤 땅에 닿을 때 소리(발소리와 겹쳐서 남).
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Movement")
 	FPGSoundCue Landing;
+
+	// 맵 메시 대부분은 서드파티 팩이라 물리 재질이 없음 → 이름으로 재질을 짐작하는 규칙(위에서부터 처음 맞는 것).
+	// 물리 재질이 붙은 곳은 그게 먼저. 캐릭터·몬스터는 Flesh, 지형(랜드스케이프)은 LandscapeSurface.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Surface")
+	TArray<FPGSurfaceKeyword> SurfaceKeywords;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Surface")
+	TEnumAsByte<EPhysicalSurface> LandscapeSurface = SurfaceType4;
 
 	// 뛰는 속도(cm/s)일 때 발소리 사이 거리(cm). 걸으면 이보다 짧아짐.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Movement", meta=(ClampMin=30))

@@ -165,6 +165,7 @@ void UPGCharacterSoundComponent::TraceBulletImpacts(ACustomCharacter* Shooter, c
 	else { ViewLocation = Shooter->GetPawnViewLocation(); ViewRotation = Shooter->GetBaseAimRotation(); }
 
 	UWorld* World = GetWorld();
+	UPGAudioSubsystem* Audio = UPGAudioSubsystem::Get(this);
 	FHitResult CameraHit;
 	const FVector CameraEnd = ViewLocation + ViewRotation.Vector() * Range;
 	World->LineTraceSingleByChannel(CameraHit, ViewLocation, CameraEnd, ECC_Visibility, Params);
@@ -178,7 +179,7 @@ void UPGCharacterSoundComponent::TraceBulletImpacts(ACustomCharacter* Shooter, c
 		FHitResult Hit;
 		const FVector Ray = Index == 0 ? Direction : FMath::VRandCone(Direction, HalfAngle);
 		if (World->LineTraceSingleByChannel(Hit, Muzzle, Muzzle + Ray * Range, ECC_Visibility, Params))
-			OnBulletImpact(Hit.ImpactPoint, UPGAudioSubsystem::SurfaceOf(Hit));
+			OnBulletImpact(Hit.ImpactPoint, Audio ? Audio->SurfaceOf(Hit) : SurfaceType_Default);
 	}
 }
 
@@ -220,7 +221,8 @@ void UPGCharacterSoundComponent::StepNow(float VolumeScale, bool bLanding)
 	Params.bReturnPhysicalMaterial = true;
 	FHitResult Hit;
 	if (!GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params)) return;
-	OnFootstep(Hit.ImpactPoint, UPGAudioSubsystem::SurfaceOf(Hit), VolumeScale, bLanding);
+	UPGAudioSubsystem* Audio = UPGAudioSubsystem::Get(this);
+	OnFootstep(Hit.ImpactPoint, Audio ? Audio->SurfaceOf(Hit) : SurfaceType_Default, VolumeScale, bLanding);
 }
 
 void UPGCharacterSoundComponent::OnGunshot_Implementation(FVector MuzzleLocation, EWeaponType WeaponType)

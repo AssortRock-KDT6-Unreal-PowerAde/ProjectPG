@@ -35,8 +35,8 @@ public:
 	// 이름으로 찾아 틈(UI.Click 등). 표에 없으면 아무것도 안 함.
 	UAudioComponent* PlayCueByName(FName CueName, const FVector& Location, float VolumeScale = 1.f);
 
-	// 맞은 자리 재질. 물리 재질이 안 붙은 곳은 SurfaceType_Default.
-	static EPhysicalSurface SurfaceOf(const FHitResult& Hit);
+	// 맞은 자리 재질. 순서: 물리 재질 → 캐릭터면 Flesh → 지형이면 표의 LandscapeSurface → 이름 규칙(SurfaceKeywords) → Default.
+	EPhysicalSurface SurfaceOf(const FHitResult& Hit);
 
 	// 위로 선 몇 개를 쏴서 대부분 막히면 지붕 아래(실내)로 봄.
 	bool IsIndoors(const FVector& Location) const;
@@ -57,4 +57,8 @@ private:
 	// 같은 녹음이 연달아 나오지 않게 소리마다 바로 전에 고른 번호를 기억.
 	TMap<const void*, int32> LastPicked;
 	int32 PickIndex(const void* Key, int32 Count);
+
+	// 이름 규칙으로 짐작한 재질을 물체(머티리얼·메시)마다 기억 → 같은 물체는 글자 비교를 다시 안 함.
+	TMap<TWeakObjectPtr<const UObject>, TEnumAsByte<EPhysicalSurface>> GuessedSurfaces;
+	EPhysicalSurface GuessSurfaceByName(const UPrimitiveComponent* Component);
 };

@@ -262,7 +262,8 @@ def main():
                "Ground_Collapse", "Monster_Attack", "Monster_Death", "WigBeam_Fire", "WigBeam_Impact",
                "Finale_Arrival", "Finale_Dragon", "Finale_Hover", "Finale_Launch", "Finale_Victory", "Finale_Warning",
                "Impact_Concrete", "Impact_Dirt", "Impact_Metal", "Impact_Wood", "Impact_Flesh", "Hit_React", "Body_Fall",
-               "UI_Click", "UI_Hover", "UI_Open", "UI_Close", "UI_Error", "Reload"]
+               "UI_Click", "UI_Hover", "UI_Open", "UI_Close", "UI_Error", "Reload",
+               "Gun_Rifle", "Gun_RifleFar", "Gun_Pistol", "Gun_PistolFar", "Gun_Shotgun", "Gun_ShotgunFar", "Gun_Reload"]
     w = {f: import_folder(f) for f in folders}
 
     att_gun = make_attenuation("ATT_Gunshot", 600, 15000, 2500)
@@ -276,21 +277,23 @@ def main():
                     ("PM_Dirt", S.SURFACE_TYPE4), ("PM_Grass", S.SURFACE_TYPE5), ("PM_Flesh", S.SURFACE_TYPE6)):
         make_physmat(name, s)
 
+    # 게임 총은 실총(AK·AR·권총·산탄총)이라 실제 녹음만 쓴다(미래형·기관포 녹음은 안 씀).
     fire = "Weapon_Fire"
-    far = load_waves(fire, contains=["_FAR"], exclude=["TRANSIENT"])
-    rifle = load_waves(fire, contains=["Assault_Rifle", "Dragunov_7_62_54R_DESIGNED"], exclude=["TRANSIENT"])
+    rifle = w["Gun_Rifle"] + load_waves(fire, contains=["Dragunov_7_62_54R_DESIGNED"], exclude=["TRANSIENT"])
+    rifle_far = w["Gun_RifleFar"] + load_waves(fire, contains=["_FAR"], exclude=["TRANSIENT"])
+    pistol, pistol_far = w["Gun_Pistol"], w["Gun_PistolFar"]
+    shotgun = w["Gun_Shotgun"] + load_waves(fire, contains=["Saiga", "Shotgun_Fire_Slug"], exclude=["TRANSIENT"])
+    shotgun_far = w["Gun_ShotgunFar"]
     one = build_one_shot(w["UI_Click"][0])
-    gun = build_gunshot(rifle[0], far[0])
-    shotgun = load_waves(fire, contains=["Saiga", "Shotgun_Fire"], exclude=["TRANSIENT"])
-    pistol = load_waves(fire, contains=["Assault_Rifle_Shot_Single_4_01_TRANSIENT", "Dragunov_7_62_54R_DESIGNED_Single_Shot_Core_Lon_01_TRANSIENT"])
+    gun = build_gunshot(rifle[0], rifle_far[0])
 
     da_path = ROOT + "/DA_PGSounds"
     da = assets.load_asset(da_path) if assets.does_asset_exist(da_path) else tools.create_asset("DA_PGSounds", ROOT, unreal.PGSoundSet, unreal.DataAssetFactory())
     W = unreal.WeaponType
     da.set_editor_property("gunshots", {
-        W.RIFLE: cue(gun, rifle, att_gun, 1.0, 0.04, far, indoor=True),
-        W.SHOTGUN: cue(gun, shotgun, att_gun, 1.0, 0.04, far, indoor=True),
-        W.PISTOL: cue(gun, pistol, att_gun, 0.8, 0.06, far, indoor=True),
+        W.RIFLE: cue(gun, rifle, att_gun, 1.0, 0.04, rifle_far, indoor=True),
+        W.SHOTGUN: cue(gun, shotgun, att_gun, 1.0, 0.04, shotgun_far, indoor=True),
+        W.PISTOL: cue(gun, pistol, att_gun, 0.8, 0.05, pistol_far, indoor=True),
     })
     da.set_editor_property("bullet_impacts", {
         S.SURFACE_TYPE_DEFAULT: cue(one, w["Impact_Concrete"], att_impact, 0.7, 0.08),
@@ -311,7 +314,23 @@ def main():
     })
     da.set_editor_property("landing", cue(one, w["Land"], att_step, 0.7, 0.05))
 
-    reload_w = w["Reload"] + w["Container_Open"]
+    # 물리 재질이 없는 맵 메시(서드파티 팩)의 재질을 이름으로 짐작. 위에서부터 처음 맞는 것.
+    rules = []
+    for words, s in ((["grass", "shrub", "bush", "foliage", "leaf", "leaves", "hedge"], S.SURFACE_TYPE5),
+                     (["dirt", "mud", "sand", "soil", "gravel", "ground", "terrain", "earth"], S.SURFACE_TYPE4),
+                     (["metal", "steel", "iron", "alumin", "container", "pipe", "rail", "tank", "vehicle", "truck", "car_",
+                       "sherman", "scaffold", "barrel", "locker", "vent", "duct", "fence_metal", "chain"], S.SURFACE_TYPE2),
+                     (["wood", "plank", "crate", "pallet", "cabin", "log", "timber", "board", "door", "table", "chair", "shelf"], S.SURFACE_TYPE3),
+                     (["concrete", "brick", "stone", "rock", "asphalt", "road", "cement", "tile", "wall", "floor", "pavement", "plaster", "cinder"], S.SURFACE_TYPE1)):
+        for word in words:
+            r = unreal.PGSurfaceKeyword()
+            r.set_editor_property("keyword", word)
+            r.set_editor_property("surface", s)
+            rules.append(r)
+    da.set_editor_property("surface_keywords", rules)
+    da.set_editor_property("landscape_surface", S.SURFACE_TYPE4)
+
+    reload_w = w["Gun_Reload"]  # 실제 장전 손잡이·탄창 소리
     cues = {
         "UI.Click": cue(one, w["UI_Click"], None, 0.5, 0.03, two_d=True),
         "UI.Hover": cue(one, w["UI_Hover"], None, 0.25, 0.03, two_d=True),

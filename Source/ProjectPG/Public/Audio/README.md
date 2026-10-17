@@ -37,8 +37,17 @@ flowchart TD
 ## 재질
 
 `Config/DefaultEngine.ini` 의 SurfaceType1~6 = Concrete, Metal, Wood, Dirt, Grass, Flesh 이다.
-물리 재질 `PM_*` 를 머티리얼이나 랜드스케이프 레이어에 지정하면 그 바닥에서 소리가 바뀐다.
-지정이 안 된 곳은 Default 칸 소리를 쓴다.
+맞은/밟은 자리 재질은 아래 순서로 정한다(`UPGAudioSubsystem::SurfaceOf`).
+
+1. 물리 재질 `PM_*` 가 붙어 있으면 그것.
+2. 캐릭터·몬스터면 Flesh.
+3. 지형(랜드스케이프)이면 표의 `LandscapeSurface`(기본 Dirt).
+4. 머티리얼·메시·액터 이름에 표 `SurfaceKeywords` 의 글자가 있으면 그 재질. 예: `metal` → Metal, `wood` → Wood.
+   맵 메시 대부분은 git 에 없는 서드파티 팩이라 물리 재질을 붙여도 팀원에게 안 간다. 그래서 이름으로 짐작한다.
+5. 다 아니면 Default.
+
+짐작이 틀리면 표의 `SurfaceKeywords` 를 고친다(빌드 필요 없음).
+`Log LogPGAudio Verbose` 를 켜면 "재질 짐작: '이름들' → 번호" 가 찍혀 어떤 이름이 어떻게 판정됐는지 보인다.
 
 ## 새 소리 붙이는 법 (C++ 없이)
 
