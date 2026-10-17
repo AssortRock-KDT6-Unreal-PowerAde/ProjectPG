@@ -993,41 +993,156 @@ void UMapTileSpawner::LoadFacilityDesignLevel(
 	const FFacilityPlacement& Placement,
 	int32 PlacementIndex)
 {
-	if (Placement.FacilityLevel.IsNull() || PlacementIndex < 0)
-		return;
-
-	while (Map->FacilityDesignLevelInstances.Num() <= PlacementIndex)
-		Map->FacilityDesignLevelInstances.Add(nullptr);
-	while (Map->FacilityLoadRequestTimeSeconds.Num() <= PlacementIndex)
-		Map->FacilityLoadRequestTimeSeconds.Add(0.0);
-
-	const FVector Location = Map->GetDesignFootprintCenter(Placement);
-	const FRotator Rotation(0.0f, Placement.RotationQuarterTurns * 90.0f, 0.0f);
-	bool bRequested = false;
-	Map->FacilityLoadRequestTimeSeconds[PlacementIndex] = FPlatformTime::Seconds();
-	const FString OptionalName = FString::Printf(TEXT("Facility_%02d_Type_%d"),
-		PlacementIndex, static_cast<int32>(Placement.VisualSet));
-	Map->FacilityDesignLevelInstances[PlacementIndex] = ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(
-		Map,
-		Placement.FacilityLevel,
-		Location,
-		Rotation,
-		bRequested,
-		OptionalName);
-	if (IsValid(Map->FacilityDesignLevelInstances[PlacementIndex]))
+	if (!IsValid(Map))
 	{
-		Map->FacilityDesignLevelInstances[PlacementIndex]->SetShouldBeLoaded(true);
-		Map->FacilityDesignLevelInstances[PlacementIndex]->SetShouldBeVisible(true);
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[FacilityLoad] FAILED: Map is invalid"));
+
+		return;
 	}
 
-	UE_LOG(LogTemp, Display,
-		TEXT("Facility design level instance: index=%d type=%d %s at=(%.0f,%.0f,%.0f) rotation=%.0f"),
+	if (PlacementIndex < 0)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[FacilityLoad] FAILED: Invalid PlacementIndex=%d"),
+			PlacementIndex);
+
+		return;
+	}
+
+	if (Placement.FacilityLevel.IsNull())
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[FacilityLoad] FAILED: FacilityLevel is null. Index=%d Type=%d"),
+			PlacementIndex,
+			static_cast<int32>(Placement.VisualSet));
+
+		return;
+	}
+
+	UWorld* World = Map->GetWorld();
+
+	if (!IsValid(World))
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[FacilityLoad] FAILED: World is invalid. Index=%d"),
+			PlacementIndex);
+
+		return;
+	}
+
+	// 인덱스가 PlacementIndex와 일치하도록 배열 크기를 확보한다.
+	while (Map->FacilityDesignLevelInstances.Num() <= PlacementIndex)
+	{
+		Map->FacilityDesignLevelInstances.Add(nullptr);
+	}
+
+	while (Map->FacilityLoadRequestTimeSeconds.Num() <= PlacementIndex)
+	{
+		Map->FacilityLoadRequestTimeSeconds.Add(0.0);
+	}
+
+	// 이미 같은 인덱스에 유효한 스트리밍 인스턴스가 있다면 중복 요청하지 않는다.
+	if (IsValid(Map->FacilityDesignLevelInstances[PlacementIndex]))
+	{
+		ULevelStreamingDynamic* ExistingInstance =
+			Map->FacilityDesignLevelInstances[PlacementIndex];
+
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[FacilityLoad] SKIP: Instance already exists. "
+				"Index=%d Loaded=%d Visible=%d Package=%s"),
+			PlacementIndex,
+			ExistingInstance->IsLevelLoaded(),
+			ExistingInstance->IsLevelVisible(),
+			*ExistingInstance->GetWorldAssetPackageName());
+
+		return;
+	}
+
+	const FVector Location =
+		Map->GetDesignFootprintCenter(Placement);
+
+	const FRotator Rotation(
+		0.0f,
+		Placement.RotationQuarterTurns * 90.0f,
+		0.0f);
+
+	const FString OptionalName = FString::Printf(
+		TEXT("Facility_%02d_Type_%d"),
+		PlacementIndex,
+		static_cast<int32>(Placement.VisualSet));
+
+	const FString LevelPath = Placement.FacilityLevel.ToString();
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[FacilityLoad] REQUEST: Index=%d Type=%d Path=%s "
+			"Location=(%.0f, %.0f, %.0f) Rotation=%.0f"),
 		PlacementIndex,
 		static_cast<int32>(Placement.VisualSet),
-		bRequested ? TEXT("requested") : TEXT("failed"),
-		Location.X, Location.Y, Location.Z, Rotation.Yaw);
-}
+		*LevelPath,
+		Location.X,
+		Location.Y,
+		Location.Z,
+		Rotation.Yaw);
 
+	bool bRequested = false;
+
+	ULevelStreamingDynamic* Instance =
+		ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(
+			World,
+			Placement.FacilityLevel,
+			Location,
+			Rotation,
+			bRequested,
+			OptionalName);
+
+	// 요청 시간은 로딩 완료 시간과 구분해서 기록한다.
+	Map->FacilityLoadRequestTimeSeconds[PlacementIndex] =
+		FPlatformTime::Seconds();
+
+	Map->FacilityDesignLevelInstances[PlacementIndex] = Instance;
+
+	if (!IsValid(Instance))
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[FacilityLoad] FAILED: Instance creation failed. "
+				"Index=%d Requested=%d Path=%s"),
+			PlacementIndex,
+			bRequested,
+			*LevelPath);
+
+		return;
+	}
+
+	// 스트리밍 레벨을 로드하고 표시하도록 요청한다.
+	Instance->SetShouldBeLoaded(true);
+	Instance->SetShouldBeVisible(true);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[FacilityLoad] INSTANCE CREATED: Index=%d "
+			"Requested=%d Loaded=%d Visible=%d Package=%s"),
+		PlacementIndex,
+		bRequested,
+		Instance->IsLevelLoaded(),
+		Instance->IsLevelVisible(),
+		*Instance->GetWorldAssetPackageName());
+}
 // 길찾기 막힘 갱신. 게임에서: 몬스터가 건물 벽을 뚫고 지나가는 길을 고르지 않게.
 void UMapTileSpawner::RefreshNavigationBlockerRegion(
 	UTacticalTileNavModifierComponent* Modifier,

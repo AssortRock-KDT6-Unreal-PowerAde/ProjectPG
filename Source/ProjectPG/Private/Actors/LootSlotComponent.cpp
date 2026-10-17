@@ -11,4 +11,5 @@ ULootSlotComponent::ULootSlotComponent()
 	SetCanEverAffectNavigation(false);
 	// 타일은 게임 중에 제자리로 옮겨지므로 표시도 따라 움직여야 한다.
 	SetMobility(EComponentMobility::Movable);
+	
 }

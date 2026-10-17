@@ -15,22 +15,58 @@ AInteractActor::AInteractActor()
 	bReplicates = true;
 	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
 	RootComponent = MeshComp;
-
+	MeshComp->SetMobility(EComponentMobility::Movable);
 	InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComp"));
-
 }
-
 
 
 void AInteractActor::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
-	if (HasAuthority() && GetWorld()->IsGameWorld())
-	{
-		MyActorGuid = FGuid::NewGuid();
-		RandomItemSetting();
 
+	UWorld* World = GetWorld();
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("[LootDebug][InteractActor] PostInitializeComponents Actor=%s Class=%s World=%s NetMode=%d Authority=%d Replicates=%d"),
+		*GetNameSafe(this),
+		*GetNameSafe(GetClass()),
+		*GetNameSafe(World),
+		World ? static_cast<int32>(World->GetNetMode()) : -1,
+		HasAuthority(),
+		GetIsReplicated());
+
+	if (!HasAuthority() || !World || !World->IsGameWorld())
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[LootDebug][InteractActor] Initialization skipped"));
+		return;
 	}
+
+	MyActorGuid = FGuid::NewGuid();
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("[LootDebug][InteractActor] GUID assigned: %s"),
+		*MyActorGuid.ToString());
+
+	TWeakObjectPtr<AInteractActor> WeakThis(this);
+
+	World->GetTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateLambda(
+			[WeakThis]()
+			{
+				if (!WeakThis.IsValid())
+				{
+					UE_LOG(LogTemp, Error,
+						TEXT("[LootDebug][InteractActor] Invalid before RandomItemSetting"));
+					return;
+				}
+
+				UE_LOG(LogTemp, Warning,
+					TEXT("[LootDebug][InteractActor] Calling RandomItemSetting Actor=%s"),
+					*GetNameSafe(WeakThis.Get()));
+
+				WeakThis->RandomItemSetting();
+			}));
 }
 
 void AInteractActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

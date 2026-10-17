@@ -20,7 +20,7 @@ namespace
 AProceduralFacilityActor::AProceduralFacilityActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	bReplicates = false;
+	bReplicates = true;
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
 	// 이 시설들은 런타임에 스폰된 뒤 코드로 조립된다. 등록된 Static 컴포넌트는

@@ -67,6 +67,7 @@ void AMapManifestActor::OnRep_Tiles()
 		Tile->SetActorHiddenInGame(true);
 		Tile->SetActorEnableCollision(false);
 		Tile->SetActorTickEnabled(false);
+		
 	}
 	UE_LOG(LogTemp, Display, TEXT("Map manifest: tiles=%d seed=%lld start_range=%d (client rebuilt)"), Tiles.Num(), Seed, StartRange);
 }

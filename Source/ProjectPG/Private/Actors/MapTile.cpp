@@ -7,7 +7,7 @@
 AMapTile::AMapTile()
 {
 	PrimaryActorTick.bCanEverTick = false;
-
+	bReplicates = true;
 	_staticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
 	SetRootComponent(_staticMesh);
 
