@@ -1,7 +1,8 @@
 ﻿# 맵 같은 시드 시험(MapSeedCheck.ps1) 기대값. 시드 12345, TestLevel_MapGenerating, 서드파티 에셋 팩 연결 상태.
 # 맵을 일부러 바꿨으면 시험이 보여 준 "실제" 값으로 고치고, 왜 바뀌었는지 커밋 메시지에 적는다.
-# 2026-10-17: 끼임 정리를 "시설 레벨이 다 들어온 뒤" 로 바꾼 뒤의 값.
-containers=398
-loot_hash=FC249AB6
+# 2026-10-17: 끼임 정리를 "시설 레벨이 다 들어온 뒤" 로 바꾸고, 상자 자리 칸을 잴 때 빈 부품을 빼서 에디터·패키지 값이 같아진 뒤의 값.
+# 패키지 데디 서버(같은 시드)도 405 / AB145EF5 가 나와야 한다.
+containers=405
+loot_hash=AB145EF5
 final_point_hash=6BB6A2A7
 layout_hash=BB8449FD
