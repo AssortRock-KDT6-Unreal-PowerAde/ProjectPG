@@ -68,7 +68,7 @@ void UMapVerifier::RunFinalChecks()
 }
 
 // 0.1초마다. 길찾기 검사가 끝나야 출구 길·성능 검사가 시작한다(순서 신호 bLoggedNavigation).
-bool UMapVerifier::TickTimedChecks(bool bGiveUp)
+bool UMapVerifier::RunTimedChecks(bool bGiveUp)
 {
 	VerifyPCGDressing();
 	VerifyNavigation();
@@ -83,7 +83,7 @@ bool UMapVerifier::TickTimedChecks(bool bGiveUp)
 	if (!bLoggedNavigation) Pending.Add(TEXT("Navigation"));
 	if (!bLoggedCriticalRoutes) Pending.Add(TEXT("CriticalRoutes"));
 	if (PerformanceSampleCount < 50) Pending.Add(FString::Printf(TEXT("LocalPerformance(%d/50)"), PerformanceSampleCount));
-	UE_LOG(LogTemp, Warning, TEXT("Map timed checks gave up: pending=[%s]"), *FString::Join(Pending, TEXT(", ")));
+	UE_LOG(LogTemp, Error, TEXT("Map timed checks gave up: pending=[%s]"), *FString::Join(Pending, TEXT(", ")));
 	return true;
 }
 

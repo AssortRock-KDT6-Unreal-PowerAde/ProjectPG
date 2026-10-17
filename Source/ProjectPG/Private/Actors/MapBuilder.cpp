@@ -61,6 +61,10 @@ using namespace MapBuild;
 
 AMapBuilder::AMapBuilder()
 {
+	// Tick 을 켜는 이유: 판 내내 계속 바뀌는 두 가지를 본다(자세한 이유는 Tick 주석).
+	// 1) 플레이어 주변 길찾기 차단 — 플레이어가 계속 움직인다. 40 m 칸을 넘을 때만 실제로 일한다.
+	// 2) 플레이어 세우기 — 접속·폰 바뀜·2초 재시도. 할 일이 없으면 바로 돌아간다.
+	// 매 프레임일 필요는 없어서 0.1초마다. 한 번만 하는 일·기다리는 일(시설 레벨·상자·검사기)은 이벤트·타이머로 뺐다.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickInterval = 0.1f;
 	bReplicates = false;
@@ -392,6 +396,7 @@ void AMapBuilder::Tick(float DeltaSeconds)
 	SpawnRegionPlanner->PlaceJoinedPlayers();
 
 	// 지금 조작 중인 플레이어 폰(팀 캐릭터) 주변 60 m 길찾기 차단을 갱신한다.
+	// Tick 인 이유: 플레이어 위치는 계속 바뀌고 "칸을 넘었다" 는 엔진 이벤트가 없다. 칸이 바뀔 때만 갱신하므로 평소엔 비교 한 번.
 	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
 	const APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
 	if (IsValid(PlayerPawn) && IsValid(PlayerNavigationBlockers))
@@ -826,16 +831,16 @@ void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
 	ItemSpawner->SpawnLootOnce();
 
 	// 검사기: 기다릴 것 없는 검사는 지금 한 번, 시간이 걸리는 검사(길찾기 지도 최대 20초 등)는 0.1초 타이머로.
-	// 다 끝나면 타이머를 끈다. 120초가 지나도 안 끝나면 안 끝난 이름을 Warning 으로 남기고 끈다.
+	// 다 끝나면 타이머를 끈다. 120초가 지나도 안 끝나면 안 끝난 이름을 Error 로 남기고 끈다.
 	Verifier->RunFinalChecks();
 	TimedChecksStartSeconds = GetWorld()->GetTimeSeconds();
-	GetWorldTimerManager().SetTimer(TimedChecksTimer, this, &AMapBuilder::TickTimedChecks, 0.1f, true);
+	GetWorldTimerManager().SetTimer(TimedChecksTimer, this, &AMapBuilder::RunTimedChecks, 0.1f, true);
 }
 
-void AMapBuilder::TickTimedChecks()
+void AMapBuilder::RunTimedChecks()
 {
 	const bool bGiveUp = GetWorld()->GetTimeSeconds() - TimedChecksStartSeconds > 120.0;
-	if (Verifier->TickTimedChecks(bGiveUp))
+	if (Verifier->RunTimedChecks(bGiveUp))
 		GetWorldTimerManager().ClearTimer(TimedChecksTimer);
 }
 

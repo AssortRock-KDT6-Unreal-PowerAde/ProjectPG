@@ -263,7 +263,7 @@ private:
 	// bTimedOut 이 참이면 아직 안 온 레벨이 있어도 끝낸다.
 	void CheckFacilityDesignLevels(bool bTimedOut);
 	// 검사기 중 시간이 걸리는 것(길찾기 지도 등)을 0.1초마다. 다 끝나면(또는 120초) 타이머를 끈다.
-	void TickTimedChecks();
+	void RunTimedChecks();
 
 	// 협력객체 : 맵 자체 검사
 	// friend class : 검사기가 private볼 수 있게.
