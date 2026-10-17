@@ -8,6 +8,7 @@ ATacticalPropActor::ATacticalPropActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	PropMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PropMesh"));
+	bReplicates = true;
 	SetRootComponent(PropMesh);
 	PropMesh->SetCollisionProfileName(TEXT("BlockAll"));
 	PropMesh->SetGenerateOverlapEvents(false);

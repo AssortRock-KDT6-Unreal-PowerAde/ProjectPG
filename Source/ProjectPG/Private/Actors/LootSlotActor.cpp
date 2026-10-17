@@ -5,7 +5,7 @@
 ALootSlotActor::ALootSlotActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	bReplicates = false;
+	bReplicates = true;
 	SetHidden(true);
 	Slot = CreateDefaultSubobject<ULootSlotComponent>(TEXT("Slot"));
 	RootComponent = Slot;

@@ -63,7 +63,7 @@ AMapBuilder::AMapBuilder()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickInterval = 0.1f;
-	bReplicates = false;
+	bReplicates = true;
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
@@ -366,12 +366,31 @@ void AMapBuilder::BeginPlay()
 		0.2f,
 		true,
 		0.2f);
+
+	if (IsValid(PointPlanner))
+	{
+		PointPlanner->ResolveSafety();
+	}
+
 }
 
 void AMapBuilder::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	// 서버에서만 게임플레이 액터 생성 및 배치 수행
+	if (HasAuthority())
+	{
+		if (IsValid(ItemSpawner))
+		{
+			ItemSpawner->SpawnLootOnce();
+		}
+
+		if (IsValid(SpawnRegionPlanner))
+		{
+			SpawnRegionPlanner->PlaceJoinedPlayers();
+		}
+	}
 	for (int32 Index = 0; Index < FacilityDesignLevelInstances.Num(); ++Index)
 	{
 		ULevelStreamingDynamic* Instance = FacilityDesignLevelInstances[Index];
@@ -417,12 +436,23 @@ void AMapBuilder::Tick(float DeltaSeconds)
 
 	Verifier->VerifyDesignLevelSeparation();
 	Verifier->VerifyWorldCollision();
-	// 시설 레벨이 다 보이면 벽 속 지점을 빈 곳으로 옮긴다(한 번만).
-	PointPlanner->ResolveSafety();
-	// 끼임 정리가 끝나면 상자 자리마다 아이템을 놓는다(한 번만).
-	ItemSpawner->SpawnLootOnce();
-	// 들어온 플레이어를 시작 구역에 나눠 세운다(서버만, 새로 들어온 사람만). 시작 자리 정리가 끝난 뒤부터 일한다.
-	SpawnRegionPlanner->PlaceJoinedPlayers();
+
+	if (IsValid(PointPlanner))
+	{
+		PointPlanner->ResolveSafety();
+	}
+	if (GetWorld()->GetNetMode() != NM_Client && HasAuthority())
+	{
+		if (IsValid(ItemSpawner))
+		{
+			ItemSpawner->SpawnLootOnce();
+		}
+
+		if (IsValid(SpawnRegionPlanner))
+		{
+			SpawnRegionPlanner->PlaceJoinedPlayers();
+		}
+	}
 	//Tactical(전투용)+Layout(배치)+Quality(품질) = 전투하기 좋게 타일이 제대로 놓였니? 
 	Verifier->VerifyTacticalLayoutQuality();
 	Verifier->VerifyTravelCoverDensity();

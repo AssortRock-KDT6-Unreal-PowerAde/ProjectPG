@@ -21,6 +21,7 @@ namespace
 ATacticalTileRoadStraight::ATacticalTileRoadStraight()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
 

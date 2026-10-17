@@ -28,6 +28,7 @@ namespace TacticalTile
 ATacticalTileActor::ATacticalTileActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
 
