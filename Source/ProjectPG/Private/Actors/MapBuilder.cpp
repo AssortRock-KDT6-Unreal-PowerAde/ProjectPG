@@ -236,21 +236,28 @@ AMapBuilder::AMapBuilder()
 	NavigationFloor->SetMobility(EComponentMobility::Static);
 
 	// 땅·도로·호수 머티리얼도 ApplyMapAssets 가 DA_MapAssets 에서 끼운다.
-	// 기본 위치: /Game/PG/LevelDesign/DA_MapAssets. 없으면 MapAssetSet.h 의 기본값을 쓴다.
+	// 기본 위치: /Game/PG/LevelDesign/DA_MapAssets. 패키지에 담기는 건 DefaultGame.ini 의 /Game/PG/LevelDesign 폴더 줄 덕분이다.
 	MapAssets = TSoftObjectPtr<UMapAssetSet>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/DA_MapAssets.DA_MapAssets")));
 }
 
-// 보이는 것 목록 읽기. 처음 부를 때 DA_MapAssets 를 불러 두고, 없으면 C++ 기본값(예전 경로)을 쓴다.
+// 보이는 것 목록 읽기. 처음 부를 때 DA_MapAssets 를 불러 둔다.
 // 게임에서: 팀원이 DA_MapAssets 에서 숲 타일을 바꾸면 다음 판부터 그 숲이 깔린다(코드·빌드 필요 없음).
+// 못 찾으면 빈 목록(C++ 기본값엔 경로가 없다)이라 타일·시설·상자가 안 나온다 — 그래서 Error 로 크게 남긴다.
 const UMapAssetSet& AMapBuilder::GetMapAssets()
 {
 	if (!LoadedMapAssets)
 	{
 		LoadedMapAssets = MapAssets.LoadSynchronous();
 		if (!LoadedMapAssets)
+		{
 			LoadedMapAssets = GetMutableDefault<UMapAssetSet>();
-		UE_LOG(LogTemp, Display, TEXT("Map assets: source=%s"),
-			LoadedMapAssets->HasAnyFlags(RF_ClassDefaultObject) ? TEXT("C++ defaults") : *LoadedMapAssets->GetPathName());
+			UE_LOG(LogTemp, Error, TEXT("Map assets: %s not found - tiles/facilities/loot will be empty. Packaged build? check /Game/PG/LevelDesign in DefaultGame.ini DirectoriesToAlwaysCook"),
+				*MapAssets.ToString());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display, TEXT("Map assets: source=%s"), *LoadedMapAssets->GetPathName());
+		}
 	}
 	return *LoadedMapAssets;
 }
