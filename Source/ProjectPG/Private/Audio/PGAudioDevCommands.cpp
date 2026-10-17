@@ -34,6 +34,7 @@ namespace PGAudioTest
 	{
 		const double StartTime = FPlatformTime::Seconds();
 		double SelectedAt = -1.0, FiringAt = -1.0;
+		bool bTriedSub = false;
 		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([=](float) mutable
 		{
 			const double Now = FPlatformTime::Seconds();
@@ -43,18 +44,51 @@ namespace PGAudioTest
 				if (Now - StartTime > 60.0) { UE_LOG(LogPGAudioTest, Error, TEXT("시험 발사: 60초 안에 내 캐릭터가 안 생김 → 못 쏨")); return false; }
 				return true;
 			}
-			if (SelectedAt < 0.0) { Me->SelectWeapon(EEquipSlot::MainWeapon); SelectedAt = Now; UE_LOG(LogPGAudioTest, Display, TEXT("시험 발사: %s 주무기 꺼냄"), *Me->GetName()); return true; }
-			if (FiringAt < 0.0 && Now - SelectedAt > 2.0) { Me->SetFireInput(true); FiringAt = Now; UE_LOG(LogPGAudioTest, Display, TEXT("시험 발사: 쏘기 시작")); return true; }
+			if (SelectedAt < 0.0) { Me->SelectWeapon(EEquipSlot::MainWeapon); SelectedAt = Now; UE_LOG(LogPGAudioTest, Display, TEXT("시험 발사: %s 주무기 꺼냄, 위치 %s"), *Me->GetName(), *Me->GetActorLocation().ToCompactString()); return true; }
+			// 주무기 칸이 비었으면 1초 뒤 보조무기(권총)로.
+			if (FiringAt < 0.0 && Now - SelectedAt > 1.0 && !Me->GetActiveFirearm() && !bTriedSub) { Me->SelectWeapon(EEquipSlot::SubWeapon); bTriedSub = true; UE_LOG(LogPGAudioTest, Display, TEXT("시험 발사: 주무기 없음 → 보조무기 꺼냄")); return true; }
+			if (FiringAt < 0.0 && Now - SelectedAt > 3.0) { Me->SetFireInput(true); FiringAt = Now; UE_LOG(LogPGAudioTest, Display, TEXT("시험 발사: 쏘기 시작")); return true; }
 			if (FiringAt > 0.0 && Now - FiringAt > 1.0)
 			{
 				Me->SetFireInput(false);
 				UE_LOG(LogPGAudioTest, Display, TEXT("시험 발사: 멈춤"));
-				if (--Shots > 0) { SelectedAt = Now - 2.0 + 3.0; FiringAt = -1.0; return true; } // 3초 쉬고 다시
+				if (--Shots > 0) { SelectedAt = Now; FiringAt = -1.0; return true; } // 3초 쉬고 다시
 				return false;
 			}
 			return true;
 		}), 0.5f);
 	}
+
+	// 내 캐릭터가 생기면 앞으로 Seconds 초 걷게 함(발소리·재질 판정 확인용). 60초 안에 안 생기면 Error 로그.
+	void StartWalk(float Seconds)
+	{
+		const double StartTime = FPlatformTime::Seconds();
+		double WalkStart = -1.0;
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([=](float) mutable
+		{
+			const double Now = FPlatformTime::Seconds();
+			ACustomCharacter* Me = FindMyCharacter();
+			if (!Me)
+			{
+				if (Now - StartTime > 60.0) { UE_LOG(LogPGAudioTest, Error, TEXT("시험 걷기: 60초 안에 내 캐릭터가 안 생김")); return false; }
+				return true;
+			}
+			if (WalkStart < 0.0) { WalkStart = Now; UE_LOG(LogPGAudioTest, Display, TEXT("시험 걷기: %.0f초 걷기 시작"), Seconds); }
+			if (Now - WalkStart > Seconds) { UE_LOG(LogPGAudioTest, Display, TEXT("시험 걷기: 멈춤")); return false; }
+			// 2초마다 방향을 90도씩 돌려 여러 바닥을 밟게 함.
+			const float Yaw = 90.f * FMath::FloorToFloat(static_cast<float>(Now - WalkStart) / 2.f);
+			Me->AddMovementInput(FRotator(0.f, Yaw, 0.f).Vector(), 1.f);
+			return true;
+		}), 0.f);
+	}
+
+	static FAutoConsoleCommand TestWalkCommand(
+		TEXT("PG.Audio.TestWalk"),
+		TEXT("시험: 내 캐릭터가 생기면 몇 초 걷는다(발소리·재질 확인용). 인자 = 초(기본 8)."),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			StartWalk(Args.Num() > 0 ? FMath::Max(1.f, FCString::Atof(*Args[0])) : 8.f);
+		}));
 
 	static FAutoConsoleCommand TestFireCommand(
 		TEXT("PG.Audio.TestFire"),
