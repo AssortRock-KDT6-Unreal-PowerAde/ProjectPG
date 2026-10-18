@@ -10,6 +10,10 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
+// [멀티 임시수정 2026-10-18] 쏠 때 달리기 어빌리티를 찾아 끄려고 넣음
+#include "AbilitySystemComponent.h"
+#include "GameplayAbilities/GA_Sprint.h"
+// [멀티 임시수정] 끝
 
 void ACustomCharacter::RegisterFirearm(AFirearmEquipment* Weapon)
 {
@@ -140,7 +144,21 @@ void ACustomCharacter::RefreshActiveWeaponPresentation()
 
 void ACustomCharacter::SetFireInput(bool bPressed)
 {
-	if (IsLocallyControlled()) OnReq_SetFireInput(bPressed);
+	if (!IsLocallyControlled()) return;
+	// [멀티 임시수정 2026-10-18 달리는 중 발사]
+	// 내 화면에서 발사를 누르면 → 먼저 달리기 어빌리티를 끈다(배그처럼 쏘면 달리기가 풀림).
+	// 끄는 소식은 발사 요청보다 먼저 서버로 간다(둘 다 이 캐릭터의 순서 보장 요청이라 순서가 안 바뀜).
+	// 다시 달리려면 달리기 키를 다시 눌러야 한다(달리기는 키를 누른 순간에만 켜짐).
+	if (bPressed)
+		if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+		{
+			FGameplayAbilitySpecHandle SprintHandle;
+			for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+				if (Spec.IsActive() && Spec.Ability && Spec.Ability->IsA<UGA_Sprint>()) SprintHandle = Spec.Handle;
+			if (SprintHandle.IsValid()) ASC->CancelAbilityHandle(SprintHandle);
+		}
+	// [멀티 임시수정] 끝
+	OnReq_SetFireInput(bPressed);
 }
 
 void ACustomCharacter::OnReq_SetFireInput_Implementation(bool bPressed)
@@ -166,6 +184,13 @@ void ACustomCharacter::TryStartFireMontage()
 {
 	if (!HasAuthority() || ReloadingFirearm.IsValid() || !bFireInputHeld || bPendingFire || !CanBeHit_Implementation()
 		|| !IsValid(ActiveFirearm) || !ActiveFirearm->CanFire()) return;
+	// [멀티 임시수정 2026-10-18 달리는 중 발사]
+	// 서버가 보기에 아직 달리는 중이면(State.Sprinting 표시) 이번 발사는 거절한다.
+	// - 소총을 누르고 있으면 → 반복 타이머가 곧 다시 불러서 달리기가 풀린 뒤 바로 쏜다.
+	// - 권총 한 발 → 이번 클릭은 버려진다(정상 클라는 위 SetFireInput 에서 달리기를 먼저 꺼서 거의 안 생김).
+	if (const UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+		if (ASC->HasMatchingGameplayTag(CustomGameplayTags::State_Sprinting)) return;
+	// [멀티 임시수정] 끝
 	const FWeaponAnimationSet* Set = GetCurrentWeaponAnimationSet();
 	UAnimMontage* Montage = Set ? Set->FindMontage(IsAiming()
 		? CustomGameplayTags::WeaponAnimation_Fire_Ironsights : CustomGameplayTags::WeaponAnimation_Fire_Hip) : nullptr;
