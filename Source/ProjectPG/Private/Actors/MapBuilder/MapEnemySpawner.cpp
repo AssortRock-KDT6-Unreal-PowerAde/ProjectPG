@@ -1,6 +1,7 @@
 ﻿#include "Actors/MapBuilder/MapEnemySpawner.h"
 
 #include "Actors/MapBuilder/MapAssetSet.h"
+#include "Actors/MapBuilder/MapBuildShared.h"
 #include "Actors/MapTile.h"
 #include "EngineUtils.h"
 #include "GameFramework/GameModeBase.h"
@@ -160,7 +161,7 @@ TArray<FIntPoint> UMapEnemySpawner::CollectCenterCells() const
 	FVector2D Center = FVector2D::ZeroVector;
 	for (const FIntPoint& Cell : Cells)
 		Center += FVector2D(Cell.X, Cell.Y) / Cells.Num();
-	auto DistanceCm = [&Center, this](const FIntPoint& Cell) { return FVector2D::Distance(FVector2D(Cell.X, Cell.Y), Center) * Map->GridStep; };
+	auto DistanceCm = [&Center, this](const FIntPoint& Cell) { return FVector2D::Distance(FVector2D(Cell.X, Cell.Y), Center) * MapBuild::DesignCellSize; };
 	Cells.Sort([&DistanceCm](const FIntPoint& A, const FIntPoint& B) { return DistanceCm(A) < DistanceCm(B); });
 	constexpr int32 MinCells = 8;
 	const float Radius = Map->GetMapAssets().CenterSpawnRadiusCm;
@@ -173,7 +174,8 @@ TArray<FIntPoint> UMapEnemySpawner::CollectCenterCells() const
 
 TSet<FIntPoint> UMapEnemySpawner::CollectWarZoneCells() const
 {
-	// 맵 칸(AMapTile) 중 종류가 워존인 칸. 칸 자리 = 칸 번호 × 칸 간격(GridStep), MapBuilder 가 칸을 셀 때와 같은 계산.
+	// 맵 칸(AMapTile) 중 종류가 워존인 칸의 번호. 칸 번호 = 칸 액터 자리 ÷ 칸 간격(GridStep), MapBuilder 가 칸을 셀 때와 같은 계산.
+	// 주의: 칸 액터는 줄인 배치도(간격 GridStep, 약 10)라 월드 자리가 아니다. 월드 자리는 칸 번호 × DesignCellSize(20m).
 	TSet<FIntPoint> Cells;
 	if (Map->GridStep <= 0.0f)
 	{
@@ -192,8 +194,9 @@ TSet<FIntPoint> UMapEnemySpawner::CollectWarZoneCells() const
 
 bool UMapEnemySpawner::IsInWarZone(const FVector& Location, const TSet<FIntPoint>& WarZoneCells) const
 {
-	return Map->GridStep > 0.0f && WarZoneCells.Contains(FIntPoint(
-		FMath::RoundToInt(Location.X / Map->GridStep), FMath::RoundToInt(Location.Y / Map->GridStep)));
+	// 월드 자리 → 칸 번호(칸 번호 × DesignCellSize = 월드 자리, MapPointPlanner 와 같은 계산).
+	return WarZoneCells.Contains(FIntPoint(
+		FMath::RoundToInt(Location.X / MapBuild::DesignCellSize), FMath::RoundToInt(Location.Y / MapBuild::DesignCellSize)));
 }
 
 int32 UMapEnemySpawner::SpawnAtPoints(const TArray<const FLevelDesignPoint*>& Points, int32 Limit, FRandomStream& Stream, FSpawnTally& Tally)
@@ -247,8 +250,9 @@ int32 UMapEnemySpawner::SpawnOnCells(const TArray<FIntPoint>& WarZoneCells, int3
 		const FIntPoint Cell = Cells[Try % Cells.Num()];
 		// 칸 가운데에서 칸 반 크기 안쪽으로 흩는다. 땅 높이는 맵이 칸마다 아는 바닥 높이.
 		const float GroundZ = Map->GetSurfaceElevationForCell(Cell);
-		const FVector2D Offset = FVector2D(Random.FRandRange(-0.4f, 0.4f), Random.FRandRange(-0.4f, 0.4f)) * Map->GridStep;
-		const FVector Wanted(Cell.X * Map->GridStep + Offset.X, Cell.Y * Map->GridStep + Offset.Y, GroundZ);
+		const FVector2D Offset = FVector2D(Random.FRandRange(-0.4f, 0.4f), Random.FRandRange(-0.4f, 0.4f)) * MapBuild::DesignCellSize;
+		// 칸 번호 × DesignCellSize(20m) = 월드 자리. 칸 간격(GridStep)을 곱하면 맵 원점 근처 몇 m 에 몰린다(2026-10-19 시험에서 실제로 몰림).
+		const FVector Wanted(Cell.X * MapBuild::DesignCellSize + Offset.X, Cell.Y * MapBuild::DesignCellSize + Offset.Y, GroundZ);
 		FNavLocation OnNav;
 		// 높이 차이를 보는 이유: 지붕·담 꼭대기 길 위 점에 놓으면 끼어 못 움직인다(위 MaxSpawnHeightDiffCm 설명).
 		if (!Nav->ProjectPointToNavigation(Wanted, OnNav, MapEnemySpawn::NavSearchExtent)
