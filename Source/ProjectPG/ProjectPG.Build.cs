@@ -32,6 +32,9 @@ public class ProjectPG : ModuleRules
 			});
 		}
 
+		// 죽은 플레이어를 로비(게임 시작 맵)로 보낼 때 그 맵 이름을 읽으려고(GameMapsSettings).
+		PrivateDependencyModuleNames.Add("EngineSettings");
+
 		PrivateIncludePaths.Add(ModuleDirectory);
 
 		// Uncomment if you are using Slate UI
