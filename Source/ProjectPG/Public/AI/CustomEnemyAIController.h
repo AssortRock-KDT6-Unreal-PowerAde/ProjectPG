@@ -115,6 +115,8 @@ private:
 
 	TWeakObjectPtr<ACustomCharacter> Target;
 	bool bTargetVisible = false;
+	// 지금 목표를 한 번이라도 눈으로 봤나. 소리로만 안 목표는 더 오래 쫓는다(AIConfig.HeardTargetDelay).
+	bool bTargetEverSeen = false;
 	FVector LastKnownTargetLocation = FVector::ZeroVector;
 	FTimerHandle LoseTargetTimer;
 

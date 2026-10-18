@@ -25,6 +25,10 @@ private:
 	// 외침·비명을 내는 부품. 틀 소리는 AIConfig 의 Voice 칸에 있다.
 	UPROPERTY(VisibleAnywhere, Category="AI")
 	TObjectPtr<class UEnemyVoiceComponent> Voice;
+	// 몬스터 둘레에 길(네비)을 만드는 부품. 반경은 BP 의 이 부품 칸에서 조정.
+	// 왜: 타일 맵은 길을 맵 가운데 120m 안과 이런 부품 둘레에서만 만든다. 이게 없으면 가장자리(시작 구역 근처) 몬스터가 못 움직인다.
+	UPROPERTY(VisibleAnywhere, Category="AI")
+	TObjectPtr<class UNavigationInvokerComponent> NavInvoker;
 public:
 	class UEnemyVoiceComponent* GetVoice() const { return Voice; }
 	const FEnemyTableRow& GetEnemyData() const { return EnemyData; }
