@@ -1,6 +1,8 @@
 #include "Equipments/FirearmEquipment.h"
 #include "Characters/CustomCharacter.h"
 #include "Combat/Hittable.h"
+#include "AI/EnemyNoiseTags.h"
+#include "Perception/AISense_Hearing.h"
 #include "Core/ItemSubSystem.h"
 #include "GameplayAbilities/WeaponAttributeSet.h"
 #include "Components/SceneComponent.h"
@@ -176,6 +178,9 @@ bool AFirearmEquipment::Fire()
 	const FVector Direction = (AimPoint - Muzzle).GetSafeNormal();
 	if (Direction.IsNearlyZero() || !ConsumeLoadedAmmo()) return false;
 	NextFireTime = GetWorld()->GetTimeSeconds() + GetFireInterval();
+	// 총소리를 몬스터 귀에 알린다(서버에서만 여기까지 옴). 들리는 거리는 듣는 몬스터의 AIConfig.HearingRange.
+	// 몬스터가 쏜 총소리는 몬스터 AI 가 "같은 편"으로 보고 무시한다.
+	UAISense_Hearing::ReportNoiseEvent(GetWorld(), Muzzle, 1.f, Character, 0.f, EnemyNoiseTags::Gunshot);
 	const float HalfAngle = FMath::DegreesToRadians(FMath::Clamp(FirearmData.ConeHalfAngle, 0.f, 45.f));
 	// Broad phase: 원뿔을 감싸는 구로 후보를 얻은 뒤 원뿔 내부 여부를 검사합니다.
 	TArray<FOverlapResult> Overlaps;

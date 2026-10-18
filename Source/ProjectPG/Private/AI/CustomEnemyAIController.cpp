@@ -5,6 +5,8 @@
 #include "AI/EnemyAIConfig.h"
 #include "AI/EnemyAITags.h"
 #include "AI/EnemyCoverFinderComponent.h"
+#include "AI/EnemyNoiseTags.h"
+#include "AI/EnemyVoiceComponent.h"
 #include "Characters/CustomEnemyCharacter.h"
 #include "Equipments/FirearmEquipment.h"
 #include "GameplayAbilities/CharacterAttributeSet.h"
@@ -12,8 +14,10 @@
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISenseConfig_Damage.h"
+#include "Perception/AISenseConfig_Hearing.h"
 #include "Perception/AISense_Sight.h"
 #include "Perception/AISense_Damage.h"
+#include "Perception/AISense_Hearing.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "NavigationSystem.h"
@@ -37,10 +41,17 @@ ACustomEnemyAIController::ACustomEnemyAIController(const FObjectInitializer& Obj
 	SightConfig->SetMaxAge(0.f);
 	// 맞으면 쏜 사람을 안다(뒤에서 맞아도 돌아봄).
 	DamageConfig = CreateDefaultSubobject<UAISenseConfig_Damage>(TEXT("DamageConfig"));
+	// 귀: 총소리와 동료 외침을 듣는다. 듣는 거리는 StartAI 에서 AIConfig.HearingRange 로 맞춘다.
+	// 소리를 낸 "사람"으로는 그 소리가 가리키는 플레이어가 들어온다(EnemyNoiseTags.h 참고).
+	HearingConfig = CreateDefaultSubobject<UAISenseConfig_Hearing>(TEXT("HearingConfig"));
+	HearingConfig->DetectionByAffiliation.bDetectEnemies = true;
+	HearingConfig->DetectionByAffiliation.bDetectNeutrals = true;
+	HearingConfig->DetectionByAffiliation.bDetectFriendlies = true;
 
 	UAIPerceptionComponent* Perception = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("Perception"));
 	Perception->ConfigureSense(*SightConfig);
 	Perception->ConfigureSense(*DamageConfig);
+	Perception->ConfigureSense(*HearingConfig);
 	Perception->SetDominantSense(UAISense_Sight::StaticClass());
 	SetPerceptionComponent(*Perception);
 
@@ -90,6 +101,8 @@ void ACustomEnemyAIController::StartAI()
 	SightConfig->PeripheralVisionAngleDegrees = Config->SightHalfAngleDegrees;
 	UAIPerceptionComponent* Perception = GetPerceptionComponent();
 	Perception->ConfigureSense(*SightConfig);
+	HearingConfig->HearingRange = Config->HearingRange;
+	Perception->ConfigureSense(*HearingConfig);
 	Perception->RequestStimuliListenerUpdate();
 	Perception->OnTargetPerceptionUpdated.AddUniqueDynamic(this, &ThisClass::HandlePerceptionUpdated);
 
@@ -160,24 +173,37 @@ void ACustomEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulu
 	if (!IsValidTarget(Actor)) return;
 	ACustomCharacter* Candidate = CastChecked<ACustomCharacter>(Actor);
 	const bool bSight = Stimulus.Type == UAISense::GetSenseID<UAISense_Sight>();
+	const bool bHeard = Stimulus.Type == UAISense::GetSenseID<UAISense_Hearing>();
+	const bool bCallout = bHeard && Stimulus.Tag == EnemyNoiseTags::EnemyCallout;
+	// 소리는 들린 순간 한 번만 쓴다. 귀에서 "잊힘" 알림이 와도 할 일이 없다(포기 시계는 눈이 맡음).
+	if (bHeard && !Stimulus.WasSuccessfullySensed()) return;
 
 	// 새 목표 정하기:
-	// - 목표가 없을 때 → 본 사람이든 쏜 사람이든 목표로.
+	// - 목표가 없을 때 → 본 사람이든 쏜 사람이든, 총소리·동료 외침이 가리키는 사람이든 목표로.
 	// - 목표가 있지만 지금 안 보일 때 → 눈에 보이는 다른 사람으로 바꿈.
 	if (Candidate != Target.Get())
 	{
 		const bool bTake = !Target.IsValid() || (bSight && Stimulus.WasSuccessfullySensed() && !bTargetVisible);
 		if (!bTake || !Stimulus.WasSuccessfullySensed()) return;
+		if (bHeard)
+			UE_LOG(LogEnemyAI, Log, TEXT("[EnemyAI] %s: %s 듣고 %s 쪽으로 감"), *GetNameSafe(GetPawn()), bCallout ? TEXT("동료 외침") : TEXT("총소리"), *GetNameSafe(Candidate));
 		SetTarget(Candidate);
 	}
 
-	LastKnownTargetLocation = Stimulus.StimulusLocation;
+	// 마지막으로 안 위치:
+	// - 동료 외침 → 소리 난 자리는 외친 동료라서, 동료가 본 플레이어 위치를 쓴다.
+	// - 그 밖(눈·총소리·피격) → 감각이 알려 준 자리.
+	LastKnownTargetLocation = bCallout ? Candidate->GetActorLocation() : Stimulus.StimulusLocation;
 	if (bSight && Stimulus.WasSuccessfullySensed())
 	{
 		const bool bWasVisible = bTargetVisible;
 		bTargetVisible = true;
 		GetWorldTimerManager().ClearTimer(LoseTargetTimer);
-		if (!bWasVisible) SendTreeEvent(EnemyAITags::TargetSeen);
+		if (!bWasVisible)
+		{
+			SendTreeEvent(EnemyAITags::TargetSeen);
+			ShoutTargetSpotted();
+		}
 		return;
 	}
 
@@ -189,6 +215,17 @@ void ACustomEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulu
 		if (Config->LoseTargetDelay <= 0.f) ForgetTarget(TEXT("시야에서 사라짐"));
 		else GetWorldTimerManager().SetTimer(LoseTargetTimer, this, &ThisClass::HandleLoseTargetTimeout, Config->LoseTargetDelay, false);
 	}
+}
+
+void ACustomEnemyAIController::ShoutTargetSpotted()
+{
+	ACustomEnemyCharacter* Enemy = GetEnemy();
+	// 쉬는 시간(AIConfig.TargetSpottedCooldown) 안이면 외치지도, 동료를 부르지도 않는다(숨바꼭질마다 외치지 않게).
+	if (!Enemy || !Target.IsValid() || !Enemy->GetVoice()->TryPlayLine(EEnemyVoiceLine::TargetSpotted)) return;
+	// 외친 자리에서 CalloutRange 안의 동료 귀에 "이 플레이어 봤다" 를 보낸다.
+	// 동료가 외침을 듣고 목표를 정해도, 그 동료는 자기 눈으로 볼 때까지 다시 외치지 않는다(외침이 끝없이 번지지 않게).
+	UAISense_Hearing::ReportNoiseEvent(GetWorld(), Enemy->GetActorLocation(), 1.f, Target.Get(), Config->CalloutRange, EnemyNoiseTags::EnemyCallout);
+	UE_LOG(LogEnemyAI, Log, TEXT("[EnemyAI] %s: %s 발견, 외침 (반경 %.0f)"), *GetNameSafe(Enemy), *GetNameSafe(Target.Get()), Config->CalloutRange);
 }
 
 void ACustomEnemyAIController::SetTarget(ACustomCharacter* NewTarget)

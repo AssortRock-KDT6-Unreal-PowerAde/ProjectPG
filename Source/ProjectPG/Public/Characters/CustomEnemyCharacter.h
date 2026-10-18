@@ -22,7 +22,11 @@ private:
 	bool bAimTracking = false;
 	UPROPERTY(Replicated) FVector2D ReplicatedAimOffset = FVector2D::ZeroVector;
 	UPROPERTY(Transient) TObjectPtr<class AFirearmEquipment> EnemyWeapon;
+	// 외침·비명을 내는 부품. 틀 소리는 AIConfig 의 Voice 칸에 있다.
+	UPROPERTY(VisibleAnywhere, Category="AI")
+	TObjectPtr<class UEnemyVoiceComponent> Voice;
 public:
+	class UEnemyVoiceComponent* GetVoice() const { return Voice; }
 	const FEnemyTableRow& GetEnemyData() const { return EnemyData; }
 	bool HasEnemyData() const { return bHasEnemyData; }
 	FName GetCharacterID() const { return CharacterID; }

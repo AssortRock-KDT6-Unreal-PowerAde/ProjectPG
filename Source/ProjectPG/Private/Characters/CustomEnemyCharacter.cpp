@@ -1,5 +1,6 @@
 #include "Characters/CustomEnemyCharacter.h"
 #include "AI/CustomEnemyAIController.h"
+#include "AI/EnemyVoiceComponent.h"
 #include "AbilitySystemComponent.h"
 #include "Core/TableSubSystem.h"
 #include "Core/ItemSubSystem.h"
@@ -18,6 +19,7 @@ ACustomEnemyCharacter::ACustomEnemyCharacter(const FObjectInitializer& ObjectIni
 	AbilitySystemComp->SetIsReplicated(true);
 	AbilitySystemComp->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 	GetCharacterMovement()->bOrientRotationToMovement = true;
+	Voice = CreateDefaultSubobject<UEnemyVoiceComponent>(TEXT("Voice"));
 }
 
 void ACustomEnemyCharacter::BeginPlay()
@@ -80,8 +82,14 @@ void ACustomEnemyCharacter::Tick(float DeltaTime)
 
 void ACustomEnemyCharacter::Hit_Implementation(float Damage, AActor* DamageCauser, const FHitResult& HitResult)
 {
+	const float HealthBefore = CharacterAttributeSet ? CharacterAttributeSet->GetHealth() : 0.f;
 	Super::Hit_Implementation(Damage, DamageCauser, HitResult);
-	if (!HasAuthority() || !DamageCauser) return;
+	if (!HasAuthority()) return;
+	// 맞은 소리: 체력이 실제로 깎였을 때만(이미 죽은 몸·0 피해는 조용히).
+	// - 이번 총알로 죽음 → 죽는 소리 / 살아 있음 → "악!"(짧은 쉬는 시간 안에 또 맞으면 생략)
+	if (CharacterAttributeSet && CharacterAttributeSet->GetHealth() < HealthBefore)
+		Voice->TryPlayLine(IsDead() ? EEnemyVoiceLine::Death : EEnemyVoiceLine::Hurt);
+	if (!DamageCauser) return;
 	// 누가 쐈는지 AI 의 "피격 감각"에 알린다 → 안 보이는 데서 맞아도 쏜 사람을 목표로 삼는다.
 	// DamageCauser 가 총이면 그 총의 주인(사람)을 찾는다.
 	AActor* Shooter = DamageCauser->IsA<APawn>() ? DamageCauser : DamageCauser->GetInstigator();
