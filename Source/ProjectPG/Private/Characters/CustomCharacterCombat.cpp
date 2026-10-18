@@ -327,6 +327,8 @@ void ACustomCharacter::Die()
 	bIsDead = true;
 	ApplyDeathState();
 	ForceNetUpdate();
+	// 죽었다고 알린다 → 플레이어면 컨트롤러가 몇 초 뒤 그 사람만 로비로 보낸다(몬스터는 받는 쪽이 없어 아무 일 없음).
+	OnDied.Broadcast(this);
 }
 
 UAnimMontage* ACustomCharacter::GetDeathMontage(int32& SectionIndex) const

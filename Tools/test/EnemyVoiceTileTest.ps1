@@ -10,7 +10,9 @@
 param(
     [string]$Engine = "E:\UE_5.6_Source",
     [int]$Enemies = 4,
-    [string]$Rifle = "1010"
+    [string]$Rifle = "1010",
+    # 먼저 들어온 몇 명 둘레에만 몬스터를 놓을지(0 = 모두). 죽으면 로비로 나가기 시험은 1.
+    [int]$EnemyPlayers = 0
 )
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $project = Join-Path $root "ProjectPG.uproject"
@@ -25,7 +27,7 @@ $serverLog = Join-Path $logs "server.log"
 # 왜: "맵 열림" 직후엔 시설 레벨을 붙이느라 한 프레임에 10초 넘게 멈춰서, 그때 접속하면 20초 제한에 걸려 로비로 튕긴다.
 # 로그 파일은 서버가 켜지고 조금 뒤에야 생겨서, 파일이 없으면 "아직" 으로 본다.
 function Test-ServerReady { (Test-Path $serverLog) -and [bool](Select-String -Path $serverLog -Pattern "Design navigation:" -Quiet) }
-$server = Start-Process $exe -PassThru -WindowStyle Minimized -ArgumentList "`"$project`" $map -server -log -unattended -nullrhi -PGTestEnemies=$Enemies -PGTestEnemyClass=$enemyClass -PGTestRifle=$Rifle -abslog=`"$serverLog`""
+$server = Start-Process $exe -PassThru -WindowStyle Minimized -ArgumentList "`"$project`" $map -server -log -unattended -nullrhi -PGTestEnemies=$Enemies -PGTestEnemyClass=$enemyClass -PGTestRifle=$Rifle $(if ($EnemyPlayers -gt 0) { "-PGTestEnemyPlayers=$EnemyPlayers" }) -abslog=`"$serverLog`""
 Write-Host "서버 켬 (번호 $($server.Id)), 맵 여는 중..."
 $deadline = (Get-Date).AddMinutes(10)
 while ((Get-Date) -lt $deadline -and -not (Test-ServerReady)) {

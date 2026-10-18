@@ -14,6 +14,12 @@
 // For forwarding inventory messages
 #include "Server/InventorySubSystem.h"
 #include "Json.h"
+// 죽은 플레이어를 로비로 보낼 때 씀(파일 위 흐름: Source/ProjectPG/Private/GameMode/README.md)
+#include "Characters/CustomCharacter.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/GameSession.h"
+#include "GameMapsSettings.h"
+#include "Misc/PackageName.h"
 
 void APlayerController_InGame::BeginPlay()
 {
@@ -56,6 +62,8 @@ void APlayerController_InGame::BeginPlay()
 void APlayerController_InGame::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearTimer(InitialInventoryTimer);
+	GetWorldTimerManager().ClearTimer(ReturnToLobbyTimer);
+	GetWorldTimerManager().ClearTimer(ForceKickTimer);
 	if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld()))
 	{
 		Subsystem->OnInventoryReceived.RemoveDynamic(this, &APlayerController_InGame::HandleInitialInventory);
@@ -369,4 +377,85 @@ void APlayerController_InGame::OnRotateKey()
 	{
 		DragOp->RotateItem();
 	}
+}
+
+// ── 죽으면 그 사람만 로비로 ──────────────────────────────
+// 흐름 그림: Source/ProjectPG/Private/GameMode/README.md
+
+void APlayerController_InGame::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	// 서버에서만 불린다. 플레이어 캐릭터가 죽으면 HandlePawnDied 가 불리게 건다.
+	if (ACustomCharacter* MyCharacter = Cast<ACustomCharacter>(InPawn))
+	{
+		MyCharacter->OnDied.AddUniqueDynamic(this, &APlayerController_InGame::HandlePawnDied);
+	}
+}
+
+void APlayerController_InGame::OnUnPossess()
+{
+	if (ACustomCharacter* MyCharacter = Cast<ACustomCharacter>(GetPawn()))
+	{
+		MyCharacter->OnDied.RemoveDynamic(this, &APlayerController_InGame::HandlePawnDied);
+	}
+	Super::OnUnPossess();
+}
+
+void APlayerController_InGame::PawnLeavingGame()
+{
+	// 죽어서 로비로 나간 사람의 캐릭터는 지우지 않고 손만 뗀다 → 시체가 그 자리에 남는다.
+	// 살아 있는데 나간 사람(창 닫음 등)은 원래대로 캐릭터를 지운다.
+	const ACustomCharacter* MyCharacter = Cast<ACustomCharacter>(GetPawn());
+	if (MyCharacter && MyCharacter->IsDead())
+	{
+		UnPossess();
+		return;
+	}
+	Super::PawnLeavingGame();
+}
+
+void APlayerController_InGame::HandlePawnDied(ACustomCharacter* DeadCharacter)
+{
+	// 서버: 죽는 동작을 볼 시간만큼 기다렸다가 로비로 보낸다. 이미 기다리는 중이면 다시 걸지 않는다.
+	if (!HasAuthority() || GetWorldTimerManager().IsTimerActive(ReturnToLobbyTimer)) return;
+	UE_LOG(LogTemp, Log, TEXT("[DeathToLobby] %s died. Sending to lobby in %.1fs."), *GetNameSafe(this), SecondsBeforeReturnToLobby);
+	GetWorldTimerManager().SetTimer(ReturnToLobbyTimer, this, &APlayerController_InGame::SendDeadPlayerToLobby, FMath::Max(SecondsBeforeReturnToLobby, 0.1f), false);
+}
+
+void APlayerController_InGame::SendDeadPlayerToLobby()
+{
+	UE_LOG(LogTemp, Log, TEXT("[DeathToLobby] Telling %s to return to lobby."), *GetNameSafe(this));
+	Client_ReturnToLobby();
+	// 끝내 안 나가면(클라가 멈췄거나 명령을 못 받음) 일정 시간 뒤 서버가 내보낸다.
+	GetWorldTimerManager().SetTimer(ForceKickTimer, this, &APlayerController_InGame::ForceKickIfStillHere, FMath::Max(SecondsBeforeForceKick, 1.f), false);
+}
+
+void APlayerController_InGame::ForceKickIfStillHere()
+{
+	UE_LOG(LogTemp, Error, TEXT("[DeathToLobby] %s did not leave %.1fs after return-to-lobby was sent. Kicking from server."), *GetNameSafe(this), SecondsBeforeForceKick);
+	AGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr;
+	if (GameMode && GameMode->GameSession)
+	{
+		// 쫓겨난 클라는 엔진이 알아서 게임 시작 맵(로비)으로 돌려보낸다.
+		GameMode->GameSession->KickPlayer(this, FText::FromString(TEXT("Returned to lobby after death")));
+	}
+}
+
+void APlayerController_InGame::Client_ReturnToLobby_Implementation()
+{
+	// 게임 중에 가둬 둔 마우스를 풀고 커서를 보인다 → 로비 화면을 바로 누를 수 있게.
+	SetShowMouseCursor(true);
+	SetInputMode(FInputModeUIOnly());
+	if (UGameViewportClient* ViewportClient = GetWorld() ? GetWorld()->GetGameViewport() : nullptr)
+	{
+		if (FViewport* Viewport = ViewportClient->Viewport)
+		{
+			Viewport->LockMouseToViewport(false);
+			Viewport->CaptureMouse(false);
+		}
+	}
+	// 로비 = 게임 시작 맵(DefaultEngine.ini GameDefaultMap). 맵 경로를 여기 따로 적지 않는다.
+	const FString LobbyMap = FPackageName::ObjectPathToPackageName(UGameMapsSettings::GetGameDefaultMap());
+	UE_LOG(LogTemp, Log, TEXT("[DeathToLobby] Leaving match, travelling to %s"), *LobbyMap);
+	ClientTravel(LobbyMap, TRAVEL_Absolute);
 }

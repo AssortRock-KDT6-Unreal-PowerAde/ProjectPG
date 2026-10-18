@@ -56,6 +56,7 @@ void UPGTestBattleSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	if (!InWorld.IsGameWorld() || InWorld.GetNetMode() == NM_Client) return;
 
 	FParse::Value(FCommandLine::Get(), TEXT("PGTestEnemies="), EnemiesPerPlayer);
+	FParse::Value(FCommandLine::Get(), TEXT("PGTestEnemyPlayers="), MaxPlayersWithEnemies);
 	FString Text;
 	if (FParse::Value(FCommandLine::Get(), TEXT("PGTestRifle="), Text)) RifleItemID = FName(*Text);
 	if (EnemiesPerPlayer > 0)
@@ -110,7 +111,7 @@ void UPGTestBattleSubsystem::Check()
 
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 		if (APlayerController* Controller = It->Get(); Controller && Controller->GetPawn() && !EnemiesPlaced.Contains(Controller)
-			&& SpawnEnemiesAround(Controller))
+			&& EnemiesPlaced.Num() < MaxPlayersWithEnemies && SpawnEnemiesAround(Controller))
 			EnemiesPlaced.Add(Controller);
 }
 

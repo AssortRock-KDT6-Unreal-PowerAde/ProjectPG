@@ -12,7 +12,10 @@
 #include "CustomCharacter.generated.h"
 
 struct FWeaponAnimationSet;
+class ACustomCharacter;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FCharacterAmmoChanged);
+// 서버에서 이 캐릭터가 죽은 순간 한 번 울린다(죽은 캐릭터를 넘김). 컨트롤러가 받아서 로비로 보낼 때 쓴다.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCharacterDied, ACustomCharacter*, DeadCharacter);
 
 UCLASS()
 class PROJECTPG_API ACustomCharacter : public ACharacter, public IAbilitySystemInterface, public IHittable
@@ -25,6 +28,9 @@ public:
 public:
 	UPROPERTY(BlueprintAssignable, Category="Combat|Ammo")
 	FCharacterAmmoChanged OnAmmoChanged;
+	// 서버에서만 울린다: 체력이 0이 되어 죽는 순간 한 번. 클라에서 죽음 연출은 OnRep_Death 쪽에서 한다.
+	UPROPERTY(BlueprintAssignable, Category="Combat|Death")
+	FCharacterDied OnDied;
 	UPROPERTY(BlueprintReadOnly, Replicated, Category=Character)
 	uint8 bIsAiming : 1 = false;
 
