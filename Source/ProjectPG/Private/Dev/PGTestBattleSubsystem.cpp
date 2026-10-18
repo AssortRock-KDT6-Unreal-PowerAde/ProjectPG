@@ -26,6 +26,9 @@ namespace PGTestBattle
 	const FVector NavSearchExtent(300.f, 300.f, 650.f);
 	// 몬스터 몸 절반 높이만큼 띄워 놓는다(바닥에 박히지 않게).
 	constexpr float SpawnLift = 100.f;
+	// 플레이어 발 높이와 이만큼(cm) 넘게 차이 나는 자리(담·지붕 위)에는 놓지 않는다.
+	// 왜: 길 데이터가 담 꼭대기에도 생겨, 거기 놓인 몬스터가 끼어 못 움직이고 총에도 안 맞았다(2026-10-18).
+	constexpr float MaxSpawnHeightDiff = 150.f;
 	// 맵 준비 뒤 플레이어를 시작 자리에 옮길 틈(초). MapBuilder 는 0.1초마다 옮기고, 몸이 없으면 2초 뒤 다시 만든다.
 	constexpr double PlaceGraceSeconds = 3.0;
 	// 기다리는 일의 시간 제한(초). 넘으면 Error 로그를 남기고 그 일은 그만둔다.
@@ -196,6 +199,7 @@ bool UPGTestBattleSubsystem::SpawnEnemiesAround(APlayerController* Controller)
 	const APawn* Player = Controller->GetPawn();
 	UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 	const FVector Center = Player->GetActorLocation();
+	const float PlayerFeetZ = Center.Z - Player->GetSimpleCollisionHalfHeight();
 
 	// 둘레를 고르게 나눠 자리를 찾는다. 자리마다 5번까지 조금씩 옮겨 가며 길 위 점을 찾는다.
 	TArray<FVector> Spots;
@@ -205,7 +209,8 @@ bool UPGTestBattleSubsystem::SpawnEnemiesAround(APlayerController* Controller)
 			const float Yaw = 360.f * Index / EnemiesPerPlayer + FMath::FRandRange(-25.f, 25.f);
 			const FVector Wanted = Center + FRotator(0.f, Yaw, 0.f).Vector() * FMath::FRandRange(PGTestBattle::MinDistance, PGTestBattle::MaxDistance);
 			FNavLocation OnNav;
-			if (Nav->ProjectPointToNavigation(Wanted, OnNav, PGTestBattle::NavSearchExtent)) { Spots.Add(OnNav.Location); break; }
+			if (Nav->ProjectPointToNavigation(Wanted, OnNav, PGTestBattle::NavSearchExtent)
+				&& FMath::Abs(OnNav.Location.Z - PlayerFeetZ) <= PGTestBattle::MaxSpawnHeightDiff) { Spots.Add(OnNav.Location); break; }
 		}
 
 	if (Spots.Num() < EnemiesPerPlayer)
