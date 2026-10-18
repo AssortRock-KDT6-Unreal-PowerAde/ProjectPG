@@ -240,7 +240,8 @@ def main():
                "Finale_Arrival", "Finale_Dragon", "Finale_Hover", "Finale_Launch", "Finale_Victory", "Finale_Warning",
                "Impact_Concrete", "Impact_Dirt", "Impact_Metal", "Impact_Wood", "Impact_Flesh", "Hit_React", "Body_Fall",
                "UI_Click", "UI_Hover", "UI_Open", "UI_Close", "UI_Error", "Reload",
-               "Gun_Rifle", "Gun_RifleFar", "Gun_Pistol", "Gun_PistolFar", "Gun_Shotgun", "Gun_ShotgunFar", "Gun_Reload", "Step_Dirt", "Step_Grass", "UI_ItemPick", "UI_ItemDrop"]
+               "Gun_Rifle", "Gun_RifleFar", "Gun_Pistol", "Gun_PistolFar", "Gun_Shotgun", "Gun_ShotgunFar", "Gun_Reload", "Step_Dirt", "Step_Grass", "UI_ItemPick", "UI_ItemDrop",
+               "UI_Click_Wwise", "UI_Hover_Wwise", "UI_Open_Wwise", "UI_Close_Wwise", "UI_ItemPick_Wwise", "UI_ItemDrop_Wwise", "UI_ItemFail_Wwise"]
     w = {f: import_folder(f) for f in folders}
 
     att_gun = make_attenuation("ATT_Gunshot", 600, 15000, 2500)
@@ -313,23 +314,28 @@ def main():
     da.set_editor_property("surface_keywords", rules)
     da.set_editor_property("landscape_surface", S.SURFACE_TYPE4)
 
-    reload_w = w["Gun_Reload"]  # 실제 장전 손잡이·탄창 소리
+    # UI 는 Wwise 때 쓰던 녹음 그대로(Kenney UI Audio, CC0. 원본: Downloads\Plugins\SFX).
+    ui = lambda k: w[k + "_Wwise"]
     cues = {
-        "UI.Click": cue(one, w["UI_Click"], None, 0.5, 0.03, two_d=True),
-        "UI.Hover": cue(one, w["UI_Hover"], None, 0.25, 0.03, two_d=True),
-        "UI.Open": cue(one, w["UI_Open"], None, 0.5, 0.02, two_d=True),
-        "UI.Close": cue(one, w["UI_Close"], None, 0.5, 0.02, two_d=True),
+        "UI.Click": cue(one, ui("UI_Click"), None, 0.5, 0.03, two_d=True),
+        "UI.Hover": cue(one, ui("UI_Hover"), None, 0.25, 0.03, two_d=True),
+        "UI.Open": cue(one, ui("UI_Open"), None, 0.5, 0.02, two_d=True),
+        "UI.Close": cue(one, ui("UI_Close"), None, 0.5, 0.02, two_d=True),
         "UI.Error": cue(one, w["UI_Error"], None, 0.5, 0.0, two_d=True),
         # 인벤토리: 아이템 끌기 시작 / 놓기 성공 / 못 놓음(InventoryGridWidget·ItemWidget·EquipSlot 에서 부름)
-        "UI.ItemPick": cue(one, w["UI_ItemPick"], None, 0.45, 0.04, two_d=True),
-        "UI.ItemDrop": cue(one, w["UI_ItemDrop"], None, 0.5, 0.04, two_d=True),
-        "UI.ItemFail": cue(one, w["UI_Error"], None, 0.45, 0.0, two_d=True),
+        "UI.ItemPick": cue(one, ui("UI_ItemPick"), None, 0.45, 0.04, two_d=True),
+        "UI.ItemDrop": cue(one, ui("UI_ItemDrop"), None, 0.5, 0.04, two_d=True),
+        "UI.ItemFail": cue(one, ui("UI_ItemFail"), None, 0.45, 0.0, two_d=True),
         "UI.Announce": cue(one, w["UI_Announce"], None, 0.7, 0.0, two_d=True),
-        "Reload": cue(one, reload_w, att_body, 0.6, 0.05),
+        # 장전 두 단계(Wwise 때와 같은 시점: 몽타주 25% 탄창 빼기, 60% 끼우기). 소리는 실제 탄창·장전 손잡이 녹음.
+        "Reload.MagOut": cue(one, load_waves("Gun_Reload", contains=["Unloading_Magazine"]), att_body, 0.6, 0.05),
+        "Reload.MagIn": cue(one, load_waves("Gun_Reload", contains=["Charging_Handle"]), att_body, 0.6, 0.05),
+        # 총 꺼내기(Wwise 때와 같은 녹음, 몽타주 30% 지점)
+        "Weapon.Equip": cue(one, load_waves("Container_Open", contains=["Latchlocker_cable"]), att_body, 0.5, 0.05),
         "Hit.React": cue(one, w["Hit_React"], att_body, 0.8, 0.06),
         "Death.Body": cue(one, w["Body_Fall"], att_body, 0.9, 0.05),
         # 아래는 아직 게임에 기능이 없어서 붙는 곳이 없다. 기능이 생기면 BP 에서 PlayPGSound(이름) 로 부른다.
-        "Container.Open": cue(one, w["Container_Open"], att_body, 0.7),
+        "Container.Open": cue(one, load_waves("Container_Open", contains=["FutureLoot"]), att_body, 0.7),  # Wwise 때와 같은 녹음
         "Door.Open": cue(one, w["Door_Open"], att_body, 0.8),
         "Door.Close": cue(one, w["Door_Close"], att_body, 0.8),
         "Explosion.Barrel": cue(one, w["Explosion_Barrel"], att_big, 1.0, 0.04),
@@ -349,15 +355,17 @@ def main():
 
     mont = []
     for base in ("/Game/PG/Animations/Montages", "/Game/PG/Animations/Meta/Montages"):
-        for name, c, delay in [("AM_Reload_Pistol", "Reload", 0.1), ("AM_Reload_Rifle_Hip", "Reload", 0.1),
-                               ("AM_Reload_Rifle_Ironsights", "Reload", 0.1), ("AM_Reload_Shotgun_Hip", "Reload", 0.1),
-                               ("AM_Reload_Shotgun_Ironsights", "Reload", 0.1),
-                               ("AM_Hit_React_1", "Hit.React", 0), ("AM_Hit_React_2", "Hit.React", 0),
-                               ("AM_Hit_React_3", "Hit.React", 0), ("AM_Hit_React_4", "Hit.React", 0),
-                               ("AM_Death_Hip", "Death.Body", 0.6), ("AM_Death_Ironsights", "Death.Body", 0.6)]:
+        # (몽타주, 소리 이름, 시점). 숫자면 몽타주 길이의 비율(0.25 = 25% 지점), "0.6s" 처럼 글자면 초.
+        reloads = ["AM_Reload_Pistol", "AM_Reload_Rifle_Hip", "AM_Reload_Rifle_Ironsights", "AM_Reload_Shotgun_Hip", "AM_Reload_Shotgun_Ironsights"]
+        rows = [(r, "Reload.MagOut", 0.25) for r in reloads] + [(r, "Reload.MagIn", 0.60) for r in reloads]
+        rows += [(e, "Weapon.Equip", 0.30) for e in ("AM_Equip_Pistol", "AM_Equip_Rifle", "AM_Equip_Shotgun")]
+        rows += [("AM_Hit_React_%d" % i, "Hit.React", 0.0) for i in range(1, 5)]
+        rows += [("AM_Death_Hip", "Death.Body", "0.6s"), ("AM_Death_Ironsights", "Death.Body", "0.6s")]
+        for name, c, at in rows:
             m = montage(base + "/" + name)
             if not m:
                 continue
+            delay = float(at[:-1]) if isinstance(at, str) else m.get_play_length() * at
             e = unreal.PGMontageSound()
             e.set_editor_property("montage", m)
             e.set_editor_property("cue", c)
