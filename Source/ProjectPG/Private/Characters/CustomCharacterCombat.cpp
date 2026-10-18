@@ -158,18 +158,6 @@ void ACustomCharacter::SetFireInput(bool bPressed)
 			if (SprintHandle.IsValid()) ASC->CancelAbilityHandle(SprintHandle);
 		}
 	// [멀티 임시수정] 끝
-	// [진단용, 2026-10-18] 내 화면(클라)에서 쏠 때 카메라가 어디서 어느 쪽을 보고, 그 조준선이 무엇에 닿는지 남긴다.
-	// 서버 로그의 [FireHit] 와 비교해 조준이 어긋나는 원인을 찾는다. 원인을 고치면 지운다.
-	if (bPressed && !HasAuthority())
-	{
-		FVector ViewLocation; FRotator ViewRotation;
-		GetCombatViewPoint(ViewLocation, ViewRotation);
-		FHitResult Hit;
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(FireAimLog), true, this);
-		GetWorld()->LineTraceSingleByChannel(Hit, ViewLocation, ViewLocation + ViewRotation.Vector() * 20000.f, ECC_Visibility, Params);
-		UE_LOG(LogTemp, Display, TEXT("[FireAim] 클라 %s: 카메라-몸 차이 %s, 방향 %s, 조준선이 닿은 것=%s 거리 %.1fm"), *GetName(),
-			*(ViewLocation - GetActorLocation()).ToCompactString(), *ViewRotation.ToCompactString(), *GetNameSafe(Hit.GetActor()), Hit.bBlockingHit ? Hit.Distance / 100.f : -1.f);
-	}
 	OnReq_SetFireInput(bPressed);
 }
 
