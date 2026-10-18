@@ -6,8 +6,9 @@
 #include "MapEnemySpawner.generated.h"
 
 // 몬스터 담당 (서버만). 흐름 그림: 이 폴더 README.md
-// 게임에서: 맵이 시설·상자까지 다 짓고 길찾기 지도도 다 구워지면 몬스터를 한 번 놓는다.
-//           워존(가운데 공장 지대) 먼저 WarZoneEnemies 마리, 그다음 워존 밖 몬스터 자리에 MaxEnemiesOutsideWarZone 마리까지.
+// 게임에서: 맵이 시설·상자까지 다 짓고 길찾기 지도도 다 구워지면 준비 끝.
+//           그때부터 플레이어가 한 명 들어올 때마다 워존 한가운데 근처(CenterSpawnRadiusCm 안)에 EnemiesPerPlayer 마리씩 놓는다.
+//           (지도 전에 이미 들어온 사람 몫은 준비 끝 순간에 놓음. 2026-10-19 사용자: 중앙 근처에 한 명당 4마리 정도)
 //           놓인 몬스터는 스스로 순찰하다가 플레이어를 보면 외치고, 외침을 들은 동료가 모여든다(Private/AI/README.md).
 // 왜 지도까지 기다리나: 지도 전에는 몬스터가 한 발짝도 못 움직이고, 담·지붕 꼭대기 같은 잘못된 자리를 지도로 걸러 내서.
 // 몇 마리·어떤 몬스터·시작 구역과의 거리는 DA_MapAssets 의 "몬스터" 칸(코드·빌드 없이 바꾼다).
@@ -29,8 +30,14 @@ public:
 private:
 	void HandleNavigationReady();
 	void HandleNavigationWaitTimeout();
-	// 실제로 놓기. 판마다 한 번만.
+	// 준비 끝: 몬스터 BP·중앙 칸을 정하고, 이미 들어온 사람 몫을 놓는다. 판마다 한 번만.
 	void SpawnEnemiesOnce();
+	// 누가 들어옴(서버) → 준비가 끝났으면 그 사람 몫을 놓는다.
+	void HandlePlayerJoined(APlayerController* Player);
+	// 이 사람 몫(EnemiesPerPlayer 마리)을 중앙 칸에 놓는다. 사람마다 한 번만, 판 전체 MaxEnemies 를 넘지 않음.
+	void SpawnForPlayer(APlayerController* Player);
+	// 워존 칸들의 한가운데에서 CenterSpawnRadiusCm 안의 칸(가까운 순).
+	TArray<FIntPoint> CollectCenterCells() const;
 	// 몬스터 BP 목록을 읽는다. 못 읽는 칸은 빼고 Error 로그.
 	void LoadEnemyClasses();
 	// 놓을 자리 순서: 시작 구역마다 가까운 자리 몇 곳 먼저, 나머지는 섞어서. 시작 구역에 너무 가까운 자리는 뺀다.
@@ -47,8 +54,8 @@ private:
 		int32 NoFloorCount = 0;
 	};
 	int32 SpawnAtPoints(const TArray<const FLevelDesignPoint*>& Points, int32 Limit, FRandomStream& Stream, FSpawnTally& Tally);
-	// 워존 칸 바닥의 길 위 점을 골라 Need 마리까지 놓는다(워존 안 몬스터 자리가 모자랄 때).
-	int32 SpawnOnWarZoneFloor(const TSet<FIntPoint>& WarZoneCells, int32 Need, FRandomStream& Stream);
+	// 주어진 칸들 바닥의 길 위 점을 골라 Need 마리까지 놓는다.
+	int32 SpawnOnCells(const TArray<FIntPoint>& WarZoneCells, int32 Need, FRandomStream& Random);
 	// 바닥 점 위에 몬스터 한 마리를 놓는다(BP 는 목록에서 무작위).
 	bool SpawnEnemyAt(const FVector& Floor, FRandomStream& Stream);
 
@@ -59,7 +66,12 @@ private:
 	TArray<TObjectPtr<UClass>> EnemyClasses;
 
 	bool bWaiting = false;
-	bool bSpawned = false;
+	// 지도가 구워져 몬스터를 놓을 수 있게 됨.
+	bool bReady = false;
+	FRandomStream RandomStream;
+	TArray<FIntPoint> CenterCells;
+	TSet<TWeakObjectPtr<APlayerController>> PlayersWithEnemies;
+	int32 TotalSpawned = 0;
 	FDelegateHandle NavigationReadyHandle;
 	FTimerHandle NavigationWaitTimer;
 };

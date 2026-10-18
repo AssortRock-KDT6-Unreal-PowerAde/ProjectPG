@@ -234,14 +234,16 @@ public:
 	int32 NearStartPointsPerRegion = 2;
 	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
 	float NearStartSearchRadiusCm = 15000.0f;
-	// 워존(맵 가운데 공장·창고 지대, 칸 종류 WarZone) 안에 놓을 몬스터 수. 판 전체 MaxEnemies 안에서 가장 먼저 채운다.
-	// 워존 안 몬스터 자리(AISpawn)가 모자라면 워존 칸 바닥의 길 위 점을 직접 골라 채운다.
-	// 왜: 싸우는 곳은 워존인데 몬스터가 들판·시작 구역 근처에 흩어져 있었다(2026-10-19 사용자 요청).
+	// 플레이어가 한 명 들어올 때마다 워존 한가운데 근처에 놓을 몬스터 수(판 전체 MaxEnemies 를 넘지 않음).
+	// 왜: 싸우는 곳은 워존 중앙(공장)인데, 맵 곳곳 자리에 몬스터가 쫙 깔려 있었다(2026-10-19 사용자: 중앙 근처에 한 명당 4마리 정도).
 	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
-	int32 WarZoneEnemies = 20;
-	// 워존 밖(들판·시작 구역 근처 몬스터 자리)에 놓을 최대 수. 0 이면 워존에만 놓는다.
+	int32 EnemiesPerPlayer = 4;
+	// 워존 칸들의 한가운데에서 이 거리(cm) 안의 칸 바닥에만 놓는다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "500"))
+	float CenterSpawnRadiusCm = 6000.0f;
+	// 워존 밖(들판·시작 구역 근처 몬스터 자리)에 판 시작 때 놓을 최대 수. 0 이면 안 놓는다.
 	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
-	int32 MaxEnemiesOutsideWarZone = 4;
+	int32 MaxEnemiesOutsideWarZone = 0;
 	// 몬스터 자리의 땅 높이와 이만큼(cm) 넘게 다른 길 위 점(담·지붕 꼭대기)에는 놓지 않는다.
 	// 왜: 길찾기 지도가 담 꼭대기에도 생겨, 거기 놓인 몬스터가 끼어 못 움직이고 공중에 떠 보였다(2026-10-18 시험).
 	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "10"))

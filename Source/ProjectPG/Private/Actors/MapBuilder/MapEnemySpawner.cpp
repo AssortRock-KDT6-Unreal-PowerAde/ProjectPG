@@ -3,6 +3,8 @@
 #include "Actors/MapBuilder/MapAssetSet.h"
 #include "Actors/MapTile.h"
 #include "EngineUtils.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/PlayerController.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
@@ -26,6 +28,8 @@ namespace MapEnemySpawn
 void UMapEnemySpawner::Init(AMapBuilder* InMap)
 {
 	Map = InMap;
+	// 누가 들어올 때마다 그 사람 몫 몬스터를 놓으려고 "접속 끝" 알림을 받는다(서버만 울림). 이 객체가 사라지면 알림도 저절로 끊긴다.
+	FGameModeEvents::GameModePostLoginEvent.AddWeakLambda(this, [this](AGameModeBase*, APlayerController* Player) { HandlePlayerJoined(Player); });
 }
 
 UWorld* UMapEnemySpawner::GetWorld() const
@@ -36,7 +40,7 @@ UWorld* UMapEnemySpawner::GetWorld() const
 void UMapEnemySpawner::SpawnWhenNavigationReady()
 {
 	// 몬스터는 서버만 만든다. 클라이언트는 복제로 받는다.
-	if (GetWorld()->GetNetMode() == NM_Client || bSpawned || bWaiting)
+	if (GetWorld()->GetNetMode() == NM_Client || bReady || bWaiting)
 		return;
 	if (Map->IsNavigationReady())
 	{
@@ -82,9 +86,9 @@ void UMapEnemySpawner::LoadEnemyClasses()
 
 void UMapEnemySpawner::SpawnEnemiesOnce()
 {
-	if (bSpawned)
+	if (bReady)
 		return;
-	bSpawned = true;
+	bReady = true;
 
 	const UMapAssetSet& Assets = Map->GetMapAssets();
 	LoadEnemyClasses();
@@ -94,37 +98,77 @@ void UMapEnemySpawner::SpawnEnemiesOnce()
 		return;
 	}
 
-	// 판 시드로만 굴린다 → 같은 시드면 같은 자리에 같은 수.
+	// 판 시드로 굴린다 → 같은 시드·같은 접속 순서면 같은 자리.
 	const int64 Seed = Map->GetRaidSeed();
-	FRandomStream Stream(static_cast<int32>(Seed ^ (Seed >> 32)) ^ 0x4E4D5953);
-	int32 TooCloseCount = 0;
-	const TArray<const FLevelDesignPoint*> Points = PickPoints(Stream, TooCloseCount);
+	RandomStream.Initialize(static_cast<int32>(Seed ^ (Seed >> 32)) ^ 0x4E4D5953);
+	CenterCells = CollectCenterCells();
 
-	// 순서: 워존 안 몬스터 자리 → (모자라면) 워존 칸 바닥 → 워존 밖 몬스터 자리(조금만).
-	// 왜: 싸우는 곳은 워존(가운데 공장 지대)이다(2026-10-19 사용자 요청). 밖은 걷다가 가끔 만나는 정도로만.
+	// 워존 밖 몬스터 자리(들판·시작 구역 근처)는 판 시작에 한 번만, MaxEnemiesOutsideWarZone 마리까지(기본 0 = 안 놓음).
+	if (Assets.MaxEnemiesOutsideWarZone > 0)
+	{
+		int32 TooCloseCount = 0;
+		const TSet<FIntPoint> WarZoneCells = CollectWarZoneCells();
+		TArray<const FLevelDesignPoint*> OutsidePoints;
+		for (const FLevelDesignPoint* Point : PickPoints(RandomStream, TooCloseCount))
+			if (!IsInWarZone(Point->WorldLocation, WarZoneCells)) OutsidePoints.Add(Point);
+		FSpawnTally Tally;
+		TotalSpawned += SpawnAtPoints(OutsidePoints, FMath::Min(Assets.MaxEnemiesOutsideWarZone, Assets.MaxEnemies), RandomStream, Tally);
+	}
+
+	// 지도가 구워지기 전에 이미 들어온 사람 몫을 지금 놓는다. 나중에 들어오는 사람은 HandlePlayerJoined 가 놓는다.
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		SpawnForPlayer(It->Get());
+	UE_LOG(LogTemp, Display, TEXT("Warzone enemies ready: %d per joining player near the warzone centre (%d centre cells, radius %.0fm), placed so far=%d"),
+		Assets.EnemiesPerPlayer, CenterCells.Num(), Assets.CenterSpawnRadiusCm / 100.0f, TotalSpawned);
+}
+
+void UMapEnemySpawner::HandlePlayerJoined(APlayerController* Player)
+{
+	// 다른 월드(에디터의 다른 창)의 접속은 무시. 지도가 아직이면 SpawnEnemiesOnce 가 들어와 있는 사람을 세어 놓는다.
+	if (!bReady || !Player || Player->GetWorld() != GetWorld())
+		return;
+	SpawnForPlayer(Player);
+}
+
+void UMapEnemySpawner::SpawnForPlayer(APlayerController* Player)
+{
+	const UMapAssetSet& Assets = Map->GetMapAssets();
+	if (!Player || EnemyClasses.IsEmpty() || PlayersWithEnemies.Contains(Player))
+		return;
+	PlayersWithEnemies.Add(Player);
+	const int32 Need = FMath::Min(Assets.EnemiesPerPlayer, Assets.MaxEnemies - TotalSpawned);
+	if (Need <= 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Warzone enemies: %s joined but the monster cap (%d) is reached"), *GetNameSafe(Player), Assets.MaxEnemies);
+		return;
+	}
+	const int32 Placed = SpawnOnCells(CenterCells, Need, RandomStream);
+	TotalSpawned += Placed;
+	if (Placed < Need)
+		UE_LOG(LogTemp, Error, TEXT("Warzone enemies: wanted %d for %s but placed %d (centre cells=%d) - warzone centre has no navigation?"),
+			Need, *GetNameSafe(Player), Placed, CenterCells.Num());
+	UE_LOG(LogTemp, Display, TEXT("Warzone enemies: +%d near the centre for %s (total %d / max %d)"), Placed, *GetNameSafe(Player), TotalSpawned, Assets.MaxEnemies);
+}
+
+TArray<FIntPoint> UMapEnemySpawner::CollectCenterCells() const
+{
+	// 워존 칸들의 한가운데(평균 자리)에서 CenterSpawnRadiusCm 안의 칸. 하나도 없으면 가장 가까운 칸 몇 개.
 	const TSet<FIntPoint> WarZoneCells = CollectWarZoneCells();
-	TArray<const FLevelDesignPoint*> InsidePoints;
-	TArray<const FLevelDesignPoint*> OutsidePoints;
-	for (const FLevelDesignPoint* Point : Points)
-		(IsInWarZone(Point->WorldLocation, WarZoneCells) ? InsidePoints : OutsidePoints).Add(Point);
-
-	FSpawnTally Tally;
-	const int32 WarZoneTarget = FMath::Min(Assets.WarZoneEnemies, Assets.MaxEnemies);
-	const int32 AtWarZonePoints = SpawnAtPoints(InsidePoints, WarZoneTarget, Stream, Tally);
-	const int32 OnWarZoneFloor = SpawnOnWarZoneFloor(WarZoneCells, WarZoneTarget - AtWarZonePoints, Stream);
-	const int32 OutsideTarget = FMath::Min(Assets.MaxEnemiesOutsideWarZone, Assets.MaxEnemies - AtWarZonePoints - OnWarZoneFloor);
-	const int32 Outside = SpawnAtPoints(OutsidePoints, OutsideTarget, Stream, Tally);
-	const int32 SpawnedCount = AtWarZonePoints + OnWarZoneFloor + Outside;
-
-	if (SpawnedCount == 0)
-		UE_LOG(LogTemp, Error, TEXT("Warzone enemies: placed 0 monsters (candidate_points=%d warzone_cells=%d too_close_to_start=%d no_floor=%d)"),
-			Points.Num(), WarZoneCells.Num(), TooCloseCount, Tally.NoFloorCount);
-	if (OnWarZoneFloor + AtWarZonePoints < WarZoneTarget)
-		UE_LOG(LogTemp, Error, TEXT("Warzone enemies: wanted %d in the warzone but placed %d (warzone_cells=%d) - warzone floor has no navigation?"),
-			WarZoneTarget, OnWarZoneFloor + AtWarZonePoints, WarZoneCells.Num());
-	UE_LOG(LogTemp, Display, TEXT("Warzone enemies spawned: count=%d warzone_points=%d warzone_floor=%d outside=%d max=%d points_used=%d inside_points=%d outside_points=%d warzone_cells=%d too_close_to_start=%d no_floor=%d"),
-		SpawnedCount, AtWarZonePoints, OnWarZoneFloor, Outside, Assets.MaxEnemies, Tally.UsedPoints, InsidePoints.Num(), OutsidePoints.Num(),
-		WarZoneCells.Num(), TooCloseCount, Tally.NoFloorCount);
+	TArray<FIntPoint> Cells = WarZoneCells.Array();
+	if (Cells.IsEmpty())
+		return Cells;
+	FVector2D Center = FVector2D::ZeroVector;
+	for (const FIntPoint& Cell : Cells)
+		Center += FVector2D(Cell.X, Cell.Y) / Cells.Num();
+	auto DistanceCm = [&Center, this](const FIntPoint& Cell) { return FVector2D::Distance(FVector2D(Cell.X, Cell.Y), Center) * Map->GridStep; };
+	Cells.Sort([&DistanceCm](const FIntPoint& A, const FIntPoint& B) { return DistanceCm(A) < DistanceCm(B); });
+	constexpr int32 MinCells = 8;
+	const float Radius = Map->GetMapAssets().CenterSpawnRadiusCm;
+	int32 Keep = 0;
+	while (Keep < Cells.Num() && (Keep < MinCells || DistanceCm(Cells[Keep]) <= Radius))
+		++Keep;
+	Cells.SetNum(Keep);
+	return Cells;
 }
 
 TSet<FIntPoint> UMapEnemySpawner::CollectWarZoneCells() const
@@ -186,16 +230,15 @@ int32 UMapEnemySpawner::SpawnAtPoints(const TArray<const FLevelDesignPoint*>& Po
 	return Spawned;
 }
 
-int32 UMapEnemySpawner::SpawnOnWarZoneFloor(const TSet<FIntPoint>& WarZoneCells, int32 Need, FRandomStream& Stream)
+int32 UMapEnemySpawner::SpawnOnCells(const TArray<FIntPoint>& WarZoneCells, int32 Need, FRandomStream& Random)
 {
 	const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 	if (Need <= 0 || WarZoneCells.IsEmpty() || !Nav)
 		return 0;
-	// 워존 칸을 섞어서 한 칸에 한 마리씩 돌아가며 놓는다 → 한곳에 몰리지 않고 공장 둘레에 퍼진다.
-	TArray<FIntPoint> Cells = WarZoneCells.Array();
-	Cells.Sort([](const FIntPoint& A, const FIntPoint& B) { return A.X != B.X ? A.X < B.X : A.Y < B.Y; });  // 시드가 같으면 같은 결과가 나오게 먼저 줄 세움
+	// 칸을 섞어서 한 칸에 한 마리씩 돌아가며 놓는다 → 한곳에 몰리지 않고 중앙 둘레에 퍼진다.
+	TArray<FIntPoint> Cells = WarZoneCells;
 	for (int32 Index = Cells.Num() - 1; Index > 0; --Index)
-		Cells.Swap(Index, Stream.RandRange(0, Index));
+		Cells.Swap(Index, Random.RandRange(0, Index));
 	const float MaxHeightDiff = Map->GetMapAssets().MaxSpawnHeightDiffCm;
 	int32 Spawned = 0;
 	const int32 MaxTries = Need * MapEnemySpawn::SpotTries;
@@ -204,18 +247,18 @@ int32 UMapEnemySpawner::SpawnOnWarZoneFloor(const TSet<FIntPoint>& WarZoneCells,
 		const FIntPoint Cell = Cells[Try % Cells.Num()];
 		// 칸 가운데에서 칸 반 크기 안쪽으로 흩는다. 땅 높이는 맵이 칸마다 아는 바닥 높이.
 		const float GroundZ = Map->GetSurfaceElevationForCell(Cell);
-		const FVector2D Offset = FVector2D(Stream.FRandRange(-0.4f, 0.4f), Stream.FRandRange(-0.4f, 0.4f)) * Map->GridStep;
+		const FVector2D Offset = FVector2D(Random.FRandRange(-0.4f, 0.4f), Random.FRandRange(-0.4f, 0.4f)) * Map->GridStep;
 		const FVector Wanted(Cell.X * Map->GridStep + Offset.X, Cell.Y * Map->GridStep + Offset.Y, GroundZ);
 		FNavLocation OnNav;
 		// 높이 차이를 보는 이유: 지붕·담 꼭대기 길 위 점에 놓으면 끼어 못 움직인다(위 MaxSpawnHeightDiffCm 설명).
 		if (!Nav->ProjectPointToNavigation(Wanted, OnNav, MapEnemySpawn::NavSearchExtent)
 			|| FMath::Abs(OnNav.Location.Z - GroundZ) > MaxHeightDiff)
 			continue;
-		if (SpawnEnemyAt(OnNav.Location, Stream))
+		if (SpawnEnemyAt(OnNav.Location, Random))
 			++Spawned;
 	}
 	if (Spawned > 0)
-		UE_LOG(LogTemp, Display, TEXT("Warzone enemies: +%d on warzone floor (%d warzone cells)"), Spawned, Cells.Num());
+		UE_LOG(LogTemp, Display, TEXT("Warzone enemies: +%d on warzone floor (%d cells)"), Spawned, Cells.Num());
 	return Spawned;
 }
 

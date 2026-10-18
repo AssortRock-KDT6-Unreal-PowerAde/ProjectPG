@@ -16,7 +16,8 @@
 7. 상자 다음, 서버에서만 → 몬스터 담당이 몬스터 자리(AISpawn 지점)에 몬스터를 놓는다 (`UMapEnemySpawner::SpawnWhenNavigationReady`)
    - 길찾기 지도가 이미 다 구워졌으면 → 바로 놓는다
    - 아직이면 → "길찾기 준비 끝" 알림을 기다렸다가 놓는다. 150초가 지나도 안 오면 Error 로그를 남기고 계속 기다린다
-   - 놓는 순서(2026-10-19, 싸우는 곳은 워존): 워존(칸 종류 WarZone, 가운데 공장 지대) 안 몬스터 자리 → 모자라면 워존 칸 바닥의 길 위 점을 직접 골라 `WarZoneEnemies`(20)마리까지 → 워존 밖 자리(시작 구역 근처 먼저)에 `MaxEnemiesOutsideWarZone`(4)마리까지. 판 전체 `MaxEnemies` 를 넘지 않음
+   - 몇 마리·어디(2026-10-19, 싸우는 곳은 워존 중앙): 플레이어가 한 명 들어올 때마다 워존(칸 종류 WarZone) 칸들의 한가운데에서 `CenterSpawnRadiusCm`(60m) 안 칸 바닥에 `EnemiesPerPlayer`(4)마리. 지도 전에 이미 들어온 사람 몫은 지도가 구워지는 순간 놓음. 판 전체 `MaxEnemies` 를 넘지 않음. 워존 밖 자리는 `MaxEnemiesOutsideWarZone`(기본 0)
+   - 로그: `Warzone enemies: +4 near the centre for PlayerController_…`
    - 시작 구역에서 30m 안의 자리는 버린다(접속 직후 죽지 않게). 자리 땅 높이와 1.5m 넘게 다른 길 위 점(담·지붕 꼭대기)에는 안 놓는다
    - 로그: `Warzone enemies spawned: count=` (0마리면 Error 로그에 이유 숫자)
    - 숫자·몬스터 BP 는 전부 `DA_MapAssets` 의 "몬스터" 칸. BP 목록 채우기: `Tools/level/setup_enemy_spawns.py`
