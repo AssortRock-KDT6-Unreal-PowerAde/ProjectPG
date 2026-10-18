@@ -19,9 +19,9 @@
 
 namespace PGTestBattle
 {
-	// 몬스터를 놓을 거리(cm). 감지 거리(EnemyTable 2500) 안팎에 섞어, 바로 보는 몬스터와 외침을 듣고 오는 몬스터가 같이 생기게.
-	constexpr float MinDistance = 1800.f;
-	constexpr float MaxDistance = 2800.f;
+	// 몬스터를 놓을 거리(cm). 감지 거리(EnemyTable 2500) 안이라 돌아보면 바로 보이고, 화면에서도 찾기 쉽게 가깝게.
+	constexpr float MinDistance = 1500.f;
+	constexpr float MaxDistance = 2200.f;
 	// 길(네비) 위 자리를 찾을 때 위아래·옆으로 얼마나 넓게 볼지. 맵 검사기(MapVerifier)와 같은 값.
 	const FVector NavSearchExtent(300.f, 300.f, 650.f);
 	// 몬스터 몸 절반 높이만큼 띄워 놓는다(바닥에 박히지 않게).
@@ -223,12 +223,13 @@ bool UPGTestBattleSubsystem::SpawnEnemiesAround(APlayerController* Controller)
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 	for (int32 Index = 0; Index < Spots.Num(); ++Index)
 	{
-		// 첫 마리는 플레이어 쪽을 보고(바로 발견 → 외침), 나머지는 등을 돌린다(외침을 듣고 와야 함).
+		// 모두 등을 돌린다. 왜: 한 마리가 플레이어를 보게 두었더니, 게임 창이 아직 불러오는 중에 쏴서 조작도 못 하고 죽었다.
+		// 플레이어가 먼저 쏘면 총소리를 듣고 돌아본다 → 처음 본 몬스터가 외침 → 나머지가 듣고 온다.
 		const FVector ToPlayer = (Center - Spots[Index]).GetSafeNormal2D();
-		const FRotator Facing = (Index == 0 ? ToPlayer : -ToPlayer).Rotation();
+		const FRotator Facing = (-ToPlayer).Rotation();
 		APawn* Enemy = World->SpawnActor<APawn>(EnemyClass, Spots[Index] + FVector(0.f, 0.f, PGTestBattle::SpawnLift), Facing, Params);
 		UE_LOG(LogTemp, Display, TEXT("[PGTest] %s 둘레에 몬스터 %s 놓음 (%d/%d, 거리 %.0fm, %s)"), *GetNameSafe(Controller), *GetNameSafe(Enemy),
-			Index + 1, EnemiesPerPlayer, FVector::Dist2D(Center, Spots[Index]) / 100.f, Index == 0 ? TEXT("플레이어를 봄") : TEXT("등 돌림"));
+			Index + 1, EnemiesPerPlayer, FVector::Dist2D(Center, Spots[Index]) / 100.f, TEXT("등 돌림"));
 	}
 	return true;
 }
