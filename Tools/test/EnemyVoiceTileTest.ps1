@@ -21,8 +21,10 @@ $map = "/Game/PG/Level/TestLevel_MapGenerating?game=/Game/PG/Blueprint/GM_InGame
 $enemyClass = "/Game/PG/Blueprint/Characters/CBP_CustomEnemyCharacter.CBP_CustomEnemyCharacter_C"
 $serverLog = Join-Path $logs "server.log"
 
-# 서버 로그에 "맵 열림" 줄이 있나. 로그 파일은 서버가 켜지고 조금 뒤에야 생겨서, 파일이 없으면 "아직" 으로 본다.
-function Test-ServerReady { (Test-Path $serverLog) -and [bool](Select-String -Path $serverLog -Pattern "Bringing up level for play" -Quiet) }
+# 서버가 맵의 무거운 작업까지 끝냈나("Design navigation" 줄 = 시설 레벨 붙이기·길 검사 끝).
+# 왜: "맵 열림" 직후엔 시설 레벨을 붙이느라 한 프레임에 10초 넘게 멈춰서, 그때 접속하면 20초 제한에 걸려 로비로 튕긴다.
+# 로그 파일은 서버가 켜지고 조금 뒤에야 생겨서, 파일이 없으면 "아직" 으로 본다.
+function Test-ServerReady { (Test-Path $serverLog) -and [bool](Select-String -Path $serverLog -Pattern "Design navigation:" -Quiet) }
 $server = Start-Process $exe -PassThru -WindowStyle Minimized -ArgumentList "`"$project`" $map -server -log -unattended -nullrhi -PGTestEnemies=$Enemies -PGTestEnemyClass=$enemyClass -PGTestRifle=$Rifle -abslog=`"$serverLog`""
 Write-Host "서버 켬 (번호 $($server.Id)), 맵 여는 중..."
 $deadline = (Get-Date).AddMinutes(10)
@@ -30,7 +32,7 @@ while ((Get-Date) -lt $deadline -and -not (Test-ServerReady)) {
     if ($server.HasExited) { Write-Host "서버가 꺼짐. 로그: $serverLog"; exit 1 }
     Start-Sleep 3
 }
-if (-not (Test-ServerReady)) { Write-Host "10분 안에 서버가 맵을 못 엶. 로그: $serverLog"; exit 1 }
+if (-not (Test-ServerReady)) { Write-Host "10분 안에 서버가 맵 준비를 못 끝냄. 로그: $serverLog"; exit 1 }
 
 $clients = @()
 foreach ($i in 0, 1) {
