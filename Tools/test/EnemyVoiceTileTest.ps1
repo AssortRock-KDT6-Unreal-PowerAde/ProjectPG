@@ -17,6 +17,11 @@ param(
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $project = Join-Path $root "ProjectPG.uproject"
 $exe = Join-Path $Engine "Engine\Binaries\Win64\UnrealEditor.exe"
+# 클라는 UnrealEditor-Cmd.exe 로 띄운다(같은 엔진, 콘솔 창만 하나 더 뜸).
+# 왜: 다른 프로젝트(BamtolChase)의 시험 정리 스크립트가 "UnrealEditor.exe ... -game" 을 프로젝트 구분 없이 다 꺼서, 우리 창이 로딩 중에 꺼졌다.
+$clientExe = Join-Path $Engine "Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+# 접속 시간 제한을 60초 → 300초로. 왜: 에디터 방식 클라는 타일 맵을 불러오는 데 60초를 넘겨, 서버가 "응답 없음" 으로 끊고 로비로 튕겼다.
+$netTimeout = "-ini:Engine:[/Script/OnlineSubsystemUtils.IpNetDriver]:ConnectionTimeout=300,[/Script/OnlineSubsystemUtils.IpNetDriver]:InitialConnectTimeout=300"
 $logs = Join-Path $root ("Saved\EnemyVoiceTileTest\" + (Get-Date -Format "yyyyMMdd_HHmmss"))
 New-Item -ItemType Directory -Force $logs | Out-Null
 $map = "/Game/PG/Level/TestLevel_MapGenerating?game=/Game/PG/Blueprint/GM_InGame.GM_InGame_C"
@@ -27,7 +32,7 @@ $serverLog = Join-Path $logs "server.log"
 # 왜: "맵 열림" 직후엔 시설 레벨을 붙이느라 한 프레임에 10초 넘게 멈춰서, 그때 접속하면 20초 제한에 걸려 로비로 튕긴다.
 # 로그 파일은 서버가 켜지고 조금 뒤에야 생겨서, 파일이 없으면 "아직" 으로 본다.
 function Test-ServerReady { (Test-Path $serverLog) -and [bool](Select-String -Path $serverLog -Pattern "Design navigation:" -Quiet) }
-$server = Start-Process $exe -PassThru -WindowStyle Minimized -ArgumentList "`"$project`" $map -server -log -unattended -nullrhi -PGTestEnemies=$Enemies -PGTestEnemyClass=$enemyClass -PGTestRifle=$Rifle $(if ($EnemyPlayers -gt 0) { "-PGTestEnemyPlayers=$EnemyPlayers" }) -abslog=`"$serverLog`""
+$server = Start-Process $exe -PassThru -WindowStyle Minimized -ArgumentList "`"$project`" $map -server -log -unattended -nullrhi $netTimeout -PGTestEnemies=$Enemies -PGTestEnemyClass=$enemyClass -PGTestRifle=$Rifle $(if ($EnemyPlayers -gt 0) { "-PGTestEnemyPlayers=$EnemyPlayers" }) -abslog=`"$serverLog`""
 Write-Host "서버 켬 (번호 $($server.Id)), 맵 여는 중..."
 $deadline = (Get-Date).AddMinutes(10)
 while ((Get-Date) -lt $deadline -and -not (Test-ServerReady)) {
@@ -39,6 +44,6 @@ if (-not (Test-ServerReady)) { Write-Host "10분 안에 서버가 맵 준비를 
 $clients = @()
 foreach ($i in 0, 1) {
     $x = 888 + 962 * $i
-    $clients += Start-Process $exe -PassThru -ArgumentList "`"$project`" 127.0.0.1 -game -windowed -WinX=$x -WinY=1470 -ResX=958 -ResY=540 -abslog=`"$(Join-Path $logs "client$($i + 1).log")`""
+    $clients += Start-Process $clientExe -PassThru -ArgumentList "`"$project`" 127.0.0.1 -game -windowed $netTimeout -WinX=$x -WinY=1470 -ResX=958 -ResY=540 -abslog=`"$(Join-Path $logs "client$($i + 1).log")`""
 }
 Write-Host "클라 2개 접속 중 (번호 $($clients[0].Id), $($clients[1].Id)). 서버 로그 [PGTest]·[EnemyAI] 줄: $serverLog"
