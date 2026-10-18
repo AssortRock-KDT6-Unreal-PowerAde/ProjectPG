@@ -198,6 +198,7 @@ void ACustomEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulu
 	{
 		const bool bWasVisible = bTargetVisible;
 		bTargetVisible = true;
+		bTargetEverSeen = true;
 		GetWorldTimerManager().ClearTimer(LoseTargetTimer);
 		if (!bWasVisible)
 		{
@@ -212,8 +213,12 @@ void ACustomEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulu
 	if (bSight) bTargetVisible = false;
 	if (!bTargetVisible && !GetWorldTimerManager().IsTimerActive(LoseTargetTimer))
 	{
-		if (Config->LoseTargetDelay <= 0.f) ForgetTarget(TEXT("시야에서 사라짐"));
-		else GetWorldTimerManager().SetTimer(LoseTargetTimer, this, &ThisClass::HandleLoseTargetTimeout, Config->LoseTargetDelay, false);
+		// 포기까지 기다리는 시간:
+		// - 한 번이라도 눈으로 본 목표 → LoseTargetDelay (숨으면 금방 수색으로 넘어감)
+		// - 소리로만 안 목표 → HeardTargetDelay (소리 난 쪽까지 걸어갈 시간)
+		const float Delay = bTargetEverSeen ? Config->LoseTargetDelay : Config->HeardTargetDelay;
+		if (Delay <= 0.f) ForgetTarget(TEXT("시야에서 사라짐"));
+		else GetWorldTimerManager().SetTimer(LoseTargetTimer, this, &ThisClass::HandleLoseTargetTimeout, Delay, false);
 	}
 }
 
@@ -240,6 +245,7 @@ void ACustomEnemyAIController::SetTarget(ACustomCharacter* NewTarget)
 	const bool bHadTarget = Target.IsValid();
 	Target = NewTarget;
 	bTargetVisible = false;
+	bTargetEverSeen = false;
 	GetWorldTimerManager().ClearTimer(LoseTargetTimer);  // 전 목표를 포기하려던 시계는 새 목표와 상관없음
 	LastKnownTargetLocation = NewTarget->GetActorLocation();
 	// 목표가 죽거나 사라지는 순간을 그쪽 알림으로 받는다(매번 살아 있는지 확인하지 않으려고).

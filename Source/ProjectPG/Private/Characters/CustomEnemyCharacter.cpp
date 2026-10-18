@@ -7,6 +7,7 @@
 #include "Equipments/FirearmEquipment.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "NavigationInvokerComponent.h"
 #include "Perception/AISense_Damage.h"
 #include "Engine/World.h"
 
@@ -20,6 +21,9 @@ ACustomEnemyCharacter::ACustomEnemyCharacter(const FObjectInitializer& ObjectIni
 	AbilitySystemComp->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	Voice = CreateDefaultSubobject<UEnemyVoiceComponent>(TEXT("Voice"));
+	// 둘레 40m 에 길을 만들고 60m 밖은 지운다. 사거리(12m)·엄폐 찾기·다가가기를 덮고, 몬스터가 많아도 길 만드는 양이 크지 않게.
+	NavInvoker = CreateDefaultSubobject<UNavigationInvokerComponent>(TEXT("NavInvoker"));
+	NavInvoker->SetGenerationRadii(4000.f, 6000.f);
 }
 
 void ACustomEnemyCharacter::BeginPlay()

@@ -95,6 +95,11 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="Hearing", meta=(ClampMin="0"))
 	float CalloutRange = 2500.f;
 
+	// 소리(총소리·동료 외침)로만 알고 아직 눈으로 못 본 목표를 이 초 동안 쫓은 뒤 포기한다.
+	// 왜: 눈으로 본 목표의 포기 시간(LoseTargetDelay 5초)을 같이 쓰니, 20m 넘게 걸어오기 전에 포기해 플레이어를 못 만났다.
+	UPROPERTY(EditDefaultsOnly, Category="Hearing", meta=(ClampMin="0"))
+	float HeardTargetDelay = 20.f;
+
 	// ── 목소리 (몬스터 머리에서 나는 소리) ──
 	// 각 목록에서 무작위로 하나를 튼다. 같은 말만 반복되지 않게 3개 이상 넣는 걸 권함.
 	UPROPERTY(EditDefaultsOnly, Category="Voice")
