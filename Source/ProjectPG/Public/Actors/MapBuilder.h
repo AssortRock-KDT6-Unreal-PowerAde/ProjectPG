@@ -218,6 +218,9 @@ public:
 	// 읽기 전용 데이터. 스폰·루팅 시스템이 읽기만 한다.
 	const TArray<FLevelDesignPoint>& GetLevelDesignPoints() const { return LevelDesignPoints; }
 	bool AreLevelDesignPointsBuilt() const { return bLevelDesignPointsBuilt; }
+	// 맵이 놀 준비가 됐나: 시설 레벨까지 다 붙고 끼임 정리가 끝남 → 이때부터 플레이어를 시작 자리에 세운다.
+	// 쓰는 곳: 시험용 몬스터 놓기(Dev/PGTestBattleSubsystem). 알려 주는 신호가 따로 없어 물어보는 함수만 둔다.
+	bool IsGameplayReady() const { return bFacilityLevelsSettled && bResolvedGameplayPointSafety; }
 
 	FOnLevelDesignPointsBuilt OnLevelDesignPointsBuilt;
 
