@@ -2,6 +2,7 @@
 
 #include "Actors/MapBuilder/MapBuildShared.h"
 #include "Actors/MapBuilder/MapAssetSet.h"
+#include "Actors/MapBuilder/PGLoadingScreenSubsystem.h"
 #include "Algo/MinElement.h"
 #include "EngineUtils.h"
 #include "Engine/OverlapResult.h"
@@ -475,6 +476,9 @@ void UMapPointPlanner::ResolveSafety()
 	}
 
 	Map->bResolvedGameplayPointSafety = true;
+	// 이 컴퓨터의 맵이 다 지어졌다 → 로딩 창이 닫힐 조건 중 하나(다른 하나는 서버가 자리에 세움). 화면 없는 서버에선 아무 일 없음.
+	if (UPGLoadingScreenSubsystem* Loading = UPGLoadingScreenSubsystem::Get(Map))
+		Loading->NotifyMapReady(Map->GetWorld());
 	RebuildHash();
 	UE_LOG(LogTemp, Display,
 		TEXT("Gameplay point safety resolution: relocated=%d unresolved=%d final_point_hash=%08X pass=%s sample=[%s]"),

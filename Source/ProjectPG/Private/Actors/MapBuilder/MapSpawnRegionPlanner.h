@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
@@ -55,6 +55,29 @@ private:
 	int32 NextPlayerJoinIndex = 0;
 	// 캐릭터 없이 들어와 있는 사람을 처음 본 시각(게임모드가 곧 만들 수도 있어 2초 기다린다).
 	TMap<TWeakObjectPtr<APlayerController>, double> PawnlessSinceSeconds;
+
+	// ---- 자리에 서기 전 무적 (흐름 그림 → README.md "로딩 창과 시작 무적") ----
+	// 아직 자리 번호가 없는 사람의 폰을 막아 둔다: 충돌 끄기 + 제자리 멈춤 + 데미지 안 받음 표시.
+	// 왜 충돌까지: 팀원 캐릭터의 피해 처리(Hit)는 "데미지 안 받음 표시(CanBeDamaged)" 를 안 본다.
+	//   충돌을 끄면 총알 선·근접 공격이 몸에 안 닿아서, 공격이 어떤 길로 오든 막힌다. 캐릭터 파일은 안 고친다.
+	// 자리 알림 부품도 여기서 붙인다(UMapSeatStatus → 그 사람 화면의 로딩 창을 닫는다).
+	void ProtectUnseatedPlayers();
+	// 자리에 세웠다: 막아 둔 폰을 풀고, 그 사람 컴퓨터에 "섰다" 를 보낸다.
+	void FinishSeat(APlayerController* PlayerController);
+	void ProtectPawn(APawn* Pawn);
+	void UnprotectPawn(APawn* Pawn);
+
+	// 막아 둔 폰과, 막기 전 "데미지 받음" 값(되돌릴 때 원래대로).
+	struct FProtectedPawn
+	{
+		TWeakObjectPtr<APawn> Pawn;
+		bool bWasDamageable = true;
+	};
+	TMap<TWeakObjectPtr<APlayerController>, FProtectedPawn> ProtectedByPlayer;
+	// 처음 본 시각. 맵 액터의 SpawnProtectionTimeoutSeconds(기본 60초)가 지나도 못 세우면 막기를 풀고 Error 로그(영영 무적보다 낫다).
+	TMap<TWeakObjectPtr<APlayerController>, double> FirstSeenSeconds;
+	// 시간 제한으로 막기를 푼 사람(다시 막지 않는다).
+	TSet<TWeakObjectPtr<APlayerController>> ProtectionTimedOut;
 
 private:
 	UPROPERTY()

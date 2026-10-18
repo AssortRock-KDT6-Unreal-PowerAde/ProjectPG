@@ -55,6 +55,8 @@
 #include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 #include "Actors/MapBuilder/MapPointPlanner.h"
 #include "Actors/MapBuilder/MapItemSpawner.h"
+#include "Actors/MapBuilder/PGLoadingScreenSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Actors/MapManifestActor.h"
 #include "Components/MapGeneratorComponent.h"
 using namespace MapBuild;
@@ -310,6 +312,11 @@ void AMapBuilder::BeginPlay()
 	Super::BeginPlay();
 	// 땅판·산·돌·풀 부품에 DA_MapAssets 의 메시·머티리얼을 먼저 끼운다(타일을 세우기 전에).
 	ApplyMapAssets();
+	// 화면이 있는 쪽(들어온 사람·방장·혼자)은 로딩 창부터 띄운다. 시작 구역 자리에 서면 닫힌다(UMapSeatStatus).
+	// 왜: 자리에 서기 전엔 아무 데나 생겨 멈춰 있는 모습이라, 그 동안은 가린다. 전용 서버는 화면이 없어 건너뜀.
+	if (GetNetMode() != NM_DedicatedServer && GetGameInstance() && GetGameInstance()->GetFirstGamePlayer())
+		if (UPGLoadingScreenSubsystem* Loading = UPGLoadingScreenSubsystem::Get(this))
+			Loading->ShowLoading(GetWorld(), GetMapAssets().LoadingScreenClass);
 	//부모거 다 진행하고 다음 검사기 진행
 	if (!Verifier)
 	//1. 아직 없으면	
