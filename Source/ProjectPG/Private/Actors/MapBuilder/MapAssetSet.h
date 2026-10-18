@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Actor/InteractActor.h"
+#include "GameFramework/Pawn.h"
 #include "MapAssetSet.generated.h"
 
 class UDataTable;
@@ -210,4 +211,34 @@ public:
 	// 맵 전체 지도 굽기를 기다리는 시간(초). 넘으면 Error 로그만 남기고 계속 기다린다. 에디터 서버에서 약 36초 걸린다.
 	UPROPERTY(EditAnywhere, Category = "길찾기", meta = (ClampMin = "10"))
 	float NavigationBuildTimeoutSeconds = 90.0f;
+
+	// ---------- 몬스터 (몬스터 담당 UMapEnemySpawner, 서버만) ----------
+	// 맵이 다 지어지고 길찾기 지도까지 구워지면, 몬스터 자리(AISpawn 지점)에 놓을 몬스터 BP 목록. 마리마다 이 중 하나를 고른다.
+	// 비어 있으면 몬스터를 하나도 안 놓는다(Error 로그). 채우는 스크립트: Tools/level/setup_enemy_spawns.py
+	UPROPERTY(EditAnywhere, Category = "몬스터")
+	TArray<TSoftClassPtr<APawn>> EnemyClasses;
+	// 판 전체 몬스터 최대 수. 데디 서버가 몬스터마다 AI·길찾기를 돌리므로 너무 많으면 서버가 느려진다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	int32 MaxEnemies = 16;
+	// 몬스터 자리 하나에 몇 마리를 같이 놓을지(최소~최대, 판마다 자리마다 굴림). 자리에 적힌 정원(보통 3)을 넘지 않는다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "1"))
+	int32 MinEnemiesPerPoint = 1;
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "1"))
+	int32 MaxEnemiesPerPoint = 2;
+	// 시작 구역(플레이어가 서는 자리)에서 이 거리(cm) 안의 몬스터 자리는 쓰지 않는다. 접속 직후 바로 죽지 않게.
+	// 몬스터가 보는 거리(EnemyTable, 약 25m)보다 멀게 둔다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	float MinDistanceFromPlayerStartCm = 3000.0f;
+	// 시작 구역마다 이 거리(cm) 안의 몬스터 자리 몇 곳을 먼저 채운다. 어느 구역에서 나와도 조금 걸으면 몬스터를 만나게.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	int32 NearStartPointsPerRegion = 2;
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	float NearStartSearchRadiusCm = 15000.0f;
+	// 몬스터 자리의 땅 높이와 이만큼(cm) 넘게 다른 길 위 점(담·지붕 꼭대기)에는 놓지 않는다.
+	// 왜: 길찾기 지도가 담 꼭대기에도 생겨, 거기 놓인 몬스터가 끼어 못 움직이고 공중에 떠 보였다(2026-10-18 시험).
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "10"))
+	float MaxSpawnHeightDiffCm = 150.0f;
+	// 길찾기 지도가 다 구워지길 기다리는 시간(초). 넘으면 Error 로그를 남기고 계속 기다린다(늦게라도 구워지면 그때 놓음).
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "10"))
+	float EnemyNavigationWaitTimeoutSeconds = 150.0f;
 };

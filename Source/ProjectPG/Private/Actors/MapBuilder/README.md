@@ -13,7 +13,14 @@
    - 못 불러오거나 30초가 지나면 → 안 온 레벨 이름을 Error 로그로 남기고 다음으로 넘어간다
 5. 시설이 다 오면 → 벽 속에 박힌 자리를 옮긴다 (`ResolveSafety`)
 6. 그다음 → 서버가 상자 자리마다 상자를 놓는다. 들어온 사람은 서버가 놓은 상자를 받아서 센다 (`SpawnLootOnce`)
-7. 마지막으로 → 검사기가 맵을 한 번 검사하고 (`RunFinalChecks`), 시간이 걸리는 검사는 0.1초마다 이어서 한다. 다 끝나거나 120초가 지나면 멈춘다 (`RunTimedChecks`)
+7. 상자 다음, 서버에서만 → 몬스터 담당이 몬스터 자리(AISpawn 지점)에 몬스터를 놓는다 (`UMapEnemySpawner::SpawnWhenNavigationReady`)
+   - 길찾기 지도가 이미 다 구워졌으면 → 바로 놓는다
+   - 아직이면 → "길찾기 준비 끝" 알림을 기다렸다가 놓는다. 150초가 지나도 안 오면 Error 로그를 남기고 계속 기다린다
+   - 놓는 순서: 시작 구역마다 150m 안의 자리 2곳 먼저 → 나머지 자리는 판 시드로 섞은 순서. 자리마다 1~2마리, 판 전체 16마리까지
+   - 시작 구역에서 30m 안의 자리는 버린다(접속 직후 죽지 않게). 자리 땅 높이와 1.5m 넘게 다른 길 위 점(담·지붕 꼭대기)에는 안 놓는다
+   - 로그: `Warzone enemies spawned: count=` (0마리면 Error 로그에 이유 숫자)
+   - 숫자·몬스터 BP 는 전부 `DA_MapAssets` 의 "몬스터" 칸. BP 목록 채우기: `Tools/level/setup_enemy_spawns.py`
+8. 마지막으로 → 검사기가 맵을 한 번 검사하고 (`RunFinalChecks`), 시간이 걸리는 검사는 0.1초마다 이어서 한다. 다 끝나거나 120초가 지나면 멈춘다 (`RunTimedChecks`)
 
 ```mermaid
 flowchart TD
@@ -28,6 +35,10 @@ flowchart TD
     FacilityCheck -- "실패 / 30초 넘음" --> FacilityError["Error 로그<br/>안 온 레벨 이름"]
     FacilityError --> FixStuck
     FixStuck --> PlaceBoxes["상자 놓기<br/>서버가 놓고 클라는 받음"]
+    PlaceBoxes --> EnemyWait{"길찾기 지도<br/>다 구웠나?"}
+    NavReady -. "알림" .-> EnemyWait
+    EnemyWait -- "예" --> PlaceEnemies["몬스터 놓기<br/>서버만, 시작 구역에서 30m 밖"]
+    EnemyWait -- "150초 넘음" --> EnemyLate["Error 로그<br/>계속 기다림"]
     PlaceBoxes --> FinalCheck["맵 검사 한 번"]
     FinalCheck --> TimedCheck["오래 걸리는 검사<br/>0.1초마다, 120초까지"]
 ```

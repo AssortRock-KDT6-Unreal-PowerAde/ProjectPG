@@ -56,6 +56,7 @@
 #include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 #include "Actors/MapBuilder/MapPointPlanner.h"
 #include "Actors/MapBuilder/MapItemSpawner.h"
+#include "Actors/MapBuilder/MapEnemySpawner.h"
 #include "Actors/MapBuilder/PGLoadingScreenSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Actors/MapManifestActor.h"
@@ -374,6 +375,11 @@ void AMapBuilder::BeginPlay()
 	{
 		NavigationBuilder = NewObject<UMapNavigationBuilder>(this, TEXT("NavigationBuilder"));
 		NavigationBuilder->Init(this);
+	}
+	if (!EnemySpawner)
+	{
+		EnemySpawner = NewObject<UMapEnemySpawner>(this, TEXT("EnemySpawner"));
+		EnemySpawner->Init(this);
 	}
 	// 예전엔 여기서 "서버가 아니면 끝" 이었다. 이제 들어온 사람도 맵 설계도(AMapManifestActor)로
 	// 칸 쪽지를 받아 같은 맵을 직접 세우므로, 서버든 들어온 사람이든 둘 다 기다린다.
@@ -843,9 +849,11 @@ void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
 		}),
 		LoadedLevelCount, FailedLevels.Num(), PendingLevels.Num());
 
-	// 시설 벽이 다 들어왔으니: 벽 속 지점을 빈 곳으로 옮기고 → 상자를 놓는다(서버만).
+	// 시설 벽이 다 들어왔으니: 벽 속 지점을 빈 곳으로 옮기고 → 상자를 놓고 → 몬스터를 놓는다(서버만).
 	PointPlanner->ResolveSafety();
 	ItemSpawner->SpawnLootOnce();
+	// 몬스터는 길찾기 지도가 다 구워진 뒤에 놓는다(서버만). 이미 구워졌으면 바로, 아니면 다 구웠다는 알림을 기다린다.
+	EnemySpawner->SpawnWhenNavigationReady();
 
 	// 검사기: 바로 끝나는 검사는 지금 한 번, 시간이 걸리는 검사(길찾기 지도 등)는 0.1초마다 도는 타이머로.
 	Verifier->RunFinalChecks();
