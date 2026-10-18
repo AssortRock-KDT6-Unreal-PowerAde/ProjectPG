@@ -229,6 +229,13 @@ public:
 	// 들어온 사람: 맵 설계도가 도착하면 시드·상자 크기를 넣는다(칸 쪽지를 만들기 전에).
 	void ApplyReplicatedManifest(int64 InSeed, int32 InStartRange);
 
+	// 서버: 맵 전체 길찾기 지도를 다 구웠나. 몬스터를 내보내거나 움직이게 하는 쪽은 이게 참이 된 뒤에.
+	// 왜: 굽는 데 수십 초 걸리고, 그 전엔 이동 명령(MoveTo·순찰 점 고르기)이 실패한다.
+	bool IsNavigationReady() const;
+	// 서버: 길찾기 지도를 다 구웠을 때 한 번 알린다(시간 제한이 지난 뒤 늦게 끝나도 그때 한 번).
+	// 이미 끝났으면 붙기 전에 IsNavigationReady() 로 먼저 확인한다.
+	FSimpleMulticastDelegate OnNavigationReady;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -321,6 +328,11 @@ private:
 	friend class UMapItemSpawner;
 	UPROPERTY(Transient)
 	TObjectPtr<class UMapItemSpawner> ItemSpawner;
+
+	// 협력객체 : 길찾기 지도 담당(맵 크기 영역 넣기 → 뒤에서 굽기 → 다 구우면 OnNavigationReady). 서버만.
+	friend class UMapNavigationBuilder;
+	UPROPERTY(Transient)
+	TObjectPtr<class UMapNavigationBuilder> NavigationBuilder;
 
 	// ---- 기획 숫자(에디터에서 맵 액터를 골라 바꾼다) ----
 	// 워존에 놓는 2×2 마당 시설 수.

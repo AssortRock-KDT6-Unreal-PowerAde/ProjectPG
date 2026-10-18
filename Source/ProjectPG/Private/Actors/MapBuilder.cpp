@@ -44,6 +44,7 @@
 #include "HAL/PlatformMemory.h"
 #include "Materials/MaterialInterface.h"
 #include "Actors/MapBuilder/MapVerifier.h"
+#include "Actors/MapBuilder/MapNavigationBuilder.h"
 // 같이 쓰는 숫자·경로·작은 계산은 MapBuildShared.h 한 곳에 있다(일꾼들도 같은 것을 본다).
 #include "Actors/MapBuilder/MapBuildShared.h"
 #include "Actors/MapBuilder/MapAssetSet.h"
@@ -369,6 +370,11 @@ void AMapBuilder::BeginPlay()
 		ItemSpawner = NewObject<UMapItemSpawner>(this, TEXT("ItemSpawner"));
 		ItemSpawner->Init(this);
 	}
+	if (!NavigationBuilder)
+	{
+		NavigationBuilder = NewObject<UMapNavigationBuilder>(this, TEXT("NavigationBuilder"));
+		NavigationBuilder->Init(this);
+	}
 	// 예전엔 여기서 "서버가 아니면 끝" 이었다. 이제 들어온 사람도 맵 설계도(AMapManifestActor)로
 	// 칸 쪽지를 받아 같은 맵을 직접 세우므로, 서버든 들어온 사람이든 둘 다 기다린다.
 	// 쪽지가 생길 때까지는 TryReserveFootprint 가 아무것도 안 하고 돌아온다.
@@ -537,6 +543,9 @@ void AMapBuilder::TryReserveFootprint()
 		NavigationFloor->SetRelativeScale3D(
 			FVector(NavigationFloorScale, NavigationFloorScale, 0.2f));
 	}
+	// 바닥판 크기가 정해졌으니 그 크기만큼 길찾기 지도를 뒤에서 굽기 시작한다(서버만).
+	if (IsValid(NavigationFloor))
+		NavigationBuilder->StartBuild(NavigationFloor->Bounds.GetBox());
 
 	// 칸마다 어떤 타일을 몇 도 돌려 놓을지는 칸 모양 담당이 정한다(흙길은 그 안에서 흙길 담당에게 묻는다).
 	TilePlanner->BuildTileDesignPlacements(TileByCell);
@@ -842,6 +851,12 @@ void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
 	Verifier->RunFinalChecks();
 	TimedChecksStartSeconds = GetWorld()->GetTimeSeconds();
 	GetWorldTimerManager().SetTimer(TimedChecksTimer, this, &AMapBuilder::RunTimedChecks, 0.1f, true);
+}
+
+// 서버: 길찾기 지도를 다 구웠나(길찾기 지도 담당에게 묻는다). 담당이 아직 없으면 아니다.
+bool AMapBuilder::IsNavigationReady() const
+{
+	return NavigationBuilder && NavigationBuilder->IsReady();
 }
 
 void AMapBuilder::RunTimedChecks()
