@@ -9,6 +9,7 @@
 #include "GameplayAbilities/CharacterAttributeSet.h"
 #include "Common/GameData.h"
 #include "Combat/Hittable.h"
+#include "Engine/NetSerialization.h"
 #include "CustomCharacter.generated.h"
 
 struct FWeaponAnimationSet;
@@ -68,6 +69,13 @@ private:
 	TSet<TWeakObjectPtr<class AEquipment>> AmmoCapacityEquipment;
 	TWeakObjectPtr<class AFirearmEquipment> PendingFirearm;
 	FTimerHandle AutomaticFireTimer;
+	// 내 화면 조준 보내기(쏘는 동안만, 0.1초마다) / 서버가 받은 값과 받은 시각.
+	FTimerHandle AimViewSendTimer;
+	void SendAimViewToServer();
+	FVector ClientAimLocation = FVector::ZeroVector;
+	FVector ClientAimDirection = FVector::ForwardVector;
+	double ClientAimTime = -1.0;
+	double LastBadAimWarningTime = -100.0;
 	FTimerHandle PendingFireTimeout;
 	bool bFireInputHeld = false;
 	bool bPendingFire = false;
@@ -116,6 +124,12 @@ public:
 	void SetFireInput(bool bPressed);
 	UFUNCTION(Server, Reliable)
 	void OnReq_SetFireInput(bool bPressed);
+	// 쏘는 동안 내 화면의 조준(카메라 위치·방향)을 서버에 보낸다(0.1초마다). 서버는 말이 되는지 검사한 뒤 총알 판정에 쓴다.
+	// 왜: 데디 서버의 카메라 위치가 실제 화면과 달라, 화면엔 보이는 몬스터가 패키지 서버에서 안 맞았다(2026-10-19).
+	UFUNCTION(Server, Reliable)
+	void OnReq_UpdateAimView(FVector_NetQuantize CameraLocation, FVector_NetQuantizeNormal CameraDirection);
+	// 서버: 방금(0.5초 안) 받은 내 화면 조준이 있으면 true.
+	bool GetClientAimView(FVector& Location, FVector& Direction) const;
 	virtual void Fire();
 	virtual void GetCombatViewPoint(FVector& Location, FRotator& Rotation) const;
 

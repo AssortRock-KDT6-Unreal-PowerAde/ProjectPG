@@ -230,6 +230,15 @@ USpringArmComponent* ACustomPlayerCharacter::GetCameraArm() const
 void ACustomPlayerCharacter::GetCombatViewPoint(FVector& Location, FRotator& Rotation) const
 {
 	Super::GetCombatViewPoint(Location, Rotation);
+	// 서버에서 다른 사람(원격 플레이어)의 총알: 그 사람이 방금 보낸 화면 조준을 쓴다(OnReq_UpdateAimView 에서 검사 끝난 값).
+	// 왜: 데디 서버의 카메라 위치는 실제 화면과 달라질 수 있다. 받은 게 없거나 오래됐으면 아래 서버 카메라로.
+	FVector AimLocation, AimDirection;
+	if (HasAuthority() && !IsLocallyControlled() && GetClientAimView(AimLocation, AimDirection))
+	{
+		Location = AimLocation;
+		Rotation = AimDirection.Rotation();
+		return;
+	}
 	if (IsValid(CameraComp)) Location = CameraComp->GetComponentLocation();
 	// 서버가 보유한 ControlRotation 기준. 클라이언트가 보낸 HitResult는 신뢰하지 않습니다.
 	Rotation = GetControlRotation();

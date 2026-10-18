@@ -158,7 +158,56 @@ void ACustomCharacter::SetFireInput(bool bPressed)
 			if (SprintHandle.IsValid()) ASC->CancelAbilityHandle(SprintHandle);
 		}
 	// [멀티 임시수정] 끝
+	// 쏘는 동안 내 화면 조준을 서버로 보낸다. 발사 요청보다 먼저 보내서(둘 다 순서 보장) 첫 발부터 내 조준으로 판정된다.
+	// 놓으면 그만 보낸다 → 쏘지 않을 땐 네트워크를 안 쓴다.
+	if (bPressed)
+	{
+		SendAimViewToServer();
+		GetWorldTimerManager().SetTimer(AimViewSendTimer, this, &ThisClass::SendAimViewToServer, 0.1f, true);
+	}
+	else GetWorldTimerManager().ClearTimer(AimViewSendTimer);
 	OnReq_SetFireInput(bPressed);
+}
+
+void ACustomCharacter::SendAimViewToServer()
+{
+	if (!IsLocallyControlled() || HasAuthority()) return;  // 서버(혼자 하기·방장)는 자기 카메라를 그대로 쓴다
+	FVector Location; FRotator Rotation;
+	GetCombatViewPoint(Location, Rotation);
+	OnReq_UpdateAimView(Location, Rotation.Vector());
+}
+
+void ACustomCharacter::OnReq_UpdateAimView_Implementation(FVector_NetQuantize CameraLocation, FVector_NetQuantizeNormal CameraDirection)
+{
+	// 말이 되는 조준만 받는다(속임 방지):
+	// - 카메라가 내 몸에서 6m 넘게 떨어짐 → 버림
+	// - 방향이 서버가 아는 내 시선(ControlRotation)과 30도 넘게 다름 → 버림
+	// 버리면 서버 쪽 카메라로 판정(예전 방식)하고, 5초에 한 번만 Warning.
+	const FVector Direction = FVector(CameraDirection).GetSafeNormal();
+	const bool bNear = FVector::DistSquared(CameraLocation, GetActorLocation()) <= FMath::Square(600.f);
+	const bool bSameWay = FVector::DotProduct(Direction, GetControlRotation().Vector()) >= FMath::Cos(FMath::DegreesToRadians(30.f));
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (!bNear || !bSameWay || Direction.IsNearlyZero())
+	{
+		if (Now - LastBadAimWarningTime > 5.0)
+		{
+			LastBadAimWarningTime = Now;
+			UE_LOG(LogTemp, Warning, TEXT("[Aim] %s: 받은 화면 조준을 버림(몸과 거리 %.1fm, 시선과 같은 쪽=%d)"), *GetName(),
+				FVector::Dist(CameraLocation, GetActorLocation()) / 100.f, bSameWay ? 1 : 0);
+		}
+		return;
+	}
+	ClientAimLocation = CameraLocation;
+	ClientAimDirection = Direction;
+	ClientAimTime = Now;
+}
+
+bool ACustomCharacter::GetClientAimView(FVector& Location, FVector& Direction) const
+{
+	if (ClientAimTime < 0.0 || GetWorld()->GetTimeSeconds() - ClientAimTime > 0.5) return false;
+	Location = ClientAimLocation;
+	Direction = ClientAimDirection;
+	return true;
 }
 
 void ACustomCharacter::OnReq_SetFireInput_Implementation(bool bPressed)
