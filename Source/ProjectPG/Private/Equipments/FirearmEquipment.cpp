@@ -186,8 +186,9 @@ bool AFirearmEquipment::Fire()
 	// 원인을 찾아 고치면 이 로그(FireHit)는 지운다. 몬스터가 쏜 총알은 너무 많아 남기지 않는다.
 	const bool bLogShot = Character->IsPlayerControlled();
 	if (bLogShot)
-		UE_LOG(LogTemp, Display, TEXT("[FireHit] %s 발사: 카메라 조준선이 닿은 것=%s(%s) 거리 %.1fm, 총구→조준점 %.1fm, 퍼짐 %.1f도, 갈래 %d"),
-			*GetNameSafe(Character), *GetNameSafe(CameraHit.GetActor()), *GetNameSafe(CameraHit.GetComponent()), CameraHit.bBlockingHit ? CameraHit.Distance / 100.f : -1.f,
+		UE_LOG(LogTemp, Display, TEXT("[FireHit] %s 발사: 서버 카메라-몸 차이 %s, 방향 %s, 카메라 조준선이 닿은 것=%s(%s) 거리 %.1fm, 총구→조준점 %.1fm, 퍼짐 %.1f도, 갈래 %d"),
+			*GetNameSafe(Character), *(ViewLocation - Character->GetActorLocation()).ToCompactString(), *ViewRotation.ToCompactString(),
+			*GetNameSafe(CameraHit.GetActor()), *GetNameSafe(CameraHit.GetComponent()), CameraHit.bBlockingHit ? CameraHit.Distance / 100.f : -1.f,
 			FVector::Dist(Muzzle, AimPoint) / 100.f, FirearmData.ConeHalfAngle, FirearmData.TraceCount);
 	// Broad phase: 원뿔을 감싸는 구로 후보를 얻은 뒤 원뿔 내부 여부를 검사합니다.
 	TArray<FOverlapResult> Overlaps;
