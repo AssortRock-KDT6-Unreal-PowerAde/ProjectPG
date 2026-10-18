@@ -18,6 +18,15 @@ param(
 )
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $project = Join-Path $root "ProjectPG.uproject"
+# 구글 드라이브로 나눈 에셋 팩(깃에 없음)이 이 폴더 Content 에 있는지 먼저 본다.
+# 왜: 팩이 없는 폴더(깃만 받은 폴더, 작업용 복사 폴더)에서 돌리면 맵 조각을 못 읽어 60초 뒤 "Map build gave up" 만 뜬다(2026-10-19).
+$needPacks = @("Factory_Pack_V1", "GV_FreeShrubsPack", "Modular_Rural_Cabin", "Weapons_Free")
+$missing = $needPacks | Where-Object { -not (Test-Path (Join-Path $root "Content\$_")) }
+if ($missing) {
+    Write-Host "이 폴더($root)의 Content 에 에셋 팩이 없습니다: $($missing -join ', ')"
+    Write-Host "구글 드라이브 팩을 넣은 프로젝트 폴더의 Tools\test\EnemyVoiceTileTest.ps1 로 돌리세요."
+    exit 1
+}
 $exe = Join-Path $Engine "Engine\Binaries\Win64\UnrealEditor.exe"
 # 클라는 UnrealEditor-Cmd.exe 로 띄운다(같은 엔진, 콘솔 창만 하나 더 뜸).
 # 왜: 다른 프로젝트(BamtolChase)의 시험 정리 스크립트가 "UnrealEditor.exe ... -game" 을 프로젝트 구분 없이 다 꺼서, 우리 창이 로딩 중에 꺼졌다.
