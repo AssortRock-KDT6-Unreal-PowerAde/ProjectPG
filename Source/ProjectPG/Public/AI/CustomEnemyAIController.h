@@ -12,11 +12,14 @@ class UEnemyAIConfig;
 class UStateTreeAIComponent;
 class UAISenseConfig_Sight;
 class UAISenseConfig_Damage;
+class UAISenseConfig_Hearing;
 class UEnemyCoverFinderComponent;
 
 // 몬스터 한 마리의 "머리". 서버에만 있다(클라이언트엔 AI 컨트롤러가 안 생김).
 // 하는 일:
 //  - 눈(AI Perception)으로 보거나 맞으면 목표를 정하고, 상태 트리에 알림을 보낸다.
+//  - 귀로 총소리·동료 외침을 들으면 그 소리가 가리키는 플레이어를 목표로 삼는다.
+//  - 플레이어를 처음 보면 소리 질러 둘레 동료를 부른다.
 //  - 상태 트리(순찰/전투/수색)가 부르는 이동·엄폐 찾기·사격을 실제로 한다.
 //  - 기다리는 일(이동, 엄폐 찾기, 목표 놓침)엔 모두 시간 제한이 있고, 넘으면 로그를 남긴다.
 // 무엇을 할지 "고르는" 일은 상태 트리 에셋(ST_Enemy)이 하고, 여기엔 "어떻게 하는지"만 있다.
@@ -76,7 +79,7 @@ protected:
 	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
 
 private:
-	// 눈이나 피격 감각에 무언가 들어오거나 빠질 때 엔진이 부른다.
+	// 눈·귀·피격 감각에 무언가 들어오거나 빠질 때 엔진이 부른다.
 	UFUNCTION() void HandlePerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 	// 목표/자기 체력이 바뀌었을 때(0 이하면 죽음).
 	UFUNCTION() void HandleTargetHealthChanged(float Current, float Maximum);
@@ -85,6 +88,8 @@ private:
 
 	bool IsValidTarget(const AActor* Actor) const;
 	void SetTarget(ACustomCharacter* NewTarget);
+	// 목표를 눈으로 처음 봤을 때: 외치고, 외쳤으면 둘레 동료에게 "여기 적 있다" 소리를 퍼뜨린다.
+	void ShoutTargetSpotted();
 	void ForgetTarget(const TCHAR* Reason);
 	void HandleLoseTargetTimeout();
 	void HandleMoveTimeout();
@@ -103,6 +108,8 @@ private:
 	TObjectPtr<UAISenseConfig_Sight> SightConfig;
 	UPROPERTY()
 	TObjectPtr<UAISenseConfig_Damage> DamageConfig;
+	UPROPERTY()
+	TObjectPtr<UAISenseConfig_Hearing> HearingConfig;
 	UPROPERTY(Transient)
 	TObjectPtr<const UEnemyAIConfig> Config;
 

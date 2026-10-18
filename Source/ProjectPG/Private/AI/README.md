@@ -11,7 +11,9 @@
 | 행동 숫자(시야 각도, 포기 시간, 시간 제한…) | `DA_EnemyAI_Rifle` (`UEnemyAIConfig`) | 에디터 |
 | 몬스터 종류별 숫자(감지 거리, 사거리, 체력…) | `EnemyTable` | 에디터 |
 | 어떤 DA 를 쓸지 | `CBP_CustomEnemyCharacter` 의 AIConfig 칸 | 에디터 |
-| 감지·목표 정하기·이동·사격 | `CustomEnemyAIController` | C++ |
+| 감지(눈·귀·피격)·목표 정하기·이동·사격·외침 | `CustomEnemyAIController` | C++ |
+| 외침·비명 틀기 | `EnemyVoiceComponent` (몬스터 몸에 붙음) | C++ |
+| 어떤 소리를 틀지, 들리는 거리 | `DA_EnemyAI_Rifle` 의 Voice·Hearing 칸 | 에디터 (`Tools/audio/import_enemy_voice.py`) |
 | 엄폐 자리·옆 쏠 자리 확인 | `EnemyCoverFinderComponent` (컨트롤러에 붙음) | C++ |
 | 상태 트리 작업 조각 | `EnemyStateTreeNodes` | C++ |
 
@@ -24,6 +26,8 @@
 1. 맵에 놓인 몬스터가 깨어난다 → 표(EnemyTable)에서 체력·감지 거리를 읽고 총을 든다.
 2. 할 일이 없으면 처음 자리 둘레를 걸어 다니고, 가끔 멈춰 서 있는다(순찰).
 3. 플레이어가 눈에 들어오거나 총에 맞으면 → 그 사람을 목표로 정하고 싸우기 시작한다(전투).
+   - 눈으로 처음 봤으면 → 소리 지르고, 그 소리가 들리는 둘레 몬스터도 그 플레이어를 노리고 온다.
+   - 총소리나 동료 외침을 들어도 → 그 플레이어를 목표로 정하고 다가온다.
 4. 싸우는 동안엔 상황을 보고 셋 중 하나를 고른다.
    - 쏠 수 있는 거리고 엄폐할 때가 됐으면 → 벽 뒤에 숨었다가 옆으로 나와 쏜다.
    - 보이고 쏠 수 있는 거리면 → 그 자리에서 쏜다.
@@ -68,6 +72,32 @@ flowchart TD
     LoseClock -->|그동안 다시 안 보임| Lost[상태 트리에: 목표 포기]
     TargetDied[목표 체력 0 / 목표 사라짐] --> Lost
     SelfDied[내 체력 0] --> TreeStops[상태 트리 멈춤]
+```
+
+## 소리 지르기와 듣기
+
+말로 된 흐름:
+- 몬스터 A 가 플레이어를 눈으로 처음 봄 → A 가 외침("적 발견!") → 모든 클라이언트에서 A 머리에서 소리가 남
+- 동시에 A 자리에서 "이 플레이어 봤다" 소리 신호가 퍼짐(CalloutRange 안)
+- 그 안에 있고 아직 목표가 없는 몬스터 B 가 귀로 들음 → 그 플레이어를 목표로 정함 → 상태 트리에 "목표 찾음" → 다가감
+- B 는 자기 눈으로 플레이어를 볼 때까지 외치지 않음 → 외침이 맵 전체로 번지지 않음
+- 플레이어가 총을 쏨 → 총구 자리에서 총소리 신호(HearingRange 안) → 목표 없는 몬스터가 듣고 그 플레이어를 목표로 정함
+- B 가 끝내 플레이어를 못 보면 → 보통 때처럼 LoseTargetDelay 뒤 포기 → 들은 자리로 가서 둘러봄(수색)
+- 몬스터가 총에 맞아 체력이 깎임 → "악!"(HurtCooldown 안에 또 맞으면 생략), 그 총알로 죽으면 → 죽는 소리 한 번
+- 같은 몬스터는 TargetSpottedCooldown 안엔 다시 외치지 않음(숨었다 나올 때마다 외치지 않게)
+
+```mermaid
+flowchart TD
+    SeesPlayer[몬스터 A 가 플레이어를 처음 봄] --> Shout[A 가 외침: 모든 클라에서 소리]
+    Shout --> CalloutNoise[A 자리에서 '이 플레이어 봤다' 신호]
+    CalloutNoise --> BuddyHears[둘레의 목표 없는 몬스터 B 가 들음]
+    PlayerShoots[플레이어가 총을 쏨] --> GunshotNoise[총구 자리에서 총소리 신호]
+    GunshotNoise --> BuddyHears
+    BuddyHears --> BuddyTarget[B: 그 플레이어를 목표로 → 목표 찾음]
+    BuddyTarget --> BuddyApproach[B 가 다가감]
+    BuddyApproach -->|눈으로 봄| BuddyShout[B 도 외침]
+    BuddyApproach -->|끝내 못 봄| BuddySearch[포기 → 들은 자리 수색]
+    GotHit[몬스터가 총에 맞음] --> Hurt[악! / 죽으면 죽는 소리]
 ```
 
 ## 상태 트리 ST_Enemy (무엇을 할지 고르기)
@@ -141,9 +171,10 @@ stateDiagram-v2
 
 ## 멀티 시험
 
-시험 맵 `L_EnemyAITest`(바닥·벽·시작 자리 2개·몬스터 1마리, 게임모드 `BP_EnemyAITestGameMode`)에서 데디 서버 + 클라 2명.
+시험 맵 `L_EnemyAITest`(바닥·벽·시작 자리 2개·몬스터 1마리 + 등 돌린 동료 1마리, 게임모드 `BP_EnemyAITestGameMode`)에서 데디 서버 + 클라 2명.
 맵은 `Tools/level/build_enemy_ai_test_level.py` 로 만든다(실행법은 파일 맨 위).
 서버 로그 `[EnemyAI]` 줄에 "목표 정함 → 엄폐 자리 찾기 → … → 사격 → 목표 포기 → 수색" 이 차례로 나오면 정상.
+동료 부르기: 앞 몬스터 "발견, 외침" 바로 뒤에 동료 "동료 외침 듣고 … 쪽으로 감" 이 나오면 정상. 클라 2명 모두에서 외침·비명이 들려야 함.
 일반 맵(GameModePG 계열)은 MapBuilder 가 플레이어를 몬스터와 먼 시작 구역에 세워서 전투 확인용으론 안 맞는다.
 
 ## 매 프레임 도는 것

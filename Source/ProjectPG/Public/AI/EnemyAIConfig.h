@@ -84,4 +84,39 @@ public:
 	// 쏘는 동안 조준 각도·탄약·시야를 다시 확인하는 간격(초).
 	UPROPERTY(EditDefaultsOnly, Category="Fire", meta=(ClampMin="0.05"))
 	float FireCheckInterval = 0.2f;
+
+	// ── 귀(청각 감지) ──
+	// 총소리·동료 외침을 이 거리(cm) 안에서 듣는다. 벽 너머도 들린다.
+	UPROPERTY(EditDefaultsOnly, Category="Hearing", meta=(ClampMin="0"))
+	float HearingRange = 4000.f;
+
+	// 플레이어를 보고 외치면 이 거리(cm) 안의 다른 몬스터가 그 플레이어를 노리고 온다.
+	// HearingRange 보다 크면 HearingRange 까지만 퍼진다(듣는 쪽 귀가 거기까지라서).
+	UPROPERTY(EditDefaultsOnly, Category="Hearing", meta=(ClampMin="0"))
+	float CalloutRange = 2500.f;
+
+	// ── 목소리 (몬스터 머리에서 나는 소리) ──
+	// 각 목록에서 무작위로 하나를 튼다. 같은 말만 반복되지 않게 3개 이상 넣는 걸 권함.
+	UPROPERTY(EditDefaultsOnly, Category="Voice")
+	TArray<TObjectPtr<class USoundBase>> TargetSpottedSounds;
+	UPROPERTY(EditDefaultsOnly, Category="Voice")
+	TArray<TObjectPtr<class USoundBase>> HurtSounds;
+	UPROPERTY(EditDefaultsOnly, Category="Voice")
+	TArray<TObjectPtr<class USoundBase>> DeathSounds;
+
+	// 거리에 따라 작아지는 정도. 비우면 소리가 맵 어디서나 같은 크기로 들리니 꼭 넣는다.
+	UPROPERTY(EditDefaultsOnly, Category="Voice")
+	TObjectPtr<class USoundAttenuation> VoiceAttenuation;
+
+	// 같은 몬스터가 다시 외치기까지 기다리는 초. 숨었다 나올 때마다 외치지 않게.
+	UPROPERTY(EditDefaultsOnly, Category="Voice", meta=(ClampMin="0"))
+	float TargetSpottedCooldown = 8.f;
+
+	// 맞는 소리 사이 최소 초. 연사에 맞을 때 "악악악" 이 되지 않게.
+	UPROPERTY(EditDefaultsOnly, Category="Voice", meta=(ClampMin="0"))
+	float HurtCooldown = 0.8f;
+
+	// 목소리 높낮이를 이 범위에서 무작위로 바꾼다(1 = 그대로). 같은 파일도 조금씩 다르게 들림.
+	UPROPERTY(EditDefaultsOnly, Category="Voice", meta=(ClampMin="0.5", ClampMax="2"))
+	FVector2D VoicePitchRange = FVector2D(0.94f, 1.06f);
 };
