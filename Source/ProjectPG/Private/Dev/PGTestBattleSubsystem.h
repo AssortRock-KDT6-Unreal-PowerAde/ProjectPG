@@ -31,7 +31,10 @@ private:
 	// 0.5초마다: 새로 들어온 사람에게 총을 주고, 맵이 준비됐으면 아직 몬스터를 안 받은 사람 둘레에 놓는다.
 	void Check();
 	void GiveRifle(APlayerController* Controller);
-	// 그 사람 둘레에 몬스터를 놓는다. 길(네비) 위 자리를 다 찾았으면 true, 아직 길이 없으면 false(다음에 다시).
+	// 그 사람 몸에 "내 둘레에 길(네비)을 만들어라" 부품을 붙인다.
+	// 왜: 타일 맵은 길을 맵 가운데 120m 안에서만 만드는데, 시작 구역은 가장자리라 몬스터가 놓일 길이 없다.
+	void AddNavInvoker(APawn* Pawn);
+	// 그 사람 둘레에 몬스터를 놓는다. 다 놓았거나 기다리다 포기했으면 true, 아직 길이 덜 생겼으면 false(다음에 다시).
 	bool SpawnEnemiesAround(APlayerController* Controller);
 
 	int32 EnemiesPerPlayer = 0;

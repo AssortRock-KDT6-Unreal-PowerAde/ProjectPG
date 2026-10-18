@@ -21,14 +21,16 @@ $map = "/Game/PG/Level/TestLevel_MapGenerating?game=/Game/PG/Blueprint/GM_InGame
 $enemyClass = "/Game/PG/Blueprint/Characters/CBP_CustomEnemyCharacter.CBP_CustomEnemyCharacter_C"
 $serverLog = Join-Path $logs "server.log"
 
+# 서버 로그에 "맵 열림" 줄이 있나. 로그 파일은 서버가 켜지고 조금 뒤에야 생겨서, 파일이 없으면 "아직" 으로 본다.
+function Test-ServerReady { (Test-Path $serverLog) -and [bool](Select-String -Path $serverLog -Pattern "Bringing up level for play" -Quiet) }
 $server = Start-Process $exe -PassThru -WindowStyle Minimized -ArgumentList "`"$project`" $map -server -log -unattended -nullrhi -PGTestEnemies=$Enemies -PGTestEnemyClass=$enemyClass -PGTestRifle=$Rifle -abslog=`"$serverLog`""
 Write-Host "서버 켬 (번호 $($server.Id)), 맵 여는 중..."
 $deadline = (Get-Date).AddMinutes(10)
-while ((Get-Date) -lt $deadline -and -not (Select-String $serverLog -Pattern "Bringing up level for play" -Quiet -ErrorAction SilentlyContinue)) {
+while ((Get-Date) -lt $deadline -and -not (Test-ServerReady)) {
     if ($server.HasExited) { Write-Host "서버가 꺼짐. 로그: $serverLog"; exit 1 }
     Start-Sleep 3
 }
-if (-not (Select-String $serverLog -Pattern "Bringing up level for play" -Quiet -ErrorAction SilentlyContinue)) { Write-Host "10분 안에 서버가 맵을 못 엶. 로그: $serverLog"; exit 1 }
+if (-not (Test-ServerReady)) { Write-Host "10분 안에 서버가 맵을 못 엶. 로그: $serverLog"; exit 1 }
 
 $clients = @()
 foreach ($i in 0, 1) {

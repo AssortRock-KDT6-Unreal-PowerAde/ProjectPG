@@ -14,6 +14,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "NavigationSystem.h"
+#include "NavigationInvokerComponent.h"
 #include "TimerManager.h"
 
 namespace PGTestBattle
@@ -31,6 +32,9 @@ namespace PGTestBattle
 	constexpr double MapReadyTimeout = 240.0;
 	constexpr int32 MaxNavMisses = 60;  // 0.5초 × 60 = 30초 동안 길이 안 생기면 그 사람 몫은 포기
 	constexpr float CheckInterval = 0.5f;
+	// 플레이어 둘레에 길을 만드는 반경(cm). 몬스터 놓는 거리(최대 28m)와 다가오는 길까지 덮게 60m, 80m 밖이면 지움.
+	constexpr float NavGenerateRadius = 6000.f;
+	constexpr float NavRemoveRadius = 8000.f;
 }
 
 bool UPGTestBattleSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -86,6 +90,9 @@ void UPGTestBattleSubsystem::Check()
 			GiveRifle(Controller);
 
 	if (EnemiesPerPlayer <= 0 || bGaveUpWaitingForMap) return;
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		if (APlayerController* Controller = It->Get(); Controller && Controller->GetPawn())
+			AddNavInvoker(Controller->GetPawn());
 	TActorIterator<AMapBuilder> MapIt(World);
 	const AMapBuilder* Map = MapIt ? *MapIt : nullptr;
 	if (!Map || !Map->IsGameplayReady())
@@ -172,6 +179,16 @@ void UPGTestBattleSubsystem::GiveRifle(APlayerController* Controller)
 	UE_LOG(LogTemp, Display, TEXT("[PGTest] %s: 총 %s 를 장착 칸 %d 에 넣음"), *GetNameSafe(Controller), *RifleItemID.ToString(), static_cast<int32>(Item->EquipSlotType));
 }
 
+void UPGTestBattleSubsystem::AddNavInvoker(APawn* Pawn)
+{
+	if (Pawn->FindComponentByClass<UNavigationInvokerComponent>()) return;
+	// 서버에서만 붙인다(길은 서버의 AI 만 쓴다). 몸이 죽어 새로 생기면 새 몸에 다시 붙는다.
+	UNavigationInvokerComponent* Invoker = NewObject<UNavigationInvokerComponent>(Pawn, TEXT("PGTestNavInvoker"));
+	Invoker->SetGenerationRadii(PGTestBattle::NavGenerateRadius, PGTestBattle::NavRemoveRadius);
+	Invoker->RegisterComponent();
+	UE_LOG(LogTemp, Display, TEXT("[PGTest] %s 둘레 %.0fm 에 길(네비)을 만들게 함"), *GetNameSafe(Pawn), PGTestBattle::NavGenerateRadius / 100.f);
+}
+
 bool UPGTestBattleSubsystem::SpawnEnemiesAround(APlayerController* Controller)
 {
 	UWorld* World = GetWorld();
@@ -190,14 +207,15 @@ bool UPGTestBattleSubsystem::SpawnEnemiesAround(APlayerController* Controller)
 			if (Nav->ProjectPointToNavigation(Wanted, OnNav, PGTestBattle::NavSearchExtent)) { Spots.Add(OnNav.Location); break; }
 		}
 
-	if (Spots.IsEmpty())
+	if (Spots.Num() < EnemiesPerPlayer)
 	{
-		// 길이 아직 안 만들어졌거나 둘레에 길이 없다 → 다음 확인 때 다시. 너무 오래면 포기.
+		// 길이 아직 덜 만들어졌다(플레이어 둘레 길은 붙인 뒤 몇 초 걸림) → 다음 확인 때 다시.
+		// - 30초가 지나도 모자라면 → 찾은 자리에만 놓음 / 하나도 없으면 → Error 로그 후 포기
 		int32& Misses = NavMisses.FindOrAdd(Controller);
 		if (++Misses < PGTestBattle::MaxNavMisses) return false;
-		UE_LOG(LogTemp, Error, TEXT("[PGTest] %s 둘레 %.0f~%.0fm 에서 %d초 동안 길(네비) 위 자리를 못 찾아 몬스터 안 놓음"),
-			*GetNameSafe(Controller), PGTestBattle::MinDistance / 100.f, PGTestBattle::MaxDistance / 100.f, PGTestBattle::MaxNavMisses / 2);
-		return true;
+		UE_LOG(LogTemp, Error, TEXT("[PGTest] %s 둘레 %.0f~%.0fm 에서 %d초 동안 길(네비) 위 자리를 %d/%d 개만 찾음"),
+			*GetNameSafe(Controller), PGTestBattle::MinDistance / 100.f, PGTestBattle::MaxDistance / 100.f, PGTestBattle::MaxNavMisses / 2, Spots.Num(), EnemiesPerPlayer);
+		if (Spots.IsEmpty()) return true;
 	}
 
 	FActorSpawnParameters Params;
