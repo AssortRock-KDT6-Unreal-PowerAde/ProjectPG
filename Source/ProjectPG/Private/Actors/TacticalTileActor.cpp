@@ -1,4 +1,4 @@
-// 런타임에 스폰하는 20x20m 전술 타일 묶음. 절차 맵의 화면 단계가 쓴다.
+﻿// 런타임에 스폰하는 20x20m 전술 타일 묶음. 절차 맵의 화면 단계가 쓴다.
 
 #include "Actors/TacticalTileActor.h"
 
@@ -199,6 +199,8 @@ ATacticalTileActor::ATacticalTileActor()
 	AISpawnPoint = MakeArrow(TEXT("AISpawnPoint"), FVector(550, -520, 70), 180, FColor::Red);
 	ExitPoint = MakeArrow(TEXT("ExitPoint"), FVector(600, 0, 50), 0, FColor::Emerald);
 
+	// static 으로 한 번만 찾아 두지 않는 이유: 엔진이 모르는 포인터라, 판이 끝나 월드가 정리될 때 에셋이 지워지면
+	//     죽고 로비로 갔다가 다음 판을 지을 때 지워진 것을 가리켜 터질 수 있다(패키지에서만, 2026-10-19 점검). 이미 불러온 에셋은 찾기만 해서 가볍다.
 	// 글자 경로로 둬도 되는 이유: /Game/PG/LevelDesign 폴더는 통째로 쿠킹된다(DefaultGame.ini 의 DirectoriesToAlwaysCook).
 	CarClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Tiles/Blueprints/Props/BP_Prop_AbandonedCar.BP_Prop_AbandonedCar_C")));
 	BarrelClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Tiles/Blueprints/Props/BP_Prop_BarrelCluster.BP_Prop_BarrelCluster_C")));
@@ -962,15 +964,15 @@ void ATacticalTileActor::RebuildTile()
 	// 잘 보이는 것이 확인된 Rural 풀 세 종류로 직접 되돌린다.
 	// 글자 경로로 둬도 되는 이유: 풀·땅 머티리얼은 통째로 쿠킹되는 /Game/PG/LevelDesign 안에 있고,
 	// Downtown 바위 두 개는 생성자에서 이미 불러와(FObjectFinder = 꼭 필요한 연결) 쿠킹에 들어간다.
-	static UStaticMesh* GrassPatchA = LoadObject<UStaticMesh>(nullptr,
+	UStaticMesh* GrassPatchA = LoadObject<UStaticMesh>(nullptr,
 		TEXT("/Game/PG/LevelDesign/RuntimeOptimized/SM_GrassPatch_2_Runtime.SM_GrassPatch_2_Runtime"));
-	static UStaticMesh* GrassPatchB = LoadObject<UStaticMesh>(nullptr,
+	UStaticMesh* GrassPatchB = LoadObject<UStaticMesh>(nullptr,
 		TEXT("/Game/PG/LevelDesign/RuntimeOptimized/SM_GrassPatch_1_Runtime.SM_GrassPatch_1_Runtime"));
-	static UStaticMesh* GrassPatchLong = LoadObject<UStaticMesh>(nullptr,
+	UStaticMesh* GrassPatchLong = LoadObject<UStaticMesh>(nullptr,
 		TEXT("/Game/PG/LevelDesign/RuntimeOptimized/SM_GrassPatch_Long_Runtime.SM_GrassPatch_Long_Runtime"));
-	static UStaticMesh* DowntownRockLarge = LoadObject<UStaticMesh>(nullptr,
+	UStaticMesh* DowntownRockLarge = LoadObject<UStaticMesh>(nullptr,
 		TEXT("/Game/Downtown_West/Assets/props/prop_rocks/SM_rock_large_a_low.SM_rock_large_a_low"));
-	static UStaticMesh* DowntownRockMedium = LoadObject<UStaticMesh>(nullptr,
+	UStaticMesh* DowntownRockMedium = LoadObject<UStaticMesh>(nullptr,
 		TEXT("/Game/Downtown_West/Assets/props/prop_rocks/SM_rock_medium_a_low.SM_rock_medium_a_low"));
 	if (IsValid(GrassPatchA)) GrassDressing->SetStaticMesh(GrassPatchA);
 	if (IsValid(GrassPatchB)) GrassDressingB->SetStaticMesh(GrassPatchB);
@@ -992,7 +994,7 @@ void ATacticalTileActor::RebuildTile()
 	TreeTrunks->SetEvaluateWorldPositionOffset(false);
 	TreeCanopies->SetEvaluateWorldPositionOffset(false);
 
-	static UMaterialInterface* UnifiedGround = LoadObject<UMaterialInterface>(nullptr,
+	UMaterialInterface* UnifiedGround = LoadObject<UMaterialInterface>(nullptr,
 		TEXT("/Game/PG/LevelDesign/Materials/MI_RuntimeGround_NatureUnified.MI_RuntimeGround_NatureUnified"));
 	// Rural 에셋 머티리얼은 그대로 둔다. 예전 런타임 색 입히기는
 	// 레벨의 밝은 직사광 아래서 풀을 분필처럼 하얗게 보이게 했다.
