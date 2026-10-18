@@ -132,4 +132,9 @@ private:
 	bool bAIStarted = false;
 	bool bFireHeld = false;
 	bool bWarnedNoCoverQuery = false;
+	// 이 시각 전엔 쏘지 않는다(목표를 본 직후 조준 시간, AIConfig.ReactionTime).
+	double FireAllowedTime = 0.0;
+	// 점사: 지금 점사가 끝나는 시각 / 다음 점사를 시작해도 되는 시각.
+	double BurstEndTime = 0.0;
+	double NextBurstTime = 0.0;
 };

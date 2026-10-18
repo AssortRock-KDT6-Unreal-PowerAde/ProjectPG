@@ -100,6 +100,19 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="Fire", meta=(ClampMin="0.05"))
 	float FireCheckInterval = 0.2f;
 
+	// 목표를 처음 본 뒤 첫 발까지 기다리는 초(그사이 외치고 몸을 돌려 조준만 함).
+	// 왜: 보자마자 0.07초 만에 쏴서 플레이어가 외침도 못 듣고 영문도 모른 채 죽었다(2026-10-19 사용자 시험).
+	UPROPERTY(EditDefaultsOnly, Category="Fire", meta=(ClampMin="0"))
+	float ReactionTime = 1.2f;
+	// 놓쳤던 목표를 다시 봤을 때 첫 발까지 초(이미 싸우던 중이라 짧게).
+	UPROPERTY(EditDefaultsOnly, Category="Fire", meta=(ClampMin="0"))
+	float ReacquireReactionTime = 0.4f;
+	// 연사 총은 이 초 동안만 방아쇠를 당기고(점사, 3~4발) BurstPauseRange 초 쉰다. 계속 갈기면 너무 빨리 죽었다.
+	UPROPERTY(EditDefaultsOnly, Category="Fire", meta=(ClampMin="0.05"))
+	float BurstFireSeconds = 0.4f;
+	UPROPERTY(EditDefaultsOnly, Category="Fire")
+	FVector2D BurstPauseRange = FVector2D(0.6f, 1.0f);
+
 	// ── 귀(청각 감지) ──
 	// 총소리·동료 외침을 이 거리(cm) 안에서 듣는다. 벽 너머도 들린다.
 	UPROPERTY(EditDefaultsOnly, Category="Hearing", meta=(ClampMin="0"))

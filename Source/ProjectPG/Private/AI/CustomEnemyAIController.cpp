@@ -210,11 +210,16 @@ void ACustomEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulu
 	if (bSeenNow)
 	{
 		const bool bWasVisible = bTargetVisible;
+		const bool bTargetEverSeenBefore = bTargetEverSeen;
 		bTargetVisible = true;
 		bTargetEverSeen = true;
 		GetWorldTimerManager().ClearTimer(LoseTargetTimer);
 		if (!bWasVisible)
 		{
+			// 보자마자 쏘지 않고 조준 시간을 준다: 처음 본 목표는 ReactionTime, 다시 본 목표는 ReacquireReactionTime.
+			// 그사이 외침이 들리고 몬스터가 몸을 돌리는 게 보인다.
+			const bool bFirstSight = !bTargetEverSeenBefore;
+			FireAllowedTime = GetWorld()->GetTimeSeconds() + (bFirstSight ? Config->ReactionTime : Config->ReacquireReactionTime);
 			SendTreeEvent(EnemyAITags::TargetSeen);
 			ShoutTargetSpotted();
 		}
@@ -502,13 +507,32 @@ bool ACustomEnemyAIController::UpdateFire()
 		Enemy->Reload();
 		return true;
 	}
-	// 연사 총은 방아쇠를 누르고 있으면 알아서 계속 쏜다.
+	// 본 직후 조준 시간(FireAllowedTime) 전이면 방아쇠를 안 당기고 조준만 유지한다.
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (Now < FireAllowedTime)
+	{
+		StopFire();
+		return true;
+	}
+	// 연사 총은 방아쇠를 누르고 있으면 알아서 계속 쏜다 → 점사로 끊는다:
+	// - 점사 중(BurstEndTime 전) → 계속 누름
+	// - 점사 끝 → 떼고 BurstPauseRange 초 쉼 → 쉬는 시간이 지나면 다음 점사
 	// 단발 총은 누를 때 한 발만 나가서, 확인할 때마다 눌렀다 뗀다.
 	// (연사 여부는 캐릭터 쪽 규칙과 같게 맞춤: CustomCharacterCombat.cpp 의 HandleFireInput)
 	if (Weapon->GetWeaponType() == EWeaponType::Rifle)
 	{
-		if (!bFireHeld) Enemy->OnReq_SetFireInput(true);
-		bFireHeld = true;
+		if (bFireHeld && Now >= BurstEndTime)
+		{
+			StopFire();
+			NextBurstTime = Now + FMath::FRandRange(Config->BurstPauseRange.X, FMath::Max(Config->BurstPauseRange.X, Config->BurstPauseRange.Y));
+			return true;
+		}
+		if (!bFireHeld && Now >= NextBurstTime)
+		{
+			Enemy->OnReq_SetFireInput(true);
+			bFireHeld = true;
+			BurstEndTime = Now + Config->BurstFireSeconds;
+		}
 	}
 	else
 	{
