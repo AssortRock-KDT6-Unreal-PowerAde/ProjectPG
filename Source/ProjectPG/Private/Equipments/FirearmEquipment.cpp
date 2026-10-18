@@ -2,6 +2,7 @@
 #include "Characters/CustomCharacter.h"
 #include "Combat/Hittable.h"
 #include "AI/EnemyNoiseTags.h"
+#include "GameMode/PGRaidStatsSubsystem.h"
 #include "Perception/AISense_Hearing.h"
 #include "Core/ItemSubSystem.h"
 #include "GameplayAbilities/WeaponAttributeSet.h"
@@ -180,6 +181,9 @@ bool AFirearmEquipment::Fire()
 	const FVector ShotStart = ViewLocation + Direction * FMath::Max(0.f, FVector::DotProduct(Muzzle - ViewLocation, Direction));
 	if (Direction.IsNearlyZero() || !ConsumeLoadedAmmo()) return false;
 	NextFireTime = GetWorld()->GetTimeSeconds() + GetFireInterval();
+	// [게임 흐름 연결 2026-10-19] 사망 통계표용 기록(플레이어가 쏜 것만 셈, 몬스터는 무시). 흐름: GameMode/README.md
+	UPGRaidStatsSubsystem* RaidStats = UPGRaidStatsSubsystem::Get(this);
+	if (RaidStats) RaidStats->RecordShot(Character);
 	// 총소리를 몬스터 귀에 알린다(서버에서만 여기까지 옴). 들리는 거리는 듣는 몬스터의 AIConfig.HearingRange.
 	// 몬스터가 쏜 총소리는 몬스터 AI 가 "같은 편"으로 보고 무시한다.
 	UAISense_Hearing::ReportNoiseEvent(GetWorld(), Muzzle, 1.f, Character, 0.f, EnemyNoiseTags::Gunshot);
@@ -204,25 +208,6 @@ bool AFirearmEquipment::Fire()
 			&& (Offset - Direction * Along).Size() <= FMath::Max(0.f, Along) * FMath::Tan(HalfAngle) + BoundRadius)
 		{ bHasTarget = true; break; }
 	}
-	// [시험 진단 2026-10-19] 한 발마다 서버가 무엇을 겨눴고 무엇에 맞았는지. 몬스터가 안 죽는 원인 찾은 뒤 지운다.
-	FVector DiagAimLoc, DiagAimDir;
-	const bool bDiagClientAim = Character->GetClientAimView(DiagAimLoc, DiagAimDir);
-	// 겨눈 선에서 가장 가까운 몬스터(맞을 수 있는 것)까지 몇 m 비켜났는지.
-	float DiagNearestMiss = -1.f; FString DiagNearestName = TEXT("없음"); FVector DiagNearestLoc = FVector::ZeroVector;
-	for (const FOverlapResult& Overlap : Overlaps)
-	{
-		AActor* Target = Overlap.GetActor();
-		if (!IsValid(Target) || Target == Character || !Target->Implements<UHittable>()) continue;
-		const FVector Offset = Target->GetActorLocation() - ShotStart;
-		const float Miss = (Offset - Direction * FVector::DotProduct(Offset, Direction)).Size() / 100.f;
-		if (DiagNearestMiss < 0.f || Miss < DiagNearestMiss) { DiagNearestMiss = Miss; DiagNearestName = Target->GetName(); DiagNearestLoc = Target->GetActorLocation(); }
-	}
-	UE_LOG(LogTemp, Display, TEXT("[ShotDiag]   가장 가까운 대상 %s 선에서 %.1fm 비켜남, 위치=(%.0f, %.0f, %.0f) 쏜자리=(%.0f, %.0f, %.0f) 방향=(%.2f, %.2f, %.2f)"),
-		*DiagNearestName, DiagNearestMiss, DiagNearestLoc.X, DiagNearestLoc.Y, DiagNearestLoc.Z, ShotStart.X, ShotStart.Y, ShotStart.Z, Direction.X, Direction.Y, Direction.Z);
-	FHitResult DiagHit;
-	GetWorld()->LineTraceSingleByChannel(DiagHit, ShotStart, ShotStart + Direction * Range, ECC_Visibility, Params);
-	UE_LOG(LogTemp, Display, TEXT("[ShotDiag] %s 클라조준=%d 후보=%d 남은탄=%d 정면에맞은것=%s (%.0fm)"), *GetNameSafe(Character), bDiagClientAim ? 1 : 0, bHasTarget ? 1 : 0,
-		GetLoadedAmmo(), *GetNameSafe(DiagHit.GetActor()), DiagHit.bBlockingHit ? DiagHit.Distance / 100.f : -1.f);
 	if (!bHasTarget) return true; // 대상이 없어도 한 발은 소모합니다.
 	const int32 Count = FMath::Clamp(FirearmData.TraceCount, 1, 32);
 	for (int32 Index = 0; Index < Count; ++Index)
@@ -233,10 +218,11 @@ bool AFirearmEquipment::Fire()
 		AActor* Target = HitResult.GetActor();
 		if (IsValid(Target) && Target->Implements<UHittable>() && IHittable::Execute_CanBeHit(Target))
 		{
+			// [게임 흐름 연결 2026-10-19] 맞히기 전 체력을 재 두었다가 깎인 만큼·죽였는지를 통계에 남긴다.
+			const float HealthBefore = UPGRaidStatsSubsystem::GetHealthBeforeHit(Target);
 			IHittable::Execute_Hit(Target, WeaponAttributes->GetDamage() / Count, this, HitResult);
-			UE_LOG(LogTemp, Display, TEXT("[ShotDiag]   맞음 %s 피해 %.1f"), *GetNameSafe(Target), WeaponAttributes->GetDamage() / Count);
+			if (RaidStats) RaidStats->RecordHit(Character, Target, HealthBefore);
 		}
-		else UE_LOG(LogTemp, Display, TEXT("[ShotDiag]   막힘 %s (%.0fm)"), *GetNameSafe(Target), HitResult.Distance / 100.f);
 	}
 	return true;
 }

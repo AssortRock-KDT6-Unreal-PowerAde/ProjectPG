@@ -96,9 +96,13 @@ void ACustomEnemyAIController::StartAI()
 
 	PatrolOrigin = Enemy->GetActorLocation();
 	const FEnemyTableRow& Data = Enemy->GetEnemyData();
-	SightConfig->SightRadius = Data.DetectionRange;
-	SightConfig->LoseSightRadius = Data.DetectionRange * Config->LoseSightRangeScale;
 	SightConfig->PeripheralVisionAngleDegrees = Config->SightHalfAngleDegrees;
+	// 눈을 뒤로 물린 자리에서 각도를 잰다 → 몸 둘레 CloseAwarenessDistance 안은 옆·뒤도 보인다(EnemyAIConfig.h 설명).
+	// 엔진이 감지 거리에도 이 값을 더하므로 그만큼 빼서 표의 감지 거리를 그대로 지킨다.
+	SightConfig->PointOfViewBackwardOffset = Config->CloseAwarenessDistance;
+	SightConfig->NearClippingRadius = 0.f;
+	SightConfig->SightRadius = FMath::Max(100.f, Data.DetectionRange - Config->CloseAwarenessDistance);
+	SightConfig->LoseSightRadius = FMath::Max(SightConfig->SightRadius, Data.DetectionRange * Config->LoseSightRangeScale - Config->CloseAwarenessDistance);
 	UAIPerceptionComponent* Perception = GetPerceptionComponent();
 	Perception->ConfigureSense(*SightConfig);
 	HearingConfig->HearingRange = Config->HearingRange;
@@ -364,7 +368,13 @@ ACustomEnemyAIController::EMoveStart ACustomEnemyAIController::MoveToTargetWithT
 	const ACustomEnemyCharacter* Enemy = GetEnemy();
 	if (!Target.IsValid() || !Enemy) return EMoveStart::Failed;
 	FAIMoveRequest Request(Target.Get());
-	Request.SetAcceptanceRadius(Enemy->GetEnemyData().AttackRange * Config->ApproachRangeScale);
+	// 멈추는 거리:
+	// - 보이는 목표 → 사거리 × ApproachRangeScale, 단 ApproachMaxStopDistance 를 넘지 않음(사거리가 커도 실제로 다가오게)
+	// - 안 보이는 목표 → ApproachBlindStopDistance 까지 바짝 가서 직접 찾음
+	const float StopDistance = bTargetVisible
+		? FMath::Min(Enemy->GetEnemyData().AttackRange * Config->ApproachRangeScale, Config->ApproachMaxStopDistance)
+		: Config->ApproachBlindStopDistance;
+	Request.SetAcceptanceRadius(StopDistance);
 	Request.SetAllowPartialPath(true);  // 목표가 길 밖(지붕 등)에 있어도 갈 수 있는 데까지는 간다.
 	return StartMove(Request, TEXT("목표에게 접근"), MoveTemp(OnDone));
 }

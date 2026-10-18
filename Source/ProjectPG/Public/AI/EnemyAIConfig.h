@@ -30,6 +30,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="Sight", meta=(ClampMin="10", ClampMax="180"))
 	float SightHalfAngleDegrees = 75.f;
 
+	// 몸 둘레 이 거리(cm) 안이면 옆·뒤에 있어도 보인다(벽 너머는 여전히 안 보임).
+	// 왜: 앞쪽 각도(SightHalfAngleDegrees)만 보니 옆·뒤로 바짝 다가가도 모른 척했다(2026-10-19 사용자 시험).
+	// 방법: 눈 위치를 이만큼 뒤로 물린 자리에서 시야 각도를 잰다 → 가까운 옆·뒤가 각도 안에 들어온다.
+	UPROPERTY(EditDefaultsOnly, Category="Sight", meta=(ClampMin="0"))
+	float CloseAwarenessDistance = 400.f;
+
 	// 한 번 본 목표는 감지 거리의 이 배수까지 멀어져야 시야에서 놓친다(바로 놓치면 깜빡거림).
 	UPROPERTY(EditDefaultsOnly, Category="Sight", meta=(ClampMin="1"))
 	float LoseSightRangeScale = 1.5f;
@@ -68,6 +74,15 @@ public:
 	// 목표에게 다가갈 때 사거리의 이 비율까지 들어간다(1 이면 사거리 끝에서 멈춤).
 	UPROPERTY(EditDefaultsOnly, Category="Movement", meta=(ClampMin="0.1", ClampMax="1"))
 	float ApproachRangeScale = 0.6f;
+
+	// 다가갈 때 멈추는 거리의 위 한계(cm). 사거리 × ApproachRangeScale 이 이보다 크면 이 거리에서 멈춘다.
+	// 왜: 표에서 사거리를 60m 로 올리자 "36m 안이면 도착" 이 되어 몬스터가 제자리에 서서 접근을 0.05초마다 헛돌렸다(2026-10-19 서버 로그 1,147번).
+	UPROPERTY(EditDefaultsOnly, Category="Movement", meta=(ClampMin="100"))
+	float ApproachMaxStopDistance = 1500.f;
+
+	// 목표가 안 보일 때(벽 뒤·소리로만 앎) 다가가 멈추는 거리(cm). 보일 때보다 훨씬 가까이 가서 직접 찾게 한다.
+	UPROPERTY(EditDefaultsOnly, Category="Movement", meta=(ClampMin="50"))
+	float ApproachBlindStopDistance = 300.f;
 
 	// 순찰 지점에 닿은 뒤 서 있는 시간(초, 이 사이에서 무작위).
 	UPROPERTY(EditDefaultsOnly, Category="Movement", meta=(ClampMin="0"))

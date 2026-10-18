@@ -85,14 +85,6 @@ void ACustomEnemyCharacter::Tick(float DeltaTime)
 		UCharacterMovementComponent* Move = GetCharacterMovement();
 		if (Move->PackNetworkMovementMode() != GetReplicatedMovementMode())
 			Move->ApplyNetworkMovementMode(GetReplicatedMovementMode());
-	}	// [시험 진단 2026-10-19] 클라이언트에서 몬스터가 걷는 모션 없이 떠다니는 원인 찾기: 2초마다 이동 상태·애니 한 줄. 원인 찾은 뒤 지운다.
-	if (GetWorld()->GetTimeSeconds() >= NextMoveDiagTime)
-	{
-		NextMoveDiagTime = GetWorld()->GetTimeSeconds() + 2.0;
-		const UCharacterMovementComponent* Move = GetCharacterMovement();
-		UE_LOG(LogTemp, Display, TEXT("[MoveDiag] %s %s 모드=%d 속도=%.0f 바닥=%s/%s(높이 %.0f) 애니=%s 조준=%d 위치=(%.0f, %.0f, %.0f) 몸=%.0f 시선=%.0f 이동방향보기=%d 시선보기=%d 조준추적=%d"), *GetName(), HasAuthority() ? TEXT("서버") : TEXT("클라"), static_cast<int32>(Move->MovementMode),
-			GetVelocity().Size2D(), *GetNameSafe(Move->CurrentFloor.HitResult.GetActor()), *GetNameSafe(Move->CurrentFloor.HitResult.GetComponent()), Move->CurrentFloor.HitResult.ImpactPoint.Z, *GetNameSafe(GetMesh()->GetAnimClass()), IsAiming() ? 1 : 0, GetActorLocation().X, GetActorLocation().Y, GetActorLocation().Z,
-			GetActorRotation().Yaw, GetControlRotation().Yaw, Move->bOrientRotationToMovement ? 1 : 0, Move->bUseControllerDesiredRotation ? 1 : 0, bAimTracking ? 1 : 0);
 	}
 	// 목표를 보고 있을 때만 위아래·좌우 조준 각도를 클라이언트에 보낸다.
 	// 매 프레임인 이유: AI 가 목표를 따라 고개를 돌리는 동안 각도가 계속 바뀌어 애니메이션이 부드러워야 함.

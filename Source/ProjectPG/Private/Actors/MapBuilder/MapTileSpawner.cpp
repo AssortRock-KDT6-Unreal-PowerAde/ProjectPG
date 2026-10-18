@@ -218,7 +218,9 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 	};
 	TMap<FString, UHierarchicalInstancedStaticMeshComponent*> PackedComponentByKey;
 	int32 PackedVisualInstanceCount = 0;
-	auto PackActorVisuals = [this, &PackedComponentByKey, &PackedVisualInstanceCount](AActor* Actor)
+	// 충돌을 끈 풀·덤불 묶음 수(맨 아래 결과 로그에 한 번 남김).
+	int32 FoliageCollisionRemovedCount = 0;
+	auto PackActorVisuals = [this, &PackedComponentByKey, &PackedVisualInstanceCount, &FoliageCollisionRemovedCount](AActor* Actor)
 	{
 		if (!IsValid(Actor))
 			return;
@@ -319,8 +321,15 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 				Target->SetupAttachment(Map->SceneRoot);
 				Target->SetMobility(EComponentMobility::Movable);
 				Target->SetStaticMesh(const_cast<UStaticMesh*>(Mesh));
-				Target->SetCollisionProfileName(Source->GetCollisionProfileName());
-				Target->SetCollisionEnabled(Source->GetCollisionEnabled());
+				// 풀·덤불은 충돌을 끈다. 나무·바위·벽 같은 나머지는 원본 충돌을 그대로 쓴다.
+				// 왜: 손으로 놓은 풀 메시가 "전부 막음 + 실제 모양 충돌"이라(2026-10-19 에셋 확인)
+				//     - 무릎 높이 풀이 몬스터 눈 → 플레이어 몸 시선을 가려 10m 앞에서도 못 봤다.
+				//     - 길찾기 지도엔 안 들어가는데 몸은 막혀서 몬스터가 순찰 중 풀에 끼었다("순찰 이동 … 막힘" Error).
+				//     - 총알도 풀에 막혔다.
+				Target->SetCollisionProfileName(bIsSmallFoliage ? UCollisionProfile::NoCollision_ProfileName : Source->GetCollisionProfileName());
+				Target->SetCollisionEnabled(bIsSmallFoliage ? ECollisionEnabled::NoCollision : Source->GetCollisionEnabled());
+				if (bIsSmallFoliage && Source->GetCollisionEnabled() != ECollisionEnabled::NoCollision)
+					++FoliageCollisionRemovedCount;
 				Target->SetGenerateOverlapEvents(false);
 				Target->SetCanEverAffectNavigation(false);
 				Target->SetCastShadow(Source->CastShadow && !bIsSmallFoliage);
@@ -831,10 +840,10 @@ void UMapTileSpawner::SpawnRuntimeBlueprintTiles()
 	Map->WarZoneGroundHISM->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	Map->TransitionGroundHISM->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	Map->RoadSurfaceHISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	UE_LOG(LogTemp, Display, TEXT("Runtime packed tile world: requested=%d packed_tile_actors=%d water_cells_skipped=%d packed_hism_components=%d packed_visual_instances=%d persistent_facilities=%d failures=%d shared_ground_visible=true shared_road_visible=true hidden_tile_ground_components=%d"),
+	UE_LOG(LogTemp, Display, TEXT("Runtime packed tile world: requested=%d packed_tile_actors=%d water_cells_skipped=%d packed_hism_components=%d packed_visual_instances=%d persistent_facilities=%d failures=%d shared_ground_visible=true shared_road_visible=true hidden_tile_ground_components=%d foliage_collision_removed=%d"),
 		Map->TileDesignPlacements.Num(), PackedTileActorCount, WaterTileSkipCount,
 		Map->RuntimePackedVisualHISMs.Num(), PackedVisualInstanceCount,
-		SpawnedFacilityCount, SpawnFailures, HiddenTerrainUnderlayCount);
+		SpawnedFacilityCount, SpawnFailures, HiddenTerrainUnderlayCount, FoliageCollisionRemovedCount);
 	for (const TPair<ETacticalTileKind, int32>& Pair : KindCounts)
 		UE_LOG(LogTemp, Display, TEXT("Runtime Blueprint tile count: kind=%s count=%d"),
 			*StaticEnum<ETacticalTileKind>()->GetNameStringByValue(static_cast<int64>(Pair.Key)), Pair.Value);

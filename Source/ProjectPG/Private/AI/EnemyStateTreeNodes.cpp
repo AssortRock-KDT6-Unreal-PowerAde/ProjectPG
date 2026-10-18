@@ -71,7 +71,14 @@ EStateTreeRunStatus FEnemyMoveToTask::EnterState(FStateTreeExecutionContext& Con
 
 	if (Data.Goal == EEnemyMoveGoal::Target)
 	{
-		const ACustomEnemyAIController::EMoveStart Start = AI->MoveToTargetWithTimeout(Finish);
+		// 목표 옆에 닿았는데도 안 보이면 "실패" 로 끝내 잠깐 멈추게(ApproachHold) 한다.
+		// 왜: 성공으로 끝내면 전투가 곧바로 또 접근을 골라, 도착 → 다시 접근이 매 프레임 헛돌았다(2026-10-19 서버 로그).
+		auto FinishApproach = [WeakContext = Context.MakeWeakExecutionContext(), WeakAI = TWeakObjectPtr<ACustomEnemyAIController>(AI)](bool bSucceeded)
+		{
+			const bool bReallyDone = bSucceeded && WeakAI.IsValid() && WeakAI->IsTargetVisible();
+			WeakContext.FinishTask(bReallyDone ? EStateTreeFinishTaskType::Succeeded : EStateTreeFinishTaskType::Failed);
+		};
+		const ACustomEnemyAIController::EMoveStart Start = AI->MoveToTargetWithTimeout(FinishApproach);
 		// 이미 가까운데 벽 때문에 안 보이는 경우: 성공으로 끝내면 전투 상태가 곧바로 또 접근을 골라
 		// 같은 자리에서 계속 맴돈다 → 실패로 끝내서 상태 트리가 잠깐 멈추게(Hold) 한다.
 		if (Start == ACustomEnemyAIController::EMoveStart::AlreadyThere && !AI->IsTargetVisible()) return EStateTreeRunStatus::Failed;

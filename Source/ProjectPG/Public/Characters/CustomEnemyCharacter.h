@@ -20,8 +20,6 @@ private:
 	bool bHasEnemyData = false;
 	// 전투 중에만 조준 각도를 매 프레임 갱신한다(AI 컨트롤러가 켜고 끔).
 	bool bAimTracking = false;
-	// [시험 진단] 클라이언트 이동 상태 로그를 다음에 찍을 시각(2초마다). 원인 찾은 뒤 지운다.
-	double NextMoveDiagTime = 0.0;
 	UPROPERTY(Replicated) FVector2D ReplicatedAimOffset = FVector2D::ZeroVector;
 	UPROPERTY(Transient) TObjectPtr<class AFirearmEquipment> EnemyWeapon;
 	// 외침·비명을 내는 부품. 틀 소리는 AIConfig 의 Voice 칸에 있다.
