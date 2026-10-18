@@ -63,6 +63,13 @@ flowchart TD
 짐작이 틀리면 표의 `SurfaceKeywords` 를 고친다(빌드 필요 없음).
 `Log LogPGAudio Verbose` 를 켜면 "재질 짐작: '이름들' → 번호" 가 찍혀 어떤 이름이 어떻게 판정됐는지 보인다.
 
+## 팀원 파일에서 소리를 부르는 곳 (한 줄씩, Wwise 브랜치와 같은 자리)
+
+- `UIManagerSubSystem`: 창 열기·닫기 → `UI.Open` / `UI.Close` (아이템 메뉴는 제외)
+- `ItemWidget`·`EquipSlot`: 아이템 끌기 시작 → `UI.ItemPick`
+- `InventoryGridWidget`·`EquipSlot`: 놓기 성공/실패 → `UI.ItemDrop` / `UI.ItemFail`
+- `InteractActor`: 상자 열기 → `Container.Open` (누른 사람에게만 들림. 남도 들으려면 열림 상태 복제가 필요)
+
 ## 새 소리 붙이는 법 (C++ 없이)
 
 1. wav 를 `Content/PG/Audio/Waves/<용도>` 에 가져온다.

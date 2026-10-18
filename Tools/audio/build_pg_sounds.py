@@ -240,7 +240,7 @@ def main():
                "Finale_Arrival", "Finale_Dragon", "Finale_Hover", "Finale_Launch", "Finale_Victory", "Finale_Warning",
                "Impact_Concrete", "Impact_Dirt", "Impact_Metal", "Impact_Wood", "Impact_Flesh", "Hit_React", "Body_Fall",
                "UI_Click", "UI_Hover", "UI_Open", "UI_Close", "UI_Error", "Reload",
-               "Gun_Rifle", "Gun_RifleFar", "Gun_Pistol", "Gun_PistolFar", "Gun_Shotgun", "Gun_ShotgunFar", "Gun_Reload", "Step_Dirt", "Step_Grass"]
+               "Gun_Rifle", "Gun_RifleFar", "Gun_Pistol", "Gun_PistolFar", "Gun_Shotgun", "Gun_ShotgunFar", "Gun_Reload", "Step_Dirt", "Step_Grass", "UI_ItemPick", "UI_ItemDrop"]
     w = {f: import_folder(f) for f in folders}
 
     att_gun = make_attenuation("ATT_Gunshot", 600, 15000, 2500)
@@ -320,6 +320,10 @@ def main():
         "UI.Open": cue(one, w["UI_Open"], None, 0.5, 0.02, two_d=True),
         "UI.Close": cue(one, w["UI_Close"], None, 0.5, 0.02, two_d=True),
         "UI.Error": cue(one, w["UI_Error"], None, 0.5, 0.0, two_d=True),
+        # 인벤토리: 아이템 끌기 시작 / 놓기 성공 / 못 놓음(InventoryGridWidget·ItemWidget·EquipSlot 에서 부름)
+        "UI.ItemPick": cue(one, w["UI_ItemPick"], None, 0.45, 0.04, two_d=True),
+        "UI.ItemDrop": cue(one, w["UI_ItemDrop"], None, 0.5, 0.04, two_d=True),
+        "UI.ItemFail": cue(one, w["UI_Error"], None, 0.45, 0.0, two_d=True),
         "UI.Announce": cue(one, w["UI_Announce"], None, 0.7, 0.0, two_d=True),
         "Reload": cue(one, reload_w, att_body, 0.6, 0.05),
         "Hit.React": cue(one, w["Hit_React"], att_body, 0.8, 0.06),
