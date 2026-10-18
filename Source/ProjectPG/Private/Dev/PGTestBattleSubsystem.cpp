@@ -1,4 +1,4 @@
-// 타일 맵에서 몬스터와 싸워 보는 시험 도구. 쓰는 법은 PGTestBattleSubsystem.h 맨 위.
+﻿// 타일 맵에서 몬스터와 싸워 보는 시험 도구. 쓰는 법은 PGTestBattleSubsystem.h 맨 위.
 
 #include "Dev/PGTestBattleSubsystem.h"
 #include "Actors/MapBuilder.h"
@@ -60,6 +60,7 @@ void UPGTestBattleSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 	FParse::Value(FCommandLine::Get(), TEXT("PGTestEnemies="), EnemiesPerPlayer);
 	FParse::Value(FCommandLine::Get(), TEXT("PGTestEnemyPlayers="), MaxPlayersWithEnemies);
+	bFirstEnemyFacesPlayer = FParse::Param(FCommandLine::Get(), TEXT("PGTestFacePlayer"));
 	FString Text;
 	if (FParse::Value(FCommandLine::Get(), TEXT("PGTestRifle="), Text)) RifleItemID = FName(*Text);
 	if (EnemiesPerPlayer > 0)
@@ -230,11 +231,13 @@ bool UPGTestBattleSubsystem::SpawnEnemiesAround(APlayerController* Controller)
 	{
 		// 모두 등을 돌린다. 왜: 한 마리가 플레이어를 보게 두었더니, 게임 창이 아직 불러오는 중에 쏴서 조작도 못 하고 죽었다.
 		// 플레이어가 먼저 쏘면 총소리를 듣고 돌아본다 → 처음 본 몬스터가 외침 → 나머지가 듣고 온다.
+		// 예외: -PGTestFacePlayer 면 첫 마리만 플레이어를 본다(조작 없는 자동 시험용).
 		const FVector ToPlayer = (Center - Spots[Index]).GetSafeNormal2D();
-		const FRotator Facing = (-ToPlayer).Rotation();
+		const bool bFacePlayer = bFirstEnemyFacesPlayer && Index == 0;
+		const FRotator Facing = (bFacePlayer ? ToPlayer : -ToPlayer).Rotation();
 		APawn* Enemy = World->SpawnActor<APawn>(EnemyClass, Spots[Index] + FVector(0.f, 0.f, PGTestBattle::SpawnLift), Facing, Params);
 		UE_LOG(LogTemp, Display, TEXT("[PGTest] %s 둘레에 몬스터 %s 놓음 (%d/%d, 거리 %.0fm, %s)"), *GetNameSafe(Controller), *GetNameSafe(Enemy),
-			Index + 1, EnemiesPerPlayer, FVector::Dist2D(Center, Spots[Index]) / 100.f, TEXT("등 돌림"));
+			Index + 1, EnemiesPerPlayer, FVector::Dist2D(Center, Spots[Index]) / 100.f, bFacePlayer ? TEXT("플레이어를 봄") : TEXT("등 돌림"));
 	}
 	return true;
 }

@@ -1,4 +1,4 @@
-// 타일 맵에서 몬스터와 싸워 보는 시험 도구. 개발 빌드의 서버에서만 일한다(출시 빌드에서는 아무것도 안 함).
+﻿// 타일 맵에서 몬스터와 싸워 보는 시험 도구. 개발 빌드의 서버에서만 일한다(출시 빌드에서는 아무것도 안 함).
 
 #pragma once
 
@@ -17,6 +17,7 @@ class APlayerController;
 //   -PGTestEnemyClass=/Game/.../CBP_X.CBP_X_C          놓을 몬스터 BP 클래스(코드에 경로를 박지 않으려고 명령줄로 받음)
 //   -PGTestRifle=1010                                  플레이어 손에 쥐어 줄 총 아이템 번호(ItemTable 행 이름)
 //   -PGTestEnemyPlayers=1                              (골라 씀) 먼저 들어온 몇 명 둘레에만 몬스터를 놓을지. 없으면 모두.
+//   -PGTestFacePlayer                                  (골라 씀) 첫 몬스터가 플레이어를 보게 놓는다. 조작 없이 "보고 → 돌아 쏘고 → 죽으면 통계표" 를 자동으로 보려고.
 //                                                      죽으면 로비로 나가기 시험에서 "한 명만 죽고 나머지는 산다"를 만들 때 쓴다.
 // 서버는 GM_InGame 게임모드로 띄워야 한다(그래야 짐을 서버가 관리해 총이 모두에게 보임).
 // 실행 예: Tools/test/EnemyVoiceTileTest.ps1
@@ -42,6 +43,7 @@ private:
 
 	int32 EnemiesPerPlayer = 0;
 	int32 MaxPlayersWithEnemies = MAX_int32;
+	bool bFirstEnemyFacesPlayer = false;
 	FName RifleItemID;
 	UPROPERTY(Transient)
 	TSubclassOf<APawn> EnemyClass;
