@@ -206,14 +206,18 @@ EPhysicalSurface UPGAudioSubsystem::SurfaceOf(const FHitResult& Hit)
 	if (Cast<APawn>(Hit.GetActor())) return SurfaceType6; // DefaultEngine.ini: SurfaceType6 = Flesh
 	if (!SoundSet) return Surface;
 	if (Cast<ALandscapeProxy>(Hit.GetActor())) return SoundSet->LandscapeSurface;
-	return GuessSurfaceByName(Hit.GetComponent());
+	return GuessSurfaceByName(Hit);
 }
 
-EPhysicalSurface UPGAudioSubsystem::GuessSurfaceByName(const UPrimitiveComponent* Component)
+EPhysicalSurface UPGAudioSubsystem::GuessSurfaceByName(const FHitResult& Hit)
 {
+	const UPrimitiveComponent* Component = Hit.GetComponent();
 	if (!Component || SoundSet->SurfaceKeywords.Num() == 0) return SurfaceType_Default;
 	// 머티리얼 이름이 재질을 제일 잘 말해 줌(M_Metal_Rusty 등). 없으면 메시 이름, 그다음 액터 이름.
-	const UObject* Material = Component->GetMaterial(0);
+	// 맞은 면 번호가 있으면(총알 선) 그 면의 머티리얼, 없으면(발밑 선) 첫 번째 머티리얼.
+	int32 Section = 0;
+	const UObject* Material = Hit.FaceIndex != INDEX_NONE ? Component->GetMaterialFromCollisionFaceIndex(Hit.FaceIndex, Section) : nullptr;
+	if (!Material) Material = Component->GetMaterial(0);
 	const UObject* Key = Material ? Material : static_cast<const UObject*>(Component);
 	if (const TEnumAsByte<EPhysicalSurface>* Known = GuessedSurfaces.Find(Key)) return *Known;
 

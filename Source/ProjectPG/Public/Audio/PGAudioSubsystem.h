@@ -60,5 +60,5 @@ private:
 
 	// 이름 규칙으로 짐작한 재질을 물체(머티리얼·메시)마다 기억 → 같은 물체는 글자 비교를 다시 안 함.
 	TMap<TWeakObjectPtr<const UObject>, TEnumAsByte<EPhysicalSurface>> GuessedSurfaces;
-	EPhysicalSurface GuessSurfaceByName(const UPrimitiveComponent* Component);
+	EPhysicalSurface GuessSurfaceByName(const FHitResult& Hit);
 };

@@ -162,6 +162,9 @@ void UPGCharacterSoundComponent::TraceBulletImpacts(ACustomCharacter* Shooter, c
 
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(PGBulletSound), true, Shooter);
 	Params.bReturnPhysicalMaterial = true;
+	// 메시 겉면(복잡한 충돌)까지 보고, 맞은 면 번호도 받음 → 한 메시에 머티리얼이 여럿일 때(컨테이너: 콘크리트 테두리 + 철판) 맞은 면의 머티리얼로 재질을 정함.
+	Params.bTraceComplex = true;
+	Params.bReturnFaceIndex = true;
 	Params.AddIgnoredActor(Firearm);
 	TArray<AActor*> Attached;
 	Shooter->GetAttachedActors(Attached, true, true);
