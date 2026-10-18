@@ -182,6 +182,13 @@ bool AFirearmEquipment::Fire()
 	// 몬스터가 쏜 총소리는 몬스터 AI 가 "같은 편"으로 보고 무시한다.
 	UAISense_Hearing::ReportNoiseEvent(GetWorld(), Muzzle, 1.f, Character, 0.f, EnemyNoiseTags::Gunshot);
 	const float HalfAngle = FMath::DegreesToRadians(FMath::Clamp(FirearmData.ConeHalfAngle, 0.f, 45.f));
+	// [진단용, 2026-10-18] 플레이어가 쏜 총알이 무엇에 맞았는지 서버 로그에 남긴다(몬스터가 거의 안 맞던 원인 찾기).
+	// 원인을 찾아 고치면 이 로그(FireHit)는 지운다. 몬스터가 쏜 총알은 너무 많아 남기지 않는다.
+	const bool bLogShot = Character->IsPlayerControlled();
+	if (bLogShot)
+		UE_LOG(LogTemp, Display, TEXT("[FireHit] %s 발사: 카메라 조준선이 닿은 것=%s(%s) 거리 %.1fm, 총구→조준점 %.1fm, 퍼짐 %.1f도, 갈래 %d"),
+			*GetNameSafe(Character), *GetNameSafe(CameraHit.GetActor()), *GetNameSafe(CameraHit.GetComponent()), CameraHit.bBlockingHit ? CameraHit.Distance / 100.f : -1.f,
+			FVector::Dist(Muzzle, AimPoint) / 100.f, FirearmData.ConeHalfAngle, FirearmData.TraceCount);
 	// Broad phase: 원뿔을 감싸는 구로 후보를 얻은 뒤 원뿔 내부 여부를 검사합니다.
 	TArray<FOverlapResult> Overlaps;
 	const FVector Center = Muzzle + Direction * (Range * 0.5f);
@@ -202,15 +209,27 @@ bool AFirearmEquipment::Fire()
 			&& (Offset - Direction * Along).Size() <= FMath::Max(0.f, Along) * FMath::Tan(HalfAngle) + BoundRadius)
 		{ bHasTarget = true; break; }
 	}
-	if (!bHasTarget) return true; // 대상이 없어도 한 발은 소모합니다.
+	if (!bHasTarget)
+	{
+		if (bLogShot) UE_LOG(LogTemp, Display, TEXT("[FireHit]   → 원뿔 안에 맞을 수 있는 대상이 없어 맞춤 계산 안 함"));
+		return true; // 대상이 없어도 한 발은 소모합니다.
+	}
 	const int32 Count = FMath::Clamp(FirearmData.TraceCount, 1, 32);
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		const FVector Ray = FMath::VRandCone(Direction, HalfAngle);
 		FHitResult HitResult;
-		if (!GetWorld()->LineTraceSingleByChannel(HitResult, Muzzle, Muzzle + Ray * Range, ECC_Visibility, Params)) continue;
+		if (!GetWorld()->LineTraceSingleByChannel(HitResult, Muzzle, Muzzle + Ray * Range, ECC_Visibility, Params))
+		{
+			if (bLogShot) UE_LOG(LogTemp, Display, TEXT("[FireHit]   → 갈래 %d: 아무것도 안 맞음"), Index);
+			continue;
+		}
 		AActor* Target = HitResult.GetActor();
-		if (IsValid(Target) && Target->Implements<UHittable>() && IHittable::Execute_CanBeHit(Target))
+		const bool bDamage = IsValid(Target) && Target->Implements<UHittable>() && IHittable::Execute_CanBeHit(Target);
+		if (bLogShot)
+			UE_LOG(LogTemp, Display, TEXT("[FireHit]   → 갈래 %d: %s(%s) 거리 %.1fm → %s"), Index, *GetNameSafe(Target), *GetNameSafe(HitResult.GetComponent()),
+				HitResult.Distance / 100.f, bDamage ? TEXT("데미지") : TEXT("데미지 없음(맞을 수 있는 대상 아님)"));
+		if (bDamage)
 			IHittable::Execute_Hit(Target, WeaponAttributes->GetDamage() / Count, this, HitResult);
 	}
 	return true;
