@@ -30,10 +30,15 @@ $map = "/Game/PG/Level/TestLevel_MapGenerating?game=/Game/PG/Blueprint/GM_InGame
 $enemyClass = "/Game/PG/Blueprint/Characters/CBP_CustomEnemyCharacter.CBP_CustomEnemyCharacter_C"
 $serverLog = Join-Path $logs "server.log"
 
-# 서버가 맵의 무거운 작업까지 끝냈나("Design navigation" 줄 = 시설 레벨 붙이기·길 검사 끝).
+# 서버가 맵의 무거운 작업까지 끝냈나: 두 줄이 다 나오면 준비 끝.
+#   "All facility visuals ready" = 시설 레벨 붙이기 끝, "Navigation build finished" = 몬스터 길찾기 지도 굽기 끝.
 # 왜: "맵 열림" 직후엔 시설 레벨을 붙이느라 한 프레임에 10초 넘게 멈춰서, 그때 접속하면 20초 제한에 걸려 로비로 튕긴다.
+# 예전엔 맵 검사기의 "Design navigation" 줄을 기다렸는데, 2026-10-19 부터 검사기는 에디터 시험 실행·-PGMapVerify 때만 돈다.
 # 로그 파일은 서버가 켜지고 조금 뒤에야 생겨서, 파일이 없으면 "아직" 으로 본다.
-function Test-ServerReady { (Test-Path $serverLog) -and [bool](Select-String -Path $serverLog -Pattern "Design navigation:" -Quiet) }
+function Test-ServerReady {
+    (Test-Path $serverLog) -and [bool](Select-String -Path $serverLog -Pattern "All facility visuals ready:" -Quiet) `
+        -and [bool](Select-String -Path $serverLog -Pattern "Navigation build finished:" -Quiet)
+}
 $server = Start-Process $exe -PassThru -WindowStyle Minimized -ArgumentList "`"$project`" $map -server -log -unattended -nullrhi $netTimeout -PGTestEnemies=$Enemies -PGTestEnemyClass=$enemyClass -PGTestRifle=$Rifle $(if ($EnemyPlayers -gt 0) { "-PGTestEnemyPlayers=$EnemyPlayers" }) $(if ($FacePlayer) { "-PGTestFacePlayer" }) -abslog=`"$serverLog`""
 Write-Host "서버 켬 (번호 $($server.Id)), 맵 여는 중..."
 $deadline = (Get-Date).AddMinutes(10)

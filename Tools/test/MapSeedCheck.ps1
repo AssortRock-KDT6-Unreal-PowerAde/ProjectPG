@@ -49,12 +49,13 @@ $clientLog = Join-Path $logDir "client.log"
 $procs = @()
 try {
     Say "서버 시작 (시드 $Seed, 포트 $Port)"
-    $procs += Start-Process $exe -PassThru -WindowStyle Hidden -ArgumentList "`"$project`" $Map -server -nullrhi -PGMapSeed=$Seed -port=$Port -log -unattended -nosplash -nosound -abslog=`"$serverLog`""
+    $procs += Start-Process $exe -PassThru -WindowStyle Hidden -ArgumentList "`"$project`" $Map -server -nullrhi -PGMapSeed=$Seed -PGMapVerify -port=$Port -log -unattended -nosplash -nosound -abslog=`"$serverLog`""
     Start-Sleep 25
     Say "클라 접속"
     $procs += Start-Process $exe -PassThru -WindowStyle Hidden -ArgumentList "`"$project`" 127.0.0.1:$Port -game -nullrhi -log -unattended -nosplash -nosound -abslog=`"$clientLog`""
 
     # 서버의 시간 걸리는 검사(성능 50번)까지 끝나고, 클라가 상자를 받을 때까지 기다린다.
+    # 맵 검사기는 -PGMapVerify 를 붙여야 돈다(패키지·시연에선 안 돎).
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     while ((Get-Date) -lt $deadline) {
         Start-Sleep 5

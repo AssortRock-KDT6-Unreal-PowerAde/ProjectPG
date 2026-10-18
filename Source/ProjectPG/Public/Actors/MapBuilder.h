@@ -9,6 +9,7 @@
 
 class AMapTile;
 class ANavigationData;
+class APlayerController;
 class ATacticalTileActor;
 class UHierarchicalInstancedStaticMeshComponent;
 class ULevelStreamingDynamic;
@@ -566,10 +567,23 @@ private:
 	double TimedChecksStartSeconds = 0.0;
 	double LastPlayerNavigationBlockerUpdateTimeSeconds = -BIG_NUMBER;
 	double NavigationValidationStartTimeSeconds = 0.0;
-	FIntPoint LastPlayerNavigationBlockerCell = FIntPoint(MAX_int32, MAX_int32);
 	TArray<double> FacilityLoadRequestTimeSeconds;
 
+	// 서버: 플레이어마다 둘레 60 m 길찾기 "막힌 곳" 부품과, 마지막으로 계산한 40 m 칸. 쓰는 법은 RefreshPlayerNavigationBlockers 주석.
+	// 부품은 이 액터가 들고 있어서(붙은 부품) 약한 주소로만 적어 둔다.
+	struct FPlayerNavigationBlocker
+	{
+		TWeakObjectPtr<UTacticalTileNavModifierComponent> Modifier;
+		FIntPoint LastCell = FIntPoint(MAX_int32, MAX_int32);
+	};
+	TMap<TWeakObjectPtr<const APlayerController>, FPlayerNavigationBlocker> PlayerNavigationBlockersByController;
+	void RefreshPlayerNavigationBlockers();
+
 	FTimerHandle RetryTimer;
+	// 맵 짓기(TryReserveFootprint) 0.2초 재시도를 언제 시작했나(실제 시간, 초)와, 마지막으로 무엇을 기다렸나.
+	// 60초가 지나도 못 지으면 기다린 것을 Error 로그로 남기고 재시도를 멈춘다.
+	double FootprintRetryStartSeconds = 0.0;
+	const TCHAR* FootprintWaitReason = TEXT("not started");
 
 	// 들어온 사람이 설계도로 받은 값(서버에서는 안 씀).
 	bool bHasReplicatedManifest = false;

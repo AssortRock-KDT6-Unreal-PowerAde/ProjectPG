@@ -320,7 +320,13 @@ void AMapBuilder::BeginPlay()
 		if (UPGLoadingScreenSubsystem* Loading = UPGLoadingScreenSubsystem::Get(this))
 			Loading->ShowLoading(GetWorld(), GetMapAssets().LoadingScreenClass);
 	//부모거 다 진행하고 다음 검사기 진행
-	if (!Verifier)
+	// 검사기는 맵이 다 지어진 순간 한 프레임에 무거운 검사를 몰아서 한다. 그래서 개발할 때만 만든다.
+	//   - 에디터 안 시험 실행(PIE) → 만든다
+	//   - 명령줄에 -PGMapVerify (Tools/test/MapSeedCheck.ps1 가 붙인다) → 만든다
+	//   - 그 밖(패키지 게임·전용 서버 시연) → 안 만든다. 검사기가 없으면 CheckFacilityDesignLevels 가 검사를 건너뛴다.
+	const bool bRunMapVerifier = GetWorld()->IsPlayInEditor()
+		|| FParse::Param(FCommandLine::Get(), TEXT("PGMapVerify"));
+	if (!Verifier && bRunMapVerifier)
 	//1. 아직 없으면	
 	{
 		//2.만들어서 칸에 담고
@@ -387,7 +393,8 @@ void AMapBuilder::BeginPlay()
 	// 서버만 해야 하는 일(설계도 만들기·아이템 놓기·플레이어 세우기)은 각자 서버인지 확인해서 거른다.
 
 	// 게임 모드가 시작되는 중에 칸 격자를 만든다. 0.2초마다 다시 시도해서,
-	// 액터들이 시작되는 순서가 어떻든 상관없게 한다.
+	// 액터들이 시작되는 순서가 어떻든 상관없게 한다. 끝내 못 지으면 TryReserveFootprint 가 60초 뒤 Error 로그를 남기고 멈춘다.
+	FootprintRetryStartSeconds = FPlatformTime::Seconds();
 	GetWorldTimerManager().SetTimer(
 		RetryTimer,
 		this,
@@ -412,22 +419,73 @@ void AMapBuilder::Tick(float DeltaSeconds)
 	//    부담: 기다리는 사람이 없으면 확인 한 번 하고 바로 끝남.
 	SpawnRegionPlanner->PlaceJoinedPlayers();
 
-	// 2) 내 캐릭터 주변 60 m 길찾기 "막힌 곳" 을 새로 고친다
+	// 2) 플레이어마다 둘레 60 m 길찾기 "막힌 곳" 을 새로 고친다 (서버만)
 	//    왜 여기서: 캐릭터는 계속 움직이는데, 엔진에는 "다른 칸으로 넘어갔을 때" 불러 주는 기능이 없다. 40 m 칸이 바뀔 때만 일한다.
-	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
-	const APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
-	if (IsValid(PlayerPawn) && IsValid(PlayerNavigationBlockers))
+	//    왜 서버만: 몬스터 길찾기 지도는 서버에만 있다(MapNavigationBuilder 도 서버에서만 굽는다). 들어온 사람 컴퓨터에서 돌리면 헛일.
+	if (GetNetMode() != NM_Client)
+		RefreshPlayerNavigationBlockers();
+}
+
+// 플레이어 한 명마다 막힘 부품을 하나씩 두고, 그 사람이 40 m 칸을 옮길 때 그 부품만 다시 계산한다.
+//   왜 한 부품에 모두 넣지 않나: 부품 하나는 영역을 통째로 덮어쓰고, 두 사람이 멀리 떨어져 있으면
+//   둘 사이 전체가 "다시 구울 곳" 이 되어 길찾기 지도를 크게 다시 굽는다. 사람마다 나누면 각자 둘레만 다시 굽는다.
+//   - 처음 보는 플레이어 → 부품을 만든다(첫 사람은 원래 있던 PlayerNavigationBlockers 를 쓴다)
+//   - 40 m 칸을 옮김 → 그 사람 부품만 다시 계산
+//   - 나간 플레이어 → 부품을 비우거나 지운다
+//   - 맵이 아직 안 지어짐 → 아무것도 안 함(지어진 뒤 첫 확인 때 계산된다)
+void AMapBuilder::RefreshPlayerNavigationBlockers()
+{
+	if (!Tags.Contains(ReservedTag) || !IsValid(PlayerNavigationBlockers))
+		return;
+
+	for (auto It = PlayerNavigationBlockersByController.CreateIterator(); It; ++It)
 	{
+		if (It.Key().IsValid())
+			continue;
+		UTacticalTileNavModifierComponent* Modifier = It.Value().Modifier.Get();
+		// 원래 부품은 다음 사람이 다시 쓰므로 지우지 않고 비워만 둔다.
+		if (Modifier == PlayerNavigationBlockers)
+			Modifier->SetWorldBlockers({});
+		else if (IsValid(Modifier))
+			Modifier->DestroyComponent();
+		It.RemoveCurrent();
+	}
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* PlayerController = It->Get();
+		const APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+		if (!IsValid(PlayerPawn))
+			continue;
+
+		FPlayerNavigationBlocker& Blocker = PlayerNavigationBlockersByController.FindOrAdd(PlayerController);
+		if (!Blocker.Modifier.IsValid())
+		{
+			const bool bOriginalTaken = Algo::AnyOf(PlayerNavigationBlockersByController,
+				[this](const auto& Pair)
+				{
+					return Pair.Value.Modifier.Get() == PlayerNavigationBlockers;
+				});
+			UTacticalTileNavModifierComponent* Modifier = PlayerNavigationBlockers;
+			if (bOriginalTaken)
+			{
+				Modifier = NewObject<UTacticalTileNavModifierComponent>(this);
+				AddInstanceComponent(Modifier);
+				Modifier->RegisterComponent();
+			}
+			Blocker.Modifier = Modifier;
+			Blocker.LastCell = FIntPoint(MAX_int32, MAX_int32);
+		}
+
 		const FVector PlayerLocation = PlayerPawn->GetActorLocation();
 		const FIntPoint PlayerCell(
 			FMath::FloorToInt(PlayerLocation.X / 4000.0f),
 			FMath::FloorToInt(PlayerLocation.Y / 4000.0f));
-		if (PlayerCell != LastPlayerNavigationBlockerCell)
-		{
-			LastPlayerNavigationBlockerCell = PlayerCell;
-			TileSpawner->RefreshNavigationBlockerRegion(PlayerNavigationBlockers, PlayerLocation, NavigationBlockerRadiusCm);
-			LastPlayerNavigationBlockerUpdateTimeSeconds = FPlatformTime::Seconds();
-		}
+		if (PlayerCell == Blocker.LastCell)
+			continue;
+		Blocker.LastCell = PlayerCell;
+		TileSpawner->RefreshNavigationBlockerRegion(Blocker.Modifier.Get(), PlayerLocation, NavigationBlockerRadiusCm);
+		LastPlayerNavigationBlockerUpdateTimeSeconds = FPlatformTime::Seconds();
 	}
 }
 
@@ -462,6 +520,19 @@ void AMapBuilder::ApplyReplicatedManifest(int64 InSeed, int32 InStartRange)
 
 void AMapBuilder::TryReserveFootprint()
 {
+	// 0.2초마다 다시 불린다. 60초가 지나도 못 지었으면 마지막으로 무엇을 기다렸는지 Error 로 남기고 재시도를 끈다.
+	//   - 칸 정보가 안 옴 → 서버: 형님 생성기가 칸(AMapTile)을 안 만듦 / 들어온 사람: 맵 설계도(AMapManifestActor)를 못 받음
+	//   - 시설 자리를 못 찾음 → 워존이 너무 작은 맵
+	//   이대로면 맵이 비어 있으니, 그 판은 다시 시작해야 한다.
+	constexpr double FootprintRetryTimeoutSeconds = 60.0;
+	if (FPlatformTime::Seconds() - FootprintRetryStartSeconds > FootprintRetryTimeoutSeconds)
+	{
+		GetWorldTimerManager().ClearTimer(RetryTimer);
+		UE_LOG(LogTemp, Error, TEXT("Map build gave up: after=%.0fs net_mode=%d waiting_for=%s - the map stays empty this round"),
+			FootprintRetryTimeoutSeconds, static_cast<int32>(GetNetMode()), FootprintWaitReason);
+		return;
+	}
+
 	TArray<AMapTile*> AllTiles;
 	TArray<float> UniqueX;
 
@@ -496,7 +567,10 @@ void AMapBuilder::TryReserveFootprint()
 	}
 
 	if (AllTiles.Num() == 0)
+	{
+		FootprintWaitReason = TEXT("map tiles (AMapTile) - server: generator made none / client: no manifest yet");
 		return;
+	}
 
 	UniqueX.Sort();
 	GridStep = 0.0f;
@@ -508,7 +582,10 @@ void AMapBuilder::TryReserveFootprint()
 	}
 
 	if (GridStep <= 0.0f)
+	{
+		FootprintWaitReason = TEXT("grid step - all map tiles share one X position");
 		return;
+	}
 
 	// 서버: 칸 쪽지를 다 읽었으면 설계도(칸 위치·종류 + 시드)를 만들어 들어온 사람에게 보낸다(서버 겸 플레이어 방식).
 	if (GetWorld()->GetNetMode() != NM_Client && !IsValid(Manifest))
@@ -538,7 +615,10 @@ void AMapBuilder::TryReserveFootprint()
 	// 큰 건물(창고·마당·막사·참호·검문소·다운타운·공장·호숫가 마을) 자리는 건물 자리 담당이 고른다.
 	// 결과는 맵의 FacilityPlacements 목록에 들어간다. 자리를 못 찾으면(워존이 너무 작음) 0.2초 뒤 다시 시도한다.
 	if (!FacilityPlanner->PlanFacilities(TileByCell, WarZoneByCell, AllTiles.Num()))
+	{
+		FootprintWaitReason = TEXT("facility placement - warzone too small for the facility set");
 		return;
+	}
 	// 길찾기 바닥판을 맵 크기(GridCellSpan, 건물 자리 담당이 재 둠)에 맞춘다.
 	// 길찾기 지도(Recast)는 타일마다 모양을 뽑아 쓰지 않고 이 바닥판 하나만 읽는다.
 	// 그래서 바닥판은 만들어진 격자만큼만 덮어야 한다. 예전에 900 m 로 고정했더니
@@ -856,6 +936,9 @@ void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
 	EnemySpawner->SpawnWhenNavigationReady();
 
 	// 검사기: 바로 끝나는 검사는 지금 한 번, 시간이 걸리는 검사(길찾기 지도 등)는 0.1초마다 도는 타이머로.
+	// 검사기가 없으면(개발 중이 아니면, BeginPlay 주석) 여기서 끝.
+	if (!Verifier)
+		return;
 	Verifier->RunFinalChecks();
 	TimedChecksStartSeconds = GetWorld()->GetTimeSeconds();
 	GetWorldTimerManager().SetTimer(TimedChecksTimer, this, &AMapBuilder::RunTimedChecks, 0.1f, true);

@@ -270,7 +270,9 @@ void ACustomPlayerCharacter::OnRep_SyncAimRotation_Implementation(FVector2D AimD
 	if (!IsValid(animInstance))
 		return;
 
-	animInstance->SyncAim(AimDirection.X, AimDirection.Y);
+	// [멀티 임시수정 2026-10-19 조준 방향 덜 자주] 이제 0.1초마다 오므로 바로 넣지 않고 목표로 적는다(애니가 부드럽게 따라감).
+	animInstance->SetRemoteAimTarget(AimDirection.X, AimDirection.Y);
+	// [멀티 임시수정] 끝
 }
 
 void ACustomPlayerCharacter::OnReq_SyncCharacterRotation_Implementation(FVector2D AimDirection,

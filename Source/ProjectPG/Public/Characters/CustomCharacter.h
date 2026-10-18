@@ -106,8 +106,13 @@ public:
 	void PlayMontage(class UAnimMontage* Montage);
 	UFUNCTION(Server, Reliable)
 	void OnReq_PlayMontage(class UAnimMontage* Montage);
-	UFUNCTION(NetMulticast, Reliable)
+	// [멀티 임시수정 2026-10-19 몽타주 방송] Reliable → Unreliable
+	// 왜: 총 한 발마다 모든 사람에게 "꼭 도착" 방송을 보내서, 몸짓이 쌓이면 연결이 끊길 수 있었다.
+	// 빠지면: 그 화면에서 몸짓(쏘기·맞기 반동 등) 하나가 안 보일 뿐. 서버는 이 방송을 자기 쪽에서 바로 실행해서
+	//        총알 판정(AnimNotify_Fire 는 서버에서만)·재장전 탄약 옮기기는 그대로 된다.
+	UFUNCTION(NetMulticast, Unreliable)
 	void OnRep_PlayMontage(class UAnimMontage* Montage, bool bSkipOwningClient);
+	// [멀티 임시수정] 끝
 	bool ApplyWeaponAnimation(EWeaponType NewWeaponType, TSubclassOf<class UCustomAnimInstance> AnimClass = nullptr);
 	const FWeaponAnimationSet* GetCurrentWeaponAnimationSet() const;
 
