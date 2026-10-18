@@ -1,4 +1,4 @@
-// 몬스터 AI 전체 흐름 그림: Source/ProjectPG/Private/AI/README.md
+﻿// 몬스터 AI 전체 흐름 그림: Source/ProjectPG/Private/AI/README.md
 
 #include "AI/CustomEnemyAIController.h"
 #include "AI/EnemyAILog.h"
@@ -175,6 +175,7 @@ void ACustomEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulu
 	const bool bSight = Stimulus.Type == UAISense::GetSenseID<UAISense_Sight>();
 	const bool bHeard = Stimulus.Type == UAISense::GetSenseID<UAISense_Hearing>();
 	const bool bCallout = bHeard && Stimulus.Tag == EnemyNoiseTags::EnemyCallout;
+	const bool bDamaged = Stimulus.Type == UAISense::GetSenseID<UAISense_Damage>();
 	// 소리는 들린 순간 한 번만 쓴다. 귀에서 "잊힘" 알림이 와도 할 일이 없다(포기 시계는 눈이 맡음).
 	if (bHeard && !Stimulus.WasSuccessfullySensed()) return;
 
@@ -183,7 +184,8 @@ void ACustomEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulu
 	// - 목표가 있지만 지금 안 보일 때 → 눈에 보이는 다른 사람으로 바꿈.
 	if (Candidate != Target.Get())
 	{
-		const bool bTake = !Target.IsValid() || (bSight && Stimulus.WasSuccessfullySensed() && !bTargetVisible);
+		// 맞았을 때도 지금 목표가 안 보이면 쏜 사람으로 바꾼다(맞으면 바로 반격, 2026-10-19 사용자 요청).
+		const bool bTake = !Target.IsValid() || ((bSight || bDamaged) && Stimulus.WasSuccessfullySensed() && !bTargetVisible);
 		if (!bTake || !Stimulus.WasSuccessfullySensed()) return;
 		if (bHeard)
 			UE_LOG(LogEnemyAI, Log, TEXT("[EnemyAI] %s: %s 듣고 %s 쪽으로 감"), *GetNameSafe(GetPawn()), bCallout ? TEXT("동료 외침") : TEXT("총소리"), *GetNameSafe(Candidate));
@@ -194,7 +196,10 @@ void ACustomEnemyAIController::HandlePerceptionUpdated(AActor* Actor, FAIStimulu
 	// - 동료 외침 → 소리 난 자리는 외친 동료라서, 동료가 본 플레이어 위치를 쓴다.
 	// - 그 밖(눈·총소리·피격) → 감각이 알려 준 자리.
 	LastKnownTargetLocation = bCallout ? Candidate->GetActorLocation() : Stimulus.StimulusLocation;
-	if (bSight && Stimulus.WasSuccessfullySensed())
+	// 맞은 순간: 눈 감각이 다음에 확인해 줄 때까지 기다리지 않고, 쏜 사람까지 시야 선이 뚫려 있으면 바로 "보임" 으로 친다.
+	// 왜: 맞고도 한참 멍하니 있다가 반응해 멍청해 보였다. 벽 뒤라 안 뚫리면 아래처럼 마지막 위치로 찾아간다.
+	const bool bSeenNow = (bSight && Stimulus.WasSuccessfullySensed()) || (bDamaged && Stimulus.WasSuccessfullySensed() && LineOfSightTo(Candidate));
+	if (bSeenNow)
 	{
 		const bool bWasVisible = bTargetVisible;
 		bTargetVisible = true;

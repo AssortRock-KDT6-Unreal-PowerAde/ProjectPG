@@ -1,4 +1,6 @@
-#include "Characters/CustomCharacter.h"
+﻿#include "Characters/CustomCharacter.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/PlayerController.h"
 #include "Equipments/FirearmEquipment.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimInstance.h"
@@ -172,8 +174,13 @@ void ACustomCharacter::SetFireInput(bool bPressed)
 void ACustomCharacter::SendAimViewToServer()
 {
 	if (!IsLocallyControlled() || HasAuthority()) return;  // 서버(혼자 하기·방장)는 자기 카메라를 그대로 쓴다
+	// 화면에 실제로 그려지는 카메라(카메라 관리자) 값을 보낸다 = 십자선이 가리키는 선.
+	// 왜: 카메라 부품 위치 + ControlRotation 을 따로 조립하면 어깨 오프셋·조준 카메라 때문에
+	//     십자선과 몇 도 어긋나 13m 에서 0.7~0.9m 씩 빗나갔다(2026-10-19 서버 기록으로 확인).
 	FVector Location; FRotator Rotation;
-	GetCombatViewPoint(Location, Rotation);
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	if (PC && PC->PlayerCameraManager) PC->PlayerCameraManager->GetCameraViewPoint(Location, Rotation);
+	else GetCombatViewPoint(Location, Rotation);
 	OnReq_UpdateAimView(Location, Rotation.Vector());
 }
 

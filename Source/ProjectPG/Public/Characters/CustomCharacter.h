@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -130,6 +130,8 @@ public:
 	void OnReq_UpdateAimView(FVector_NetQuantize CameraLocation, FVector_NetQuantizeNormal CameraDirection);
 	// 서버: 방금(0.5초 안) 받은 내 화면 조준이 있으면 true.
 	bool GetClientAimView(FVector& Location, FVector& Direction) const;
+	// 밟은 바닥 기록. 클라이언트가 찾을 수 없는 바닥(타일 맵이 실행 중에 만든 부품)이면 기록하지 않는다 → 아래 .cpp 설명.
+	virtual void SetBase(UPrimitiveComponent* NewBase, const FName BoneName = NAME_None, bool bNotifyActor = true) override;
 	virtual void Fire();
 	virtual void GetCombatViewPoint(FVector& Location, FRotator& Rotation) const;
 

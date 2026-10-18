@@ -120,12 +120,14 @@ void UMapEnemySpawner::SpawnEnemiesOnce()
 				continue;
 			}
 			UClass* EnemyClass = EnemyClasses[Stream.RandRange(0, EnemyClasses.Num() - 1)];
-			// 몸 절반 높이만큼 띄워 놓는다(바닥에 박히지 않게, 공중에 뜨지 않게).
+			// 몸 절반 높이 + 50cm 위에 놓아 땅에 떨어지게 한다.
+			// 왜: 길찾기 점은 보이는 땅보다 약 30cm 낮은 투명 길찾기 바닥 위라, 2cm 만 띄우면 발이 땅 속에 박혀
+			//     '떨어지는 중' 으로 멈췄다 → 다른 사람 화면에서 공중 자세로 떠 보였다(2026-10-19 서버 기록 7마리).
 			const ACharacter* Defaults = Cast<ACharacter>(EnemyClass->GetDefaultObject());
 			const float HalfHeight = Defaults && Defaults->GetCapsuleComponent()
 				? Defaults->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : MapEnemySpawn::FallbackHalfHeightCm;
 			const FRotator Facing(0.0f, Stream.FRandRange(0.0f, 360.0f), 0.0f);
-			APawn* Enemy = GetWorld()->SpawnActor<APawn>(EnemyClass, Floor + FVector(0.0f, 0.0f, HalfHeight + 2.0f), Facing, Params);
+			APawn* Enemy = GetWorld()->SpawnActor<APawn>(EnemyClass, Floor + FVector(0.0f, 0.0f, HalfHeight + 50.0f), Facing, Params);
 			if (!Enemy)
 			{
 				UE_LOG(LogTemp, Error, TEXT("Warzone enemies: SpawnActor failed for %s at %s"), *GetNameSafe(EnemyClass), *Floor.ToCompactString());
@@ -177,7 +179,7 @@ TArray<const FLevelDesignPoint*> UMapEnemySpawner::PickPoints(FRandomStream& Str
 		return Best;
 	};
 
-	// 후보: 시작 구역에서 충분히 먼 몬스터 자리. 섞어 둔다.
+	// 후보: 시작 구역에서 충분히 먼 몬스터 자리.
 	TArray<const FLevelDesignPoint*> Candidates;
 	OutTooCloseCount = 0;
 	for (const FLevelDesignPoint& Point : AllPoints)
@@ -191,10 +193,17 @@ TArray<const FLevelDesignPoint*> UMapEnemySpawner::PickPoints(FRandomStream& Str
 		}
 		Candidates.Add(&Point);
 	}
-	for (int32 Index = Candidates.Num() - 1; Index > 0; --Index)
-		Candidates.Swap(Index, Stream.RandRange(0, Index));
+	// 중앙에 가까운 자리부터 채운다(워존: 가운데로 갈수록 몬스터가 많다, 2026-10-19 사용자 요청).
+	// 맵 중앙 = 시작 자리들의 가운데(시작 구역은 맵 가장자리에 고르게 있다). 거리에 0.75~1.25 를 곱해 판마다 조금씩 섞는다.
+	FVector MapCenter = FVector::ZeroVector;
+	for (const FVector& Spot : StartSpots)
+		MapCenter += Spot / StartSpots.Num();
+	TMap<const FLevelDesignPoint*, float> CenterKey;
+	for (const FLevelDesignPoint* Point : Candidates)
+		CenterKey.Add(Point, FVector::Dist2D(MapCenter, Point->WorldLocation) * Stream.FRandRange(0.75f, 1.25f));
+	Candidates.Sort([&CenterKey](const FLevelDesignPoint& A, const FLevelDesignPoint& B) { return CenterKey[&A] < CenterKey[&B]; });
 
-	// 먼저: 시작 구역마다 가까운 자리 몇 곳(정해진 반경 안). 그다음: 나머지 섞인 순서대로.
+	// 먼저: 시작 구역마다 가까운 자리 몇 곳(DA 칸, 0 이면 안 함). 그다음: 나머지는 중앙에 가까운 순서대로.
 	TArray<const FLevelDesignPoint*> Ordered;
 	for (const FVector& Region : StartRegions)
 	{

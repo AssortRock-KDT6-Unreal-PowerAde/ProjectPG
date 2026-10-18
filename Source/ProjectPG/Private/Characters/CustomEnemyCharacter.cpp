@@ -1,4 +1,4 @@
-#include "Characters/CustomEnemyCharacter.h"
+﻿#include "Characters/CustomEnemyCharacter.h"
 #include "AI/CustomEnemyAIController.h"
 #include "AI/EnemyVoiceComponent.h"
 #include "AbilitySystemComponent.h"
@@ -76,6 +76,24 @@ void ACustomEnemyCharacter::SetAimTracking(bool bEnabled)
 void ACustomEnemyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	// 다른 사람 화면(클라이언트)의 몬스터: 서버가 보낸 이동 모드(걷기 등)가 안 들어와 "이동 없음" 으로 굳는 일이 있었다.
+	// 그러면 걷기 애니가 안 나오고 공중에 떠 미끄러져 보였다(2026-10-19 기록: 서버 걷기 27마리 / 클라 없음 21마리).
+	// 매 프레임 서버 값과 다르면 서버 값으로 맞춘다. 같으면 비교 한 번만.
+	// 나중에 바꿀 것: 엔진이 왜 안 넣어 주는지 찾으면 지운다(시연 뒤).
+	if (!HasAuthority() && !IsDead())
+	{
+		UCharacterMovementComponent* Move = GetCharacterMovement();
+		if (Move->PackNetworkMovementMode() != GetReplicatedMovementMode())
+			Move->ApplyNetworkMovementMode(GetReplicatedMovementMode());
+	}	// [시험 진단 2026-10-19] 클라이언트에서 몬스터가 걷는 모션 없이 떠다니는 원인 찾기: 2초마다 이동 상태·애니 한 줄. 원인 찾은 뒤 지운다.
+	if (GetWorld()->GetTimeSeconds() >= NextMoveDiagTime)
+	{
+		NextMoveDiagTime = GetWorld()->GetTimeSeconds() + 2.0;
+		const UCharacterMovementComponent* Move = GetCharacterMovement();
+		UE_LOG(LogTemp, Display, TEXT("[MoveDiag] %s %s 모드=%d 속도=%.0f 바닥=%s/%s(높이 %.0f) 애니=%s 조준=%d 위치=(%.0f, %.0f, %.0f) 몸=%.0f 시선=%.0f 이동방향보기=%d 시선보기=%d 조준추적=%d"), *GetName(), HasAuthority() ? TEXT("서버") : TEXT("클라"), static_cast<int32>(Move->MovementMode),
+			GetVelocity().Size2D(), *GetNameSafe(Move->CurrentFloor.HitResult.GetActor()), *GetNameSafe(Move->CurrentFloor.HitResult.GetComponent()), Move->CurrentFloor.HitResult.ImpactPoint.Z, *GetNameSafe(GetMesh()->GetAnimClass()), IsAiming() ? 1 : 0, GetActorLocation().X, GetActorLocation().Y, GetActorLocation().Z,
+			GetActorRotation().Yaw, GetControlRotation().Yaw, Move->bOrientRotationToMovement ? 1 : 0, Move->bUseControllerDesiredRotation ? 1 : 0, bAimTracking ? 1 : 0);
+	}
 	// 목표를 보고 있을 때만 위아래·좌우 조준 각도를 클라이언트에 보낸다.
 	// 매 프레임인 이유: AI 가 목표를 따라 고개를 돌리는 동안 각도가 계속 바뀌어 애니메이션이 부드러워야 함.
 	// 목표가 없을 땐 0 으로 두고 계산·복제를 안 한다.
