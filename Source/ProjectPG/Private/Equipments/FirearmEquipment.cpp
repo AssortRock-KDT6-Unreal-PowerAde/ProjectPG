@@ -171,11 +171,13 @@ bool AFirearmEquipment::Fire()
 	TArray<AActor*> Attached;
 	Character->GetAttachedActors(Attached, true, true);
 	Params.AddIgnoredActors(Attached);
-	FHitResult CameraHit;
-	const FVector CameraEnd = ViewLocation + ViewRotation.Vector() * Range;
-	GetWorld()->LineTraceSingleByChannel(CameraHit, ViewLocation, CameraEnd, ECC_Visibility, Params);
-	const FVector AimPoint = CameraHit.bBlockingHit ? CameraHit.ImpactPoint : CameraEnd;
-	const FVector Direction = (AimPoint - Muzzle).GetSafeNormal();
+	// 총알 출발점과 방향 = 화면 조준선(카메라에서 십자선 쪽).
+	// 왜: 예전엔 총구에서 "카메라가 맞힌 점" 쪽으로 쐈다. 카메라는 어깨 위, 총구는 그보다 낮아서
+	//     화면엔 보이는 몬스터를 낮은 블록·담이 총구 높이에서 가려 대부분 빗나갔다(2026-10-18 서버 로그로 확인).
+	// 출발점은 조준선 위에서 총구와 가장 가까운 점 → 카메라와 내 몸 사이 물체(내 뒤 벽 등)는 맞히지 않는다.
+	// 서버 기준 조준(서버가 가진 카메라 위치·ControlRotation)이라 클라가 보낸 값은 믿지 않는 원칙은 그대로.
+	const FVector Direction = ViewRotation.Vector();
+	const FVector ShotStart = ViewLocation + Direction * FMath::Max(0.f, FVector::DotProduct(Muzzle - ViewLocation, Direction));
 	if (Direction.IsNearlyZero() || !ConsumeLoadedAmmo()) return false;
 	NextFireTime = GetWorld()->GetTimeSeconds() + GetFireInterval();
 	// 총소리를 몬스터 귀에 알린다(서버에서만 여기까지 옴). 들리는 거리는 듣는 몬스터의 AIConfig.HearingRange.
@@ -183,16 +185,14 @@ bool AFirearmEquipment::Fire()
 	UAISense_Hearing::ReportNoiseEvent(GetWorld(), Muzzle, 1.f, Character, 0.f, EnemyNoiseTags::Gunshot);
 	const float HalfAngle = FMath::DegreesToRadians(FMath::Clamp(FirearmData.ConeHalfAngle, 0.f, 45.f));
 	// [진단용, 2026-10-18] 플레이어가 쏜 총알이 무엇에 맞았는지 서버 로그에 남긴다(몬스터가 거의 안 맞던 원인 찾기).
-	// 원인을 찾아 고치면 이 로그(FireHit)는 지운다. 몬스터가 쏜 총알은 너무 많아 남기지 않는다.
+	// 시연 전 확인이 끝나면 이 로그(FireHit)는 지운다. 몬스터가 쏜 총알은 너무 많아 남기지 않는다.
 	const bool bLogShot = Character->IsPlayerControlled();
 	if (bLogShot)
-		UE_LOG(LogTemp, Display, TEXT("[FireHit] %s 발사: 서버 카메라-몸 차이 %s, 방향 %s, 카메라 조준선이 닿은 것=%s(%s) 거리 %.1fm, 총구→조준점 %.1fm, 퍼짐 %.1f도, 갈래 %d"),
-			*GetNameSafe(Character), *(ViewLocation - Character->GetActorLocation()).ToCompactString(), *ViewRotation.ToCompactString(),
-			*GetNameSafe(CameraHit.GetActor()), *GetNameSafe(CameraHit.GetComponent()), CameraHit.bBlockingHit ? CameraHit.Distance / 100.f : -1.f,
-			FVector::Dist(Muzzle, AimPoint) / 100.f, FirearmData.ConeHalfAngle, FirearmData.TraceCount);
+		UE_LOG(LogTemp, Display, TEXT("[FireHit] %s 발사: 출발점-총구 거리 %.1fm, 퍼짐 %.1f도, 갈래 %d"),
+			*GetNameSafe(Character), FVector::Dist(ShotStart, Muzzle) / 100.f, FirearmData.ConeHalfAngle, FirearmData.TraceCount);
 	// Broad phase: 원뿔을 감싸는 구로 후보를 얻은 뒤 원뿔 내부 여부를 검사합니다.
 	TArray<FOverlapResult> Overlaps;
-	const FVector Center = Muzzle + Direction * (Range * 0.5f);
+	const FVector Center = ShotStart + Direction * (Range * 0.5f);
 	const float Radius = Range * FMath::Sqrt(0.25f + FMath::Square(FMath::Tan(HalfAngle)));
 	GetWorld()->OverlapMultiByObjectType(Overlaps, Center, FQuat::Identity,
 		FCollisionObjectQueryParams::AllObjects, FCollisionShape::MakeSphere(Radius), Params);
@@ -203,7 +203,7 @@ bool AFirearmEquipment::Fire()
 		if (!IsValid(Target) || !Target->Implements<UHittable>() || !IHittable::Execute_CanBeHit(Target)) continue;
 		FVector Origin, Extent;
 		Target->GetActorBounds(true, Origin, Extent);
-		const FVector Offset = Origin - Muzzle;
+		const FVector Offset = Origin - ShotStart;
 		const float Along = FVector::DotProduct(Offset, Direction);
 		const float BoundRadius = Extent.Size();
 		if (Along + BoundRadius >= 0.f && Along - BoundRadius <= Range
@@ -220,7 +220,7 @@ bool AFirearmEquipment::Fire()
 	{
 		const FVector Ray = FMath::VRandCone(Direction, HalfAngle);
 		FHitResult HitResult;
-		if (!GetWorld()->LineTraceSingleByChannel(HitResult, Muzzle, Muzzle + Ray * Range, ECC_Visibility, Params))
+		if (!GetWorld()->LineTraceSingleByChannel(HitResult, ShotStart, ShotStart + Ray * Range, ECC_Visibility, Params))
 		{
 			if (bLogShot) UE_LOG(LogTemp, Display, TEXT("[FireHit]   → 갈래 %d: 아무것도 안 맞음"), Index);
 			continue;
