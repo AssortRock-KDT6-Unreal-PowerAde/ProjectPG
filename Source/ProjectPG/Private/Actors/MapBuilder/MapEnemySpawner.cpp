@@ -1,6 +1,8 @@
-#include "Actors/MapBuilder/MapEnemySpawner.h"
+﻿#include "Actors/MapBuilder/MapEnemySpawner.h"
 
 #include "Actors/MapBuilder/MapAssetSet.h"
+#include "Actors/MapTile.h"
+#include "EngineUtils.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
@@ -98,60 +100,147 @@ void UMapEnemySpawner::SpawnEnemiesOnce()
 	int32 TooCloseCount = 0;
 	const TArray<const FLevelDesignPoint*> Points = PickPoints(Stream, TooCloseCount);
 
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-	int32 SpawnedCount = 0;
-	int32 UsedPoints = 0;
-	int32 NoFloorCount = 0;
+	// 순서: 워존 안 몬스터 자리 → (모자라면) 워존 칸 바닥 → 워존 밖 몬스터 자리(조금만).
+	// 왜: 싸우는 곳은 워존(가운데 공장 지대)이다(2026-10-19 사용자 요청). 밖은 걷다가 가끔 만나는 정도로만.
+	const TSet<FIntPoint> WarZoneCells = CollectWarZoneCells();
+	TArray<const FLevelDesignPoint*> InsidePoints;
+	TArray<const FLevelDesignPoint*> OutsidePoints;
+	for (const FLevelDesignPoint* Point : Points)
+		(IsInWarZone(Point->WorldLocation, WarZoneCells) ? InsidePoints : OutsidePoints).Add(Point);
+
+	FSpawnTally Tally;
+	const int32 WarZoneTarget = FMath::Min(Assets.WarZoneEnemies, Assets.MaxEnemies);
+	const int32 AtWarZonePoints = SpawnAtPoints(InsidePoints, WarZoneTarget, Stream, Tally);
+	const int32 OnWarZoneFloor = SpawnOnWarZoneFloor(WarZoneCells, WarZoneTarget - AtWarZonePoints, Stream);
+	const int32 OutsideTarget = FMath::Min(Assets.MaxEnemiesOutsideWarZone, Assets.MaxEnemies - AtWarZonePoints - OnWarZoneFloor);
+	const int32 Outside = SpawnAtPoints(OutsidePoints, OutsideTarget, Stream, Tally);
+	const int32 SpawnedCount = AtWarZonePoints + OnWarZoneFloor + Outside;
+
+	if (SpawnedCount == 0)
+		UE_LOG(LogTemp, Error, TEXT("Warzone enemies: placed 0 monsters (candidate_points=%d warzone_cells=%d too_close_to_start=%d no_floor=%d)"),
+			Points.Num(), WarZoneCells.Num(), TooCloseCount, Tally.NoFloorCount);
+	if (OnWarZoneFloor + AtWarZonePoints < WarZoneTarget)
+		UE_LOG(LogTemp, Error, TEXT("Warzone enemies: wanted %d in the warzone but placed %d (warzone_cells=%d) - warzone floor has no navigation?"),
+			WarZoneTarget, OnWarZoneFloor + AtWarZonePoints, WarZoneCells.Num());
+	UE_LOG(LogTemp, Display, TEXT("Warzone enemies spawned: count=%d warzone_points=%d warzone_floor=%d outside=%d max=%d points_used=%d inside_points=%d outside_points=%d warzone_cells=%d too_close_to_start=%d no_floor=%d"),
+		SpawnedCount, AtWarZonePoints, OnWarZoneFloor, Outside, Assets.MaxEnemies, Tally.UsedPoints, InsidePoints.Num(), OutsidePoints.Num(),
+		WarZoneCells.Num(), TooCloseCount, Tally.NoFloorCount);
+}
+
+TSet<FIntPoint> UMapEnemySpawner::CollectWarZoneCells() const
+{
+	// 맵 칸(AMapTile) 중 종류가 워존인 칸. 칸 자리 = 칸 번호 × 칸 간격(GridStep), MapBuilder 가 칸을 셀 때와 같은 계산.
+	TSet<FIntPoint> Cells;
+	if (Map->GridStep <= 0.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Warzone enemies: map grid step is 0 - cannot find the warzone, monsters only at outside points"));
+		return Cells;
+	}
+	for (TActorIterator<AMapTile> It(GetWorld()); It; ++It)
+	{
+		if (It->GetType() != ETileType::WarZone)
+			continue;
+		const FVector Location = It->GetActorLocation();
+		Cells.Add(FIntPoint(FMath::RoundToInt(Location.X / Map->GridStep), FMath::RoundToInt(Location.Y / Map->GridStep)));
+	}
+	return Cells;
+}
+
+bool UMapEnemySpawner::IsInWarZone(const FVector& Location, const TSet<FIntPoint>& WarZoneCells) const
+{
+	return Map->GridStep > 0.0f && WarZoneCells.Contains(FIntPoint(
+		FMath::RoundToInt(Location.X / Map->GridStep), FMath::RoundToInt(Location.Y / Map->GridStep)));
+}
+
+int32 UMapEnemySpawner::SpawnAtPoints(const TArray<const FLevelDesignPoint*>& Points, int32 Limit, FRandomStream& Stream, FSpawnTally& Tally)
+{
+	const UMapAssetSet& Assets = Map->GetMapAssets();
+	int32 Spawned = 0;
 	for (const FLevelDesignPoint* Point : Points)
 	{
-		if (SpawnedCount >= Assets.MaxEnemies)
+		if (Spawned >= Limit)
 			break;
 		const int32 MaxHere = FMath::Max(1, FMath::Min(Assets.MaxEnemiesPerPoint, Point->Capacity));
 		const int32 MinHere = FMath::Clamp(Assets.MinEnemiesPerPoint, 1, MaxHere);
-		const int32 Count = FMath::Min(Stream.RandRange(MinHere, MaxHere), Assets.MaxEnemies - SpawnedCount);
+		const int32 Count = FMath::Min(Stream.RandRange(MinHere, MaxHere), Limit - Spawned);
 		int32 SpawnedHere = 0;
 		for (int32 Index = 0; Index < Count; ++Index)
 		{
 			FVector Floor;
 			if (!FindSpot(*Point, Index, Count, Stream, Floor))
 			{
-				++NoFloorCount;
+				++Tally.NoFloorCount;
 				continue;
 			}
-			UClass* EnemyClass = EnemyClasses[Stream.RandRange(0, EnemyClasses.Num() - 1)];
-			// 몸 절반 높이 + 50cm 위에 놓아 땅에 떨어지게 한다.
-			// 왜: 길찾기 점은 보이는 땅보다 약 30cm 낮은 투명 길찾기 바닥 위라, 2cm 만 띄우면 발이 땅 속에 박혀
-			//     '떨어지는 중' 으로 멈췄다 → 다른 사람 화면에서 공중 자세로 떠 보였다(2026-10-19 서버 기록 7마리).
-			const ACharacter* Defaults = Cast<ACharacter>(EnemyClass->GetDefaultObject());
-			const float HalfHeight = Defaults && Defaults->GetCapsuleComponent()
-				? Defaults->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : MapEnemySpawn::FallbackHalfHeightCm;
-			const FRotator Facing(0.0f, Stream.FRandRange(0.0f, 360.0f), 0.0f);
-			APawn* Enemy = GetWorld()->SpawnActor<APawn>(EnemyClass, Floor + FVector(0.0f, 0.0f, HalfHeight + 50.0f), Facing, Params);
-			if (!Enemy)
-			{
-				UE_LOG(LogTemp, Error, TEXT("Warzone enemies: SpawnActor failed for %s at %s"), *GetNameSafe(EnemyClass), *Floor.ToCompactString());
-				continue;
-			}
-#if WITH_EDITOR
-			Enemy->SetFolderPath(TEXT("RuntimeDesign/Enemies"));
-#endif
-			++SpawnedHere;
+			if (SpawnEnemyAt(Floor, Stream))
+				++SpawnedHere;
 		}
 		if (SpawnedHere > 0)
 		{
-			SpawnedCount += SpawnedHere;
-			++UsedPoints;
+			Spawned += SpawnedHere;
+			++Tally.UsedPoints;
 			UE_LOG(LogTemp, Display, TEXT("Warzone enemies: %s (%s) +%d at %s"),
 				*Point->PointId.ToString(), *Point->ArchetypeId.ToString(), SpawnedHere, *Point->WorldLocation.ToCompactString());
 		}
 	}
+	return Spawned;
+}
 
-	if (SpawnedCount == 0)
-		UE_LOG(LogTemp, Error, TEXT("Warzone enemies: placed 0 monsters (candidate_points=%d too_close_to_start=%d no_floor=%d)"),
-			Points.Num(), TooCloseCount, NoFloorCount);
-	UE_LOG(LogTemp, Display, TEXT("Warzone enemies spawned: count=%d max=%d points_used=%d candidate_points=%d too_close_to_start=%d no_floor=%d"),
-		SpawnedCount, Assets.MaxEnemies, UsedPoints, Points.Num(), TooCloseCount, NoFloorCount);
+int32 UMapEnemySpawner::SpawnOnWarZoneFloor(const TSet<FIntPoint>& WarZoneCells, int32 Need, FRandomStream& Stream)
+{
+	const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (Need <= 0 || WarZoneCells.IsEmpty() || !Nav)
+		return 0;
+	// 워존 칸을 섞어서 한 칸에 한 마리씩 돌아가며 놓는다 → 한곳에 몰리지 않고 공장 둘레에 퍼진다.
+	TArray<FIntPoint> Cells = WarZoneCells.Array();
+	Cells.Sort([](const FIntPoint& A, const FIntPoint& B) { return A.X != B.X ? A.X < B.X : A.Y < B.Y; });  // 시드가 같으면 같은 결과가 나오게 먼저 줄 세움
+	for (int32 Index = Cells.Num() - 1; Index > 0; --Index)
+		Cells.Swap(Index, Stream.RandRange(0, Index));
+	const float MaxHeightDiff = Map->GetMapAssets().MaxSpawnHeightDiffCm;
+	int32 Spawned = 0;
+	const int32 MaxTries = Need * MapEnemySpawn::SpotTries;
+	for (int32 Try = 0; Try < MaxTries && Spawned < Need; ++Try)
+	{
+		const FIntPoint Cell = Cells[Try % Cells.Num()];
+		// 칸 가운데에서 칸 반 크기 안쪽으로 흩는다. 땅 높이는 맵이 칸마다 아는 바닥 높이.
+		const float GroundZ = Map->GetSurfaceElevationForCell(Cell);
+		const FVector2D Offset = FVector2D(Stream.FRandRange(-0.4f, 0.4f), Stream.FRandRange(-0.4f, 0.4f)) * Map->GridStep;
+		const FVector Wanted(Cell.X * Map->GridStep + Offset.X, Cell.Y * Map->GridStep + Offset.Y, GroundZ);
+		FNavLocation OnNav;
+		// 높이 차이를 보는 이유: 지붕·담 꼭대기 길 위 점에 놓으면 끼어 못 움직인다(위 MaxSpawnHeightDiffCm 설명).
+		if (!Nav->ProjectPointToNavigation(Wanted, OnNav, MapEnemySpawn::NavSearchExtent)
+			|| FMath::Abs(OnNav.Location.Z - GroundZ) > MaxHeightDiff)
+			continue;
+		if (SpawnEnemyAt(OnNav.Location, Stream))
+			++Spawned;
+	}
+	if (Spawned > 0)
+		UE_LOG(LogTemp, Display, TEXT("Warzone enemies: +%d on warzone floor (%d warzone cells)"), Spawned, Cells.Num());
+	return Spawned;
+}
+
+bool UMapEnemySpawner::SpawnEnemyAt(const FVector& Floor, FRandomStream& Stream)
+{
+	UClass* EnemyClass = EnemyClasses[Stream.RandRange(0, EnemyClasses.Num() - 1)];
+	// 몸 절반 높이 + 50cm 위에 놓아 땅에 떨어지게 한다.
+	// 왜: 길찾기 점은 보이는 땅보다 약 30cm 낮은 투명 길찾기 바닥 위라, 2cm 만 띄우면 발이 땅 속에 박혀
+	//     '떨어지는 중' 으로 멈췄다 → 다른 사람 화면에서 공중 자세로 떠 보였다(2026-10-19 서버 기록 7마리).
+	const ACharacter* Defaults = Cast<ACharacter>(EnemyClass->GetDefaultObject());
+	const float HalfHeight = Defaults && Defaults->GetCapsuleComponent()
+		? Defaults->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : MapEnemySpawn::FallbackHalfHeightCm;
+	const FRotator Facing(0.0f, Stream.FRandRange(0.0f, 360.0f), 0.0f);
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	APawn* Enemy = GetWorld()->SpawnActor<APawn>(EnemyClass, Floor + FVector(0.0f, 0.0f, HalfHeight + 50.0f), Facing, Params);
+	if (!Enemy)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Warzone enemies: SpawnActor failed for %s at %s"), *GetNameSafe(EnemyClass), *Floor.ToCompactString());
+		return false;
+	}
+#if WITH_EDITOR
+	Enemy->SetFolderPath(TEXT("RuntimeDesign/Enemies"));
+#endif
+	return true;
 }
 
 TArray<const FLevelDesignPoint*> UMapEnemySpawner::PickPoints(FRandomStream& Stream, int32& OutTooCloseCount) const

@@ -192,8 +192,11 @@ bool AFirearmEquipment::Fire()
 	TArray<FOverlapResult> Overlaps;
 	const FVector Center = ShotStart + Direction * (Range * 0.5f);
 	const float Radius = Range * FMath::Sqrt(0.25f + FMath::Square(FMath::Tan(HalfAngle)));
+	// 후보는 Pawn 종류만 찾는다. 맞을 수 있는 것(IHittable)은 캐릭터뿐이고 그 캡슐이 Pawn 종류다.
+	// 왜: 모든 종류(AllObjects)로 찾으면 반경 수십 m 안의 나무·바위 인스턴스를 한 발마다 하나하나 돌려받았다
+	//     (몬스터 수십 마리가 연사하면 서버 프레임이 무거워짐, 2026-10-19 점검).
 	GetWorld()->OverlapMultiByObjectType(Overlaps, Center, FQuat::Identity,
-		FCollisionObjectQueryParams::AllObjects, FCollisionShape::MakeSphere(Radius), Params);
+		FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(Radius), Params);
 	bool bHasTarget = false;
 	for (const FOverlapResult& Overlap : Overlaps)
 	{

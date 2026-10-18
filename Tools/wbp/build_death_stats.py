@@ -63,7 +63,7 @@ def build():
         label_slot.set_vertical_alignment(unreal.VerticalAlignment.V_ALIGN_CENTER)
         value_tb, value_slot = b.text(value_name, row, preview, 22, "SemiBold", W.TEXT)
         value_slot.set_vertical_alignment(unreal.VerticalAlignment.V_ALIGN_CENTER)
-        value_tb.set_justification(unreal.TextJustify.RIGHT)
+        value_tb.set_editor_property("justification", unreal.TextJustify.RIGHT)
 
     button, slot = b.button("ConfirmButton", column, "확인", "primary", 22, unreal.Margin(24, 12, 24, 12))
     slot.set_padding(unreal.Margin(0, 28, 0, 0))

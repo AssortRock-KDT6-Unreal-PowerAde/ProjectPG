@@ -30,8 +30,12 @@ DEFINE_LOG_CATEGORY(LogEnemyAI);
 ACustomEnemyAIController::ACustomEnemyAIController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	// 이 컨트롤러는 매 프레임 할 일이 없다. 판단은 상태 트리, 감지는 Perception 이 각자 알아서 돈다.
-	PrimaryActorTick.bCanEverTick = false;
+	// 매 프레임 함수는 싸우는 동안만 켠다(SetCombatStance). 판단은 상태 트리, 감지는 Perception 이 따로 돈다.
+	// 왜 켜야 하나: 엔진은 "목표 쪽으로 시선(ControlRotation) 돌리기(SetFocus)" 를 이 컨트롤러의 매 프레임 함수 안에서만 한다.
+	//     꺼 두었더니 시선이 처음 방향 그대로라 몬스터가 딴 데를 보고 그쪽 허공에 쐈다(2026-10-19 사용자 시험).
+	// 부담: 목표가 있는 몬스터만, 시선 계산 한 번.
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	// 눈: 감지 거리는 몬스터 표(EnemyTable)를 읽은 뒤 StartAI 에서 다시 맞춘다.
 	SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>(TEXT("SightConfig"));
@@ -311,6 +315,8 @@ void ACustomEnemyAIController::HandleOwnHealthChanged(float Current, float Maxim
 
 void ACustomEnemyAIController::SetCombatStance(bool bInCombat)
 {
+	// 싸우는 동안만 매 프레임 시선을 목표 쪽으로 맞춘다(생성자 주석). 순찰 중엔 가는 쪽을 보므로 필요 없다.
+	SetActorTickEnabled(bInCombat);
 	ACustomEnemyCharacter* Enemy = GetEnemy();
 	if (!Enemy) return;
 	// 싸울 땐 이동 방향과 상관없이 목표를 보고(옆걸음), 아닐 땐 가는 쪽을 본다.

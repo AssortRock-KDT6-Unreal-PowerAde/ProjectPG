@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
@@ -6,7 +6,8 @@
 #include "MapEnemySpawner.generated.h"
 
 // 몬스터 담당 (서버만). 흐름 그림: 이 폴더 README.md
-// 게임에서: 맵이 시설·상자까지 다 짓고 길찾기 지도도 다 구워지면, 몬스터 자리(AISpawn 지점)마다 몬스터를 한 번 놓는다.
+// 게임에서: 맵이 시설·상자까지 다 짓고 길찾기 지도도 다 구워지면 몬스터를 한 번 놓는다.
+//           워존(가운데 공장 지대) 먼저 WarZoneEnemies 마리, 그다음 워존 밖 몬스터 자리에 MaxEnemiesOutsideWarZone 마리까지.
 //           놓인 몬스터는 스스로 순찰하다가 플레이어를 보면 외치고, 외침을 들은 동료가 모여든다(Private/AI/README.md).
 // 왜 지도까지 기다리나: 지도 전에는 몬스터가 한 발짝도 못 움직이고, 담·지붕 꼭대기 같은 잘못된 자리를 지도로 걸러 내서.
 // 몇 마리·어떤 몬스터·시작 구역과의 거리는 DA_MapAssets 의 "몬스터" 칸(코드·빌드 없이 바꾼다).
@@ -36,6 +37,20 @@ private:
 	TArray<const FLevelDesignPoint*> PickPoints(FRandomStream& Stream, int32& OutTooCloseCount) const;
 	// 자리 둘레에서 몬스터 한 마리가 설 길 위 점을 찾는다. Index/Count 로 같은 자리 몬스터끼리 둘레에 나눠 선다.
 	bool FindSpot(const FLevelDesignPoint& Point, int32 Index, int32 Count, FRandomStream& Stream, FVector& OutFloor) const;
+	// 워존 칸(칸 종류 WarZone) 번호 모음 / 이 자리가 워존 칸 안인가.
+	TSet<FIntPoint> CollectWarZoneCells() const;
+	bool IsInWarZone(const FVector& Location, const TSet<FIntPoint>& WarZoneCells) const;
+	// 몬스터 자리 목록을 앞에서부터 돌며 최대 Limit 마리까지 놓고, 놓은 수를 돌려준다.
+	struct FSpawnTally
+	{
+		int32 UsedPoints = 0;
+		int32 NoFloorCount = 0;
+	};
+	int32 SpawnAtPoints(const TArray<const FLevelDesignPoint*>& Points, int32 Limit, FRandomStream& Stream, FSpawnTally& Tally);
+	// 워존 칸 바닥의 길 위 점을 골라 Need 마리까지 놓는다(워존 안 몬스터 자리가 모자랄 때).
+	int32 SpawnOnWarZoneFloor(const TSet<FIntPoint>& WarZoneCells, int32 Need, FRandomStream& Stream);
+	// 바닥 점 위에 몬스터 한 마리를 놓는다(BP 는 목록에서 무작위).
+	bool SpawnEnemyAt(const FVector& Floor, FRandomStream& Stream);
 
 	UPROPERTY()
 	TObjectPtr<AMapBuilder> Map;
