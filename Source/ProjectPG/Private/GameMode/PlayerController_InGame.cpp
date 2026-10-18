@@ -341,6 +341,12 @@ void APlayerController_InGame::OpenCharacterWidgetInGame()
 	{
 		if (UUIManagerSubSystem* UIMgr = GI->GetSubsystem<UUIManagerSubSystem>())
 		{
+			// I 키를 한 번 더 누르면 닫는다(열려 있을 때 = 화면에 붙어 있을 때). 마우스·입력 모드는 CloseUI 가 되돌린다.
+			if (UUserWidget* OpenWidget = UIMgr->GetUI(EUIType::Character); OpenWidget && OpenWidget->IsInViewport())
+			{
+				UIMgr->CloseUI(EUIType::Character);
+				return;
+			}
 			UUserWidget* CharacterWidget = UIMgr->OpenUI(EUIType::Character);
 			UE_LOG(LogTemp, Log, TEXT("OpenCharacterWidgetInGame: OpenUI returned widget=%s"), CharacterWidget ? TEXT("valid") : TEXT("null"));
 			if (UInventoryWindow* Win = Cast<UInventoryWindow>(CharacterWidget))
