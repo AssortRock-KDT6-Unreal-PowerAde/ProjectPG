@@ -2,6 +2,9 @@
 
 #include "Actors/MapBuilder/MapBuildShared.h"
 #include "Actors/MapBuilder/MapItemSpawner.h"
+#include "Actors/MapBuilder/MapSeatStatus.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Actors/MapTile.h"
 #include "Components/MapGeneratorComponent.h"
 #include "GameModes/GameModePG.h"
@@ -26,20 +29,25 @@ UWorld* UMapSpawnRegionPlanner::GetWorld() const
 // 시작 구역 고르기.
 // ① 0번 = 형님 생성기가 만든 시작 칸.
 // ② 후보 = 맵 가장자리 SpawnRegionEdgeBandCells 칸 안(맨 바깥 줄 제외)의 빈 땅(형님 쪽지 None) 칸. "출발은 바깥, 워존은 가운데".
-// ③ 빼는 칸 = 출구에서 MinSpawnToExitCells 칸 안(나오자마자 탈출 금지), 건물에서 3칸 안, 호수와 그 둘레 2칸,
-//    빈 모서리 상자와 그 둘레 6칸(나중에 보상 거점을 둘 자리 — ProjectTest2 와 같은 칸이 나오게 규칙을 그대로 둔다).
-// ④ 이미 고른 구역들과 "가장 가까운 거리" 가 가장 큰 후보를 하나씩 더한다(가장 먼 점 고르기).
-//    그 거리가 MinSpawnRegionSpacingCells 보다 작아지면 멈춘다 — 억지로 붙이느니 한 구역 자리를 나눠 쓰는 게 낫다.
+// ③ 후보에서 빼는 칸:
+//    - 출구에서 MinSpawnToExitCells 칸 안 (시작하자마자 탈출하면 안 되니까)
+//    - 건물에서 3칸 안
+//    - 호수와 그 둘레 2칸
+//    - 빈 모서리 상자와 그 둘레 6칸 (나중에 보상 거점을 둘 자리. ProjectTest2 와 같은 칸이 나오게 규칙을 그대로 둔다)
+// ④ 이미 고른 구역들과의 "가장 가까운 거리"가 가장 큰 후보를 하나씩 더한다(가장 먼 점 고르기).
+//    그 거리가 MinSpawnRegionSpacingCells 보다 작아지면 멈춘다. 억지로 붙이느니 한 구역 자리를 나눠 쓰는 게 낫다.
 // ⑤ 동점은 판 시드 해시로 가른다(같은 시드 = 같은 칸).
 void UMapSpawnRegionPlanner::PickSpawnRegions(
 	const TMap<FIntPoint, AMapTile*>& TileByCell,
 	const TSet<FIntPoint>& BlockedCells,
 	int64 RaidSeed)
 {
-	// 맵이 다시 지어질 때(TryReserveFootprint 재시도) 지난 결과가 쌓이지 않게.
+	// 맵이 다시 지어질 때(TryReserveFootprint 재시도) 지난 결과가 쌓이지 않게 비운다.
 	Map->SpawnRegionCells.Reset();
 
-	// 두 가지 거리: 구역끼리 간격은 체비쇼프(가로·세로 중 큰 쪽 = 대각선도 1칸), 출구까지는 맨해튼(가로+세로).
+	// 거리를 두 가지로 잰다.
+	// - 구역끼리 간격: 가로·세로 차이 중 큰 쪽(대각선도 1칸으로 친다. 체비쇼프 거리)
+	// - 출구까지: 가로 차이 + 세로 차이(맨해튼 거리)
 	auto ChebyshevCells = [](const FIntPoint& A, const FIntPoint& B)
 	{
 		return FMath::Max(FMath::Abs(A.X - B.X), FMath::Abs(A.Y - B.Y));
@@ -76,11 +84,11 @@ void UMapSpawnRegionPlanner::PickSpawnRegions(
 		return;
 	}
 
-	// 호수 위치. 칸 모양 담당과 같은 계산(같은 입력 → 같은 모서리)이라 따로 계산해도 어긋나지 않는다.
+	// 호수 위치. 칸 모양 담당과 같은 계산(같은 입력 → 같은 모서리)이라, 따로 계산해도 어긋나지 않는다.
 	const float LakeRadiusCells = Map->BorderLakeRadiusCells;
 	const FBorderLake Lake = GetBorderLake(RaidSeed, GridMin, GridMax, LakeRadiusCells, CollectTraversalCells(TileByCell));
 
-	// 형님 생성기의 시작 구역 상자 크기(서버 = 생성기, 들어온 사람 = 설계도). 로그에 값을 남긴다.
+	// 형님 생성기의 시작 구역 상자 크기(서버면 생성기에서, 접속한 사람이면 설계도에서 얻는다). 로그에 값을 남긴다.
 	const int32 RangeSize = Map->GetStartRangeSize();
 
 	// ③ 빈 모서리 상자(길·시작·출구·워존이 하나도 없는 모서리). 호수 모서리는 뺀다.
@@ -200,8 +208,9 @@ TSet<FIntPoint> UMapSpawnRegionPlanner::GetExtraSpawnCells() const
 }
 
 // 고른 칸을 "시작 대기소" 로. 게임에서: 두 번째·세 번째·네 번째 플레이어도 풀숲이 아니라 벽 친 대기소에서 나온다.
-// 대기소 타일은 입구가 하나(원래 동쪽 면)라서, 워존 가는 흙길이 나가는 방향으로 돌린다. 길이 없으면 맵 가운데 쪽.
-// 칸 모양 담당이 지문·길 연결 확인을 끝낸 뒤 부른다(그 확인은 길 타일 기준이라 대기소로 바꾼 칸을 보면 틀렸다고 센다).
+// 대기소 타일은 입구가 하나(원래 동쪽 면)뿐이라, 워존으로 가는 흙길이 나가는 방향으로 돌린다. 길이 없으면 맵 가운데 쪽으로 돌린다.
+// 칸 모양 담당이 지문 계산과 길 연결 확인을 끝낸 뒤에 부른다.
+// 그 확인은 길 타일을 기준으로 해서, 대기소로 바꾼 칸을 보면 "길이 안 이어졌다"고 잘못 센다.
 void UMapSpawnRegionPlanner::DressExtraSpawnRegions(const FIntPoint& MinCell, const FIntPoint& MaxCell)
 {
 	for (int32 RegionIndex = 1; RegionIndex < Map->SpawnRegionCells.Num(); ++RegionIndex)
@@ -234,17 +243,20 @@ void UMapSpawnRegionPlanner::DressExtraSpawnRegions(const FIntPoint& MinCell, co
 	}
 }
 
-// 플레이어를 시작 구역에 세우기 (ProjectTest2 PlaceJoinedPlayers 를 옮김, 그쪽 전용 부품 줄은 뺐다).
-// 언제부터: 시작 자리 끼임 정리(ResolveGameplayPointSafety)가 끝난 뒤 — 그 전에는 자리가 벽 속일 수 있다.
-// ProjectTest2 와 다른 점(10/2): 거기는 "기본 폰(날아다니는 카메라)이면 진짜 캐릭터가 올 때까지 기다림" 이었다.
-//   ProjectPG 의 맵 테스트 게임모드(AGameModePG)는 캐릭터를 끝까지 안 줘서 영원히 기다렸다(리슨 서버 + 2명 시험).
+// 플레이어를 시작 구역에 세우기 (ProjectTest2 의 PlaceJoinedPlayers 를 옮겨 왔고, 그쪽 전용 부품 줄은 뺐다).
+// 언제부터: 시작 자리 끼임 정리(ResolveGameplayPointSafety)가 끝난 뒤. 그 전에는 자리가 벽 속일 수 있다.
+// ProjectTest2 와 다른 점: 거기는 기본 폰(날아다니는 카메라)이면 진짜 캐릭터가 올 때까지 기다렸다.
+//   그런데 ProjectPG 의 맵 테스트 게임모드(AGameModePG)는 캐릭터를 끝까지 안 줘서, 영원히 기다렸다(방장 서버 + 2명 시험).
 //   그래서 폰 종류와 상관없이 먼저 세우고, 나중에 게임모드가 캐릭터를 새로 주면(폰이 바뀌면) 같은 자리에 다시 세운다.
 void UMapSpawnRegionPlanner::PlaceJoinedPlayers()
 {
 	UWorld* World = GetWorld();
-	// 서버만. 맵 액터는 복제를 안 해서 클라에서도 HasAuthority() 가 참이라, 넷 모드로 거른다.
-	if (!IsValid(World) || World->GetNetMode() == NM_Client
-		|| !Map->bResolvedGameplayPointSafety || Map->SpawnRegionCells.IsEmpty())
+	// 서버만 한다. 맵 액터는 복제(서버→접속한 쪽 전달)를 안 해서 접속한 쪽에서도 HasAuthority() 가 참이 되므로, 네트워크 모드로 거른다.
+	if (!IsValid(World) || World->GetNetMode() == NM_Client)
+		return;
+	// 맵이 다 지어지기 전부터 막아야 해서, 아래 "맵 준비됐나" 확인보다 먼저 한다.
+	ProtectUnseatedPlayers();
+	if (!Map->bResolvedGameplayPointSafety || Map->SpawnRegionCells.IsEmpty())
 		return;
 
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
@@ -262,7 +274,7 @@ void UMapSpawnRegionPlanner::PlaceJoinedPlayers()
 			continue;
 		}
 
-		// 캐릭터가 아예 없는 사람 = 게임모드가 캐릭터를 못 만든 경우. 막 들어온 사람은 곧 만들 수도 있으니 2초 기다린다.
+		// 캐릭터가 아예 없는 사람 = 게임모드가 캐릭터를 아직 못 만든 경우. 막 들어온 사람은 곧 만들어질 수도 있으니 2초 기다린다.
 		// 관전만 하는 사람은 세우지 않는다.
 		if (!IsValid(Pawn))
 		{
@@ -286,6 +298,90 @@ void UMapSpawnRegionPlanner::PlaceJoinedPlayers()
 	}
 }
 
+// 자리에 서기 전 무적. PlaceJoinedPlayers 가 맵 Tick(0.1초마다)에서 부를 때 같이 돈다(따로 Tick 을 늘리지 않음).
+// 왜 필요: 접속 직후 폰은 아무 데나 생기고, 맵이 다 지어질 때까지 수십 초 걸린다. 그 사이 몬스터가 먼저 죽였다.
+// - 자리 번호가 있는 사람 → 이미 섰다, 건너뜀
+// - 폰이 있는데 아직 안 막았다 → 막는다(폰이 바뀌었으면 옛 폰은 풀고 새 폰을 막는다)
+// - 시간 제한(맵 액터의 SpawnProtectionTimeoutSeconds, 기본 60초)이 지나도 못 세웠다 → 풀고 Error 로그, 다시 막지 않음
+// 부담: 기다리는 사람이 없으면 PlayerController 수만큼 확인 몇 번.
+void UMapSpawnRegionPlanner::ProtectUnseatedPlayers()
+{
+	UWorld* World = GetWorld();
+	const double Now = World->GetTimeSeconds();
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PlayerController = It->Get();
+		if (!IsValid(PlayerController) || JoinIndexByPlayer.Contains(PlayerController)
+			|| ProtectionTimedOut.Contains(PlayerController))
+			continue;
+
+		// 자리 알림 부품: 처음 보는 사람에게 한 번 붙인다(그 사람 컴퓨터에도 따라 생긴다).
+		if (!PlayerController->FindComponentByClass<UMapSeatStatus>())
+		{
+			UMapSeatStatus* SeatStatus = NewObject<UMapSeatStatus>(PlayerController, TEXT("MapSeatStatus"));
+			SeatStatus->RegisterComponent();
+		}
+
+		const double FirstSeen = FirstSeenSeconds.FindOrAdd(PlayerController, Now);
+		FProtectedPawn& Protected = ProtectedByPlayer.FindOrAdd(PlayerController);
+		if (Now - FirstSeen > Map->SpawnProtectionTimeoutSeconds)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Spawn protect: %s not seated after %.0fs (map ready=%d, regions=%d) - protection removed, player is now hittable where they stand"),
+				*GetNameSafe(PlayerController), Map->SpawnProtectionTimeoutSeconds, Map->bResolvedGameplayPointSafety ? 1 : 0, Map->SpawnRegionCells.Num());
+			if (APawn* OldPawn = Protected.Pawn.Get())
+				UnprotectPawn(OldPawn);
+			ProtectedByPlayer.Remove(PlayerController);
+			ProtectionTimedOut.Add(PlayerController);
+			continue;
+		}
+
+		APawn* Pawn = PlayerController->GetPawn();
+		if (!IsValid(Pawn) || Protected.Pawn.Get() == Pawn)
+			continue;
+		if (APawn* OldPawn = Protected.Pawn.Get())
+			UnprotectPawn(OldPawn);
+		Protected.Pawn = Pawn;
+		Protected.bWasDamageable = Pawn->CanBeDamaged();
+		ProtectPawn(Pawn);
+		UE_LOG(LogTemp, Display, TEXT("Spawn protect: %s pawn %s protected until seated"), *GetNameSafe(PlayerController), *GetNameSafe(Pawn));
+	}
+}
+
+void UMapSpawnRegionPlanner::FinishSeat(APlayerController* PlayerController)
+{
+	if (const FProtectedPawn* Protected = ProtectedByPlayer.Find(PlayerController))
+	{
+		if (APawn* Pawn = Protected->Pawn.Get())
+		{
+			UnprotectPawn(Pawn);
+			Pawn->SetCanBeDamaged(Protected->bWasDamageable);
+			UE_LOG(LogTemp, Display, TEXT("Spawn protect: %s seated after %.1fs - protection removed"), *GetNameSafe(PlayerController),
+				GetWorld()->GetTimeSeconds() - FirstSeenSeconds.FindRef(PlayerController));
+		}
+		ProtectedByPlayer.Remove(PlayerController);
+	}
+	FirstSeenSeconds.Remove(PlayerController);
+	if (UMapSeatStatus* SeatStatus = PlayerController->FindComponentByClass<UMapSeatStatus>())
+		SeatStatus->MarkSeated();
+}
+
+void UMapSpawnRegionPlanner::ProtectPawn(APawn* Pawn)
+{
+	Pawn->SetCanBeDamaged(false);
+	Pawn->SetActorEnableCollision(false);
+	// 충돌을 끄면 땅도 통과해 떨어지므로 움직임도 멈춘다(로딩 창이 가리고 있어서 플레이어는 못 느낀다).
+	if (const ACharacter* Character = Cast<ACharacter>(Pawn))
+		Character->GetCharacterMovement()->DisableMovement();
+}
+
+void UMapSpawnRegionPlanner::UnprotectPawn(APawn* Pawn)
+{
+	Pawn->SetCanBeDamaged(true);
+	Pawn->SetActorEnableCollision(true);
+	if (const ACharacter* Character = Cast<ACharacter>(Pawn))
+		Character->GetCharacterMovement()->SetDefaultMovementMode();
+}
+
 // 번호 → 구역·자리: 구역 = 번호 % 구역 수, 자리 = 번호 / 구역 수. 4명이면 사람마다 다른 구역, 5번째부터 1구역의 다음 자리.
 bool UMapSpawnRegionPlanner::PlaceAtSeat(APlayerController* PlayerController, APawn* Pawn, int32 JoinIndex)
 {
@@ -305,6 +401,7 @@ bool UMapSpawnRegionPlanner::PlaceAtSeat(APlayerController* PlayerController, AP
 		UE_LOG(LogTemp, Warning, TEXT("Spawn assign: region %d at (%d,%d) has no seats - %s left where the game mode put it"),
 			RegionIndex, RegionCell.X, RegionCell.Y, *GetNameSafe(PlayerController));
 		PlacedPawnByPlayer.Add(PlayerController, Pawn);
+		FinishSeat(PlayerController);
 		return true;
 	}
 
@@ -331,9 +428,11 @@ bool UMapSpawnRegionPlanner::PlaceAtSeat(APlayerController* PlayerController, AP
 	}
 	if (!bSpawnedHere)
 		Pawn->SetActorLocationAndRotation(SeatLocation, FRotator(0.0f, Yaw, 0.0f), false, nullptr, ETeleportType::TeleportPhysics);
-	// 원격 플레이어의 시선은 그 사람 컴퓨터가 가진다 — 서버에서 돌리기만 하면 그 사람 화면은 안 돈다. 클라 RPC 로 보낸다.
+	// 원격 플레이어의 시선 방향은 그 사람 컴퓨터가 갖고 있다. 서버에서 돌리기만 하면 그 사람 화면은 안 돈다.
+	// 그래서 "그 사람 쪽에서 실행하는 함수(클라이언트 RPC)"로 보낸다.
 	PlayerController->ClientSetRotation(FRotator(-10.0f, Yaw, 0.0f));
 	PlacedPawnByPlayer.Add(PlayerController, Pawn);
+	FinishSeat(PlayerController);
 	// (테스트용) 에디터에서 플레이할 때만: 이 사람 앞에 상자 하나(상자 열어 보려고 맵을 돌아다니지 않게).
 	if (Map->ItemSpawner)
 		Map->ItemSpawner->SpawnTestContainerInFront(Seat.WorldLocation, Yaw);

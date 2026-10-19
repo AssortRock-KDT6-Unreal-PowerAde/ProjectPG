@@ -154,6 +154,7 @@ ATacticalTileRoadStraight::ATacticalTileRoadStraight()
 	AISpawnSlot->SetArrowColor(FColor::Red);
 	AISpawnSlot->SetHiddenInGame(true);
 
+	// 글자 경로로 둬도 되는 이유: /Game/PG/LevelDesign 폴더는 통째로 쿠킹된다(DefaultGame.ini 의 DirectoriesToAlwaysCook).
 	AbandonedCarClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Tiles/Blueprints/Props/BP_Prop_AbandonedCar.BP_Prop_AbandonedCar_C")));
 	BarrelClusterClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Tiles/Blueprints/Props/BP_Prop_BarrelCluster.BP_Prop_BarrelCluster_C")));
 	ConcreteBarrierClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/PG/LevelDesign/Tiles/Blueprints/Props/BP_Prop_ConcreteBarrier.BP_Prop_ConcreteBarrier_C")));

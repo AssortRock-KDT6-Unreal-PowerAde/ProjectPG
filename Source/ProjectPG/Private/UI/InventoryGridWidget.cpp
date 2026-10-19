@@ -22,6 +22,7 @@
 #include "UI/InventoryWindow.h"
 #include "Server/WebSocketSubSystem.h"
 #include "Server/InventorySubSystem.h"
+#include "Audio/PGSoundLibrary.h"
 
 namespace {
 	inline void SafeRemoveWidget_InventoryGridWidget(UWidget* Widget)
@@ -672,6 +673,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 			ItemDragOp->WidgetReference
 			          ->SetRenderOpacity(1.0f);
 		}
+		UPGSoundLibrary::PlayPGSound(this, TEXT("UI.ItemFail"), FVector::ZeroVector);
 		return false;
 	}
 
@@ -686,6 +688,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 		const bool bRequested = Equipment && Equipment->UnEquipTo(pSlot->GetSlot(), TargetInventoryComp, InventoryGUID,
 		                                                          TargetTile, TempInstance.bIsRotated);
 		if (ItemDragOp->WidgetReference) ItemDragOp->WidgetReference->SetRenderOpacity(1.0f);
+		UPGSoundLibrary::PlayPGSound(this, bRequested ? TEXT("UI.ItemDrop") : TEXT("UI.ItemFail"), FVector::ZeroVector);
 		return bRequested;
 	}
 
@@ -728,6 +731,7 @@ bool UInventoryGridWidget::NativeOnDrop(
 		          ->SetRenderOpacity(1.0f);
 	}
 
+	UPGSoundLibrary::PlayPGSound(this, bMoved ? TEXT("UI.ItemDrop") : TEXT("UI.ItemFail"), FVector::ZeroVector);
 	return bMoved;
 }
 

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -9,10 +9,14 @@
 #include "GameplayAbilities/CharacterAttributeSet.h"
 #include "Common/GameData.h"
 #include "Combat/Hittable.h"
+#include "Engine/NetSerialization.h"
 #include "CustomCharacter.generated.h"
 
 struct FWeaponAnimationSet;
+class ACustomCharacter;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FCharacterAmmoChanged);
+// 서버에서 이 캐릭터가 죽은 순간 한 번 울린다(죽은 캐릭터를 넘김). 컨트롤러가 받아서 로비로 보낼 때 쓴다.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCharacterDied, ACustomCharacter*, DeadCharacter);
 
 UCLASS()
 class PROJECTPG_API ACustomCharacter : public ACharacter, public IAbilitySystemInterface, public IHittable
@@ -25,6 +29,9 @@ public:
 public:
 	UPROPERTY(BlueprintAssignable, Category="Combat|Ammo")
 	FCharacterAmmoChanged OnAmmoChanged;
+	// 서버에서만 울린다: 체력이 0이 되어 죽는 순간 한 번. 클라에서 죽음 연출은 OnRep_Death 쪽에서 한다.
+	UPROPERTY(BlueprintAssignable, Category="Combat|Death")
+	FCharacterDied OnDied;
 	UPROPERTY(BlueprintReadOnly, Replicated, Category=Character)
 	uint8 bIsAiming : 1 = false;
 
@@ -62,6 +69,13 @@ private:
 	TSet<TWeakObjectPtr<class AEquipment>> AmmoCapacityEquipment;
 	TWeakObjectPtr<class AFirearmEquipment> PendingFirearm;
 	FTimerHandle AutomaticFireTimer;
+	// 내 화면 조준 보내기(쏘는 동안만, 0.1초마다) / 서버가 받은 값과 받은 시각.
+	FTimerHandle AimViewSendTimer;
+	void SendAimViewToServer();
+	FVector ClientAimLocation = FVector::ZeroVector;
+	FVector ClientAimDirection = FVector::ForwardVector;
+	double ClientAimTime = -1.0;
+	double LastBadAimWarningTime = -100.0;
 	FTimerHandle PendingFireTimeout;
 	bool bFireInputHeld = false;
 	bool bPendingFire = false;
@@ -92,8 +106,13 @@ public:
 	void PlayMontage(class UAnimMontage* Montage);
 	UFUNCTION(Server, Reliable)
 	void OnReq_PlayMontage(class UAnimMontage* Montage);
-	UFUNCTION(NetMulticast, Reliable)
+	// [멀티 임시수정 2026-10-19 몽타주 방송] Reliable → Unreliable
+	// 왜: 총 한 발마다 모든 사람에게 "꼭 도착" 방송을 보내서, 몸짓이 쌓이면 연결이 끊길 수 있었다.
+	// 빠지면: 그 화면에서 몸짓(쏘기·맞기 반동 등) 하나가 안 보일 뿐. 서버는 이 방송을 자기 쪽에서 바로 실행해서
+	//        총알 판정(AnimNotify_Fire 는 서버에서만)·재장전 탄약 옮기기는 그대로 된다.
+	UFUNCTION(NetMulticast, Unreliable)
 	void OnRep_PlayMontage(class UAnimMontage* Montage, bool bSkipOwningClient);
+	// [멀티 임시수정] 끝
 	bool ApplyWeaponAnimation(EWeaponType NewWeaponType, TSubclassOf<class UCustomAnimInstance> AnimClass = nullptr);
 	const FWeaponAnimationSet* GetCurrentWeaponAnimationSet() const;
 
@@ -110,6 +129,14 @@ public:
 	void SetFireInput(bool bPressed);
 	UFUNCTION(Server, Reliable)
 	void OnReq_SetFireInput(bool bPressed);
+	// 쏘는 동안 내 화면의 조준(카메라 위치·방향)을 서버에 보낸다(0.1초마다). 서버는 말이 되는지 검사한 뒤 총알 판정에 쓴다.
+	// 왜: 데디 서버의 카메라 위치가 실제 화면과 달라, 화면엔 보이는 몬스터가 패키지 서버에서 안 맞았다(2026-10-19).
+	UFUNCTION(Server, Reliable)
+	void OnReq_UpdateAimView(FVector_NetQuantize CameraLocation, FVector_NetQuantizeNormal CameraDirection);
+	// 서버: 방금(0.5초 안) 받은 내 화면 조준이 있으면 true.
+	bool GetClientAimView(FVector& Location, FVector& Direction) const;
+	// 밟은 바닥 기록. 클라이언트가 찾을 수 없는 바닥(타일 맵이 실행 중에 만든 부품)이면 기록하지 않는다 → 아래 .cpp 설명.
+	virtual void SetBase(UPrimitiveComponent* NewBase, const FName BoneName = NAME_None, bool bNotifyActor = true) override;
 	virtual void Fire();
 	virtual void GetCombatViewPoint(FVector& Location, FRotator& Rotation) const;
 

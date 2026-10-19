@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Characters/CustomCharacter.h"
@@ -211,6 +211,10 @@ void ACustomCharacter::BeginPlay()
 		return;
 	meshComponent->SetSkeletalMesh(characterRow->SkeletalMesh.Get());
 	meshComponent->SetRelativeTransform(characterRow->RootMeshTransform);
+	// 다른 사람 화면에서 엔진이 위치를 부드럽게 맞출 때 되돌아갈 "기본 모델 위치"도 표 값으로 다시 저장한다.
+	// 왜: 엔진은 BeginPlay 전에 BP 기본값(몬스터 BP 는 0,0도)을 저장해 두고 매 프레임 그 값으로 되돌려서,
+	//     다른 사람 화면의 몬스터가 89cm 떠 있고 90도 옆을 봤다(2026-10-19, 서버에선 정상).
+	CacheInitialMeshOffset(meshComponent->GetRelativeLocation(), meshComponent->GetRelativeRotation());
 
 	TArray<USceneComponent*> childrenMeshComps;
 	meshComponent->GetChildrenComponents(false, childrenMeshComps);
@@ -264,4 +268,17 @@ const FWeaponAnimationSet* ACustomCharacter::FindWeaponAnimationSet(EWeaponType 
 		return nullptr;
 
 	return CharacterRow->WeaponAnimations.Find(WeaponType);
+}
+
+// 밟은 바닥(무브먼트 베이스) 정하기.
+// 왜: 타일 맵 바닥·시설은 서버와 클라이언트가 각자 실행 중에 만든 "움직일 수 있는" 부품이다.
+//     서버가 이런 바닥을 기록하면 다른 사람 화면에 "그 바닥 기준 상대 위치"로 보내는데, 클라이언트는 같은 부품을 못 찾아
+//     몬스터·다른 플레이어가 걷는 모션 없이 공중에 떠 미끄러졌다(2026-10-19 서버/클라 이동 상태 기록으로 확인).
+// - 네트워크로 가리킬 수 있는 바닥(레벨에 놓인 것, 복제되는 것) → 그대로 기록
+// - 못 가리키는 바닥 → 바닥 없음으로 기록(월드 위치로 보냄). 움직이는 발판이 없어서 잃는 것 없음.
+void ACustomCharacter::SetBase(UPrimitiveComponent* NewBase, const FName BoneName, bool bNotifyActor)
+{
+	if (NewBase && !NewBase->IsSupportedForNetworking())
+		NewBase = nullptr;
+	Super::SetBase(NewBase, BoneName, bNotifyActor);
 }

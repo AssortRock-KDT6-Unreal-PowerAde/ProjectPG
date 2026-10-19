@@ -35,7 +35,7 @@ public:
 	virtual UWorld* GetWorld()const override;
 	// PCG뿌리는 기계.
 	// DressingPCGComponent 맵 액터에 달린 풀 뿌리는 기계.
-	// 맵 액터(AMapBuilder)의 Tick 이 매 프레임 부른다.
+	// 시간 걸리는 검사 묶음(RunTimedChecks)에서 부른다.
 	// bLoggedPCGDressing 가 true 면 바로 끝낸다. 아니면 true 로 바꾸고 로그를 찍는다.
 	void VerifyPCGDressing();
 	// 칸마다 위에서 아래로 막대기(선)을 꽂아 바닥 구멍 찾기. 
@@ -69,13 +69,18 @@ public:
 	// 맵이 다 깔린 뒤 50프레임 평균 fps·액터 수·메모리를 로그에 남긴다(합격/불합격 없이 숫자만).
 	void VerifyLocalPerformance(float DeltaSeconds);
 
-	
+	// ── 언제 부르나 (예전엔 맵의 Tick(매 프레임 불리는 함수)이 11개를 매 프레임 불렀다) ──
+	// 1) RunFinalChecks: 상자를 놓은 뒤 한 번. 바로 끝나는 검사 7개.
+	// 2) RunTimedChecks: 그다음 0.1초마다. 시간이 걸리는 검사 4개(풀 뿌리기·길찾기 지도·출구 길·성능).
+	//    다 끝나면 true. bGiveUp 이면 안 끝난 검사 이름을 Error 로그에 남기고 true.
+	void RunFinalChecks();
+	bool RunTimedChecks(bool bGiveUp);
+
 private:
 	// 언리얼 한테 포인터 관리해달라.
 	UPROPERTY()
 	TObjectPtr<AMapBuilder> Map;	
 	
-	// 플래그라는 말로도 씀.
 	// 덤불 검사를 이미 했는지 표시. 로그를 한 번만 찍으려고.
 	bool bLoggedPCGDressing = false;
 	// 시설끼리 겹침 검사 보고서를 이미 썼는지 표시. 로그를 한 번만 찍으려고.
@@ -84,10 +89,9 @@ private:
 	bool bLoggedTacticalLayoutQuality = false;
 	// 숨을 곳이 충분한가? 
 	bool bLoggedTravelCoverDensity = false;
-	// 스티커가 이미 true거나
-	// 목록이 아직 비었다. 
-	// 지점 안전 관리가 아직 안끝났다. 
-	// 셋다 통화하면 스티커를 ture로 붙이고 검사해서 로그찍음
+	// 게임 지점 분포 검사를 이미 했는지 표시. 아래 셋 중 하나라도 해당하면 이번엔 검사하지 않고 그냥 나간다.
+	//  - 이미 했다 / 지점 목록이 아직 비었다 / 지점 끼임 정리가 아직 안 끝났다
+	// 셋 다 해당 안 되면 "했음"으로 바꾸고 검사해서 로그를 찍는다.
 	bool bLoggedGameplayPointDistribution = false;
 	// 바닥 구멍 검사 끝남
 	bool bLoggedWorldCollision = false;
@@ -97,7 +101,7 @@ private:
 	bool bLoggedTraversableElevation = false;
 	// "바닥 겹침 깜빡임" 검사 보고서를 이미 썼는지 표시. 로그를 한 번만 찍으려고.
 	bool bLoggedCoplanarSurfaces = false;
-	// 길찾기 지도 검사 끝남. 출구 검사·성능 검사가 이걸 보고 시작한다(순서 신호).
+	// 길찾기 지도 검사 끝남. 출구 검사·성능 검사는 이게 켜진 뒤에 시작한다(순서를 맞추려고).
 	bool bLoggedNavigation = false;
 	// 성능 검사용 수첩: 지금까지 잰 프레임 수(50장 되면 로그).
 	int32 PerformanceSampleCount = 0;

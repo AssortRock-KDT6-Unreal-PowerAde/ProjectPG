@@ -3,11 +3,13 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Actor/InteractActor.h"
+#include "GameFramework/Pawn.h"
 #include "MapAssetSet.generated.h"
 
 class UDataTable;
 class UMaterialInterface;
 class UStaticMesh;
+class UUserWidget;
 
 // 맵에 쓰이는 "보이는 것" 목록 (데이터 에셋).
 // 게임에서: 숲 타일이 어떤 BP 인지, 땅이 어떤 색 머티리얼인지, 바깥 산·풀이 어떤 메시인지, 창고가 어떤 레벨인지.
@@ -16,7 +18,9 @@ class UStaticMesh;
 // 경로는 C++ 기본값으로 두지 않고 DA_MapAssets 칸에 저장한다. 왜: 칸 값이 C++ 기본값과 같으면 언리얼이 파일에
 // 적지 않아서, 패키징(쿠킹)이 그 연결을 못 보고 타일·시설·상자를 패키지에서 빼 버렸다(데디 서버 상자 0개).
 // 칸에 저장해 두면 DA_MapAssets 가 쿠킹될 때 여기 적힌 에셋도 따라 담긴다.
+// 맨 아래 "길찾기" 칸은 보이는 것이 아니라 조정 수치(영역 높이·기다리는 시간)다. 코드 없이 바꾸게 같이 둔다.
 // 여기 없는 것(엔진 큐브, 언덕 메시, 호숫가 메시)은 코드의 숫자(높이·모양)와 짝이라 C++ 에 남겼다.
+// 그래도 패키지에서 안 빠지는 이유: 언덕·호숫가 메시와 타일 소품 BP 는 통째로 쿠킹되는 /Game/PG/LevelDesign 안에 있다.
 UCLASS(BlueprintType)
 class UMapAssetSet : public UPrimaryDataAsset
 {
@@ -78,17 +82,17 @@ public:
 
 	// ---------- 큰 건물 (건물 자리 담당이 고른 자리에 공사 담당이 불러온다) ----------
 	// 워존 한가운데 공장 단지(3×5) 레벨.
-	// WarZone 중심: 창고 건물 두 동과 그 사이 드럼통 마당. Factory 팩 데모의 서쪽 구역에서
-	// 잘라 왔다(잘라낸 창 중심 (400,-2000), 반폭 3000 — 모든 가장자리가 빈 마당을 지나간다.
-	// 데모에서 그 안쪽은 z=100 평지라 로컬 0 으로 내렸다).
+	// 창고 건물 두 동과 그 사이 드럼통 마당. Factory 팩 데모의 서쪽 구역을 잘라 왔다
+	// (잘라낸 네모 중심 (400,-2000), 반폭 3000. 네모의 모든 가장자리가 빈 마당을 지나간다).
+	// 데모에서 그 안쪽은 높이 100 평지라서, 이 레벨에서는 높이 0 으로 내렸다.
 	// 코드로 만들던 IndustrialRaid3x3 을 대신한다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> WarZoneCoreLevel;
-	// 공장 단지 BP. 있으면 레벨보다 이걸 먼저 쓴다(벽 하나하나를 에디터에서 끌어 옮길 수 있음).
-	// 손으로 만든 시설 블루프린트. 안의 벽·소품 하나하나가 따로 된 StaticMeshComponent 라서
-	// 디자이너가 에디터 화면에서 하나를 골라 끌거나 크기를 바꿀 수 있다
-	// - AProceduralFacilityActor 가 만드는 HISM 인스턴스로는 불가능한 일이다.
-	// 여기 항목이 없는 모양 세트는 아직 손으로 안 만든 것이라 코드 빌더로 돌아간다.
+	// 공장 단지 BP. 있으면 레벨보다 이걸 먼저 쓴다.
+	// 손으로 만든 시설 블루프린트다. 안의 벽·소품이 하나하나 따로 된 메시 부품(StaticMeshComponent)이라서,
+	// 에디터 화면에서 하나를 골라 끌거나 크기를 바꿀 수 있다.
+	// (AProceduralFacilityActor 가 만드는 묶음 복사본(HISM)은 하나만 골라 옮길 수 없다.)
+	// 여기 항목이 비어 있는 모양 세트는 아직 손으로 안 만든 것이라 코드로 만드는 쪽으로 돌아간다.
 	// 그래서 시설을 하나씩 채워 나갈 수 있다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftClassPtr<AActor> WarZoneCoreBlueprint;
@@ -99,33 +103,36 @@ public:
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> CheckpointLevel;
 	// Downtown West 데모 환경에서 가져온 카페·상점 구역.
-	// 포장된 보도와 연석은 지우지 않았다: 깎은 지형과 달리 이것들은 공통 땅 위에
-	// 몇 cm 얹힌 얇은 면이고, 도시 블록이 맨흙 위에 서 있는 쪽이 이음새보다 더 어색하다.
+	// 포장된 보도와 연석은 지우지 않았다. 깎은 지형과 달리 이것들은 공통 땅 위에 몇 cm 얹힌 얇은 면이고,
+	// 도시 블록이 맨흙 위에 서 있는 쪽이 이음새보다 더 어색해서다.
 	// 레벨을 들어 올려 포장면이 공통 높이보다 약 10 cm 위에 오게 했다
-	// - 런타임 도로판이 깊이 버퍼 겹침(깜빡임)을 피하려고 띄우는 간격과 같다.
+	// (런타임 도로판이 겹쳐서 깜빡이지 않으려고 띄우는 간격과 같다).
 	// 6x6: 팩의 데모 도시에서 골목부터 골목까지 잘라 온, 양쪽에 건물이 있는 거리 한 구간.
-	// 예전에는 붙어 있는 건물 줄을 가로질러 3x3 로 잘랐는데, 그러면 늘 어떤 건물의
-	// 뒷면이나 옆면이 뚫린 채 남았다. 이 팩은 건물 블록을 끊김 없는 줄로 만들어 두어서,
-	// 깨끗하게 자를 수 있는 곳은 데모의 x=-10100 과 x=-1000 에 있는 실제 골목뿐이다.
+	// 예전에는 붙어 있는 건물 줄을 가로질러 3x3 로 잘랐는데, 그러면 어떤 건물의 뒷면이나 옆면이 늘 뚫린 채 남았다.
+	// 이 팩은 건물 블록을 끊김 없는 줄로 만들어 두어서, 깨끗하게 자를 수 있는 곳은
+	// 데모의 x=-10100 과 x=-1000 에 있는 실제 골목뿐이다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> DowntownLevel;
-	// Factory Pack 데모 맵에서 가져온, 서로 이어진 공장 건물 네 동. 안쪽 - 선반, 지붕 트러스,
-	// 천창 - 까지 다 있다. 시골 디오라마와 달리 이 레벨에는 자체 땅이 없다:
-	// 바닥판을 지워서 공통 타일 지형이 그대로 지나가게 했다.
-	// 그래야 시설이 맵 위에 올려놓은 디오라마처럼 보이지 않는다.
+	// Factory Pack 데모 맵에서 가져온, 서로 이어진 공장 건물 네 동. 안쪽(선반, 지붕 뼈대, 천창)까지 다 있다.
+	// 호숫가 마을과 달리 이 레벨에는 자체 땅이 없다. 바닥판을 지워서 공통 타일 땅이 그대로 지나가게 했다.
+	// 그래야 시설이 맵 위에 따로 올려놓은 모형처럼 보이지 않는다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> FactoryLevel;
 	// 호숫가 마을(오두막·부두·보트).
-	// Modular Rural Cabin 데모에서 다듬어 온 손작업 호숫가 마을:
-	// 오두막, 캠핑카, 부두, 물, 노 젓는 보트 두 척이 깎은 땅 위에 있다.
-	// 다른 시설 레벨과 달리 이것만 자체 지형을 가지므로,
-	// 그 아래 공통 평판은 깔지 않아야 한다.
+	// Modular Rural Cabin 데모에서 다듬어 온 손작업 마을: 오두막, 캠핑카, 부두, 물, 노 젓는 보트 두 척이 깎은 땅 위에 있다.
+	// 다른 시설 레벨과 달리 이것만 자체 땅을 가지므로, 그 아래에 공통 평판을 깔면 안 된다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UWorld> RuralHideoutLevel;
 
 	// 시설 안 지점 표(행 구조 FFacilityPointRow, MapPointPlanner.h). 창고 2층 상자 자리 같은 좌표를 여기서 고친다.
 	UPROPERTY(EditAnywhere, Category = "시설")
 	TSoftObjectPtr<UDataTable> FacilityPointTable;
+
+	// 코드로 짓는 시설(AProceduralFacilityActor)의 부품 메시. 열쇠 = 부품 이름(Floors, SolidWalls, FactoryHalls …).
+	// 손으로 만든 시설 레벨·BP 가 없는 모양 세트가 이걸로 지어진다. 목록에 없는 부품은 큐브 같은 대신 모양으로 나온다.
+	// 왜 여기: 예전엔 32개 경로가 코드에 글자로 있어서 쿠킹이 못 보고, 시드마다 나오는 시설에 따라 다른 메시가 패키지에서 빠졌다.
+	UPROPERTY(EditAnywhere, Category = "시설")
+	TMap<FName, TSoftObjectPtr<UStaticMesh>> FacilityPartMeshes;
 
 	// ---------- 상자 (상자 담당) ----------
 	// 상자 자리(Loot 지점)에 놓을 상자 BP 목록. 자리마다 이 중 하나를 고른다(같은 시드면 같은 자리에 같은 상자).
@@ -191,4 +198,57 @@ public:
 	// 타일 안 덤불 잎을 바꿔 칠할 어두운 머티리얼(원래 잎이 형광색으로 너무 튀어서).
 	UPROPERTY(EditAnywhere, Category = "풀")
 	TSoftObjectPtr<UMaterialInterface> HeroShrubLeafMaterial;
+
+	// ---------- 화면 ----------
+	// 시작 구역 자리에 서기 전까지 가리는 로딩 창(WBP_PGLoadingScreen, 부모 PGLoadingScreenWidget). 비면 로딩 창 없이 시작(Error 로그).
+	UPROPERTY(EditAnywhere, Category = "화면")
+	TSoftClassPtr<UUserWidget> LoadingScreenClass;
+
+	// ---------- 길찾기 (길찾기 지도 담당, 서버만) ----------
+	// 몬스터 길찾기 영역의 위아래 높이(cm, 땅 높이 0 에서 위로 한 번, 아래로 한 번). 높은 시설·언덕 위까지 덮게 넉넉히 200 m.
+	UPROPERTY(EditAnywhere, Category = "길찾기", meta = (ClampMin = "1000"))
+	float NavigationAreaHalfHeightCm = 20000.0f;
+	// 맵 전체 지도 굽기를 기다리는 시간(초). 넘으면 Error 로그만 남기고 계속 기다린다. 에디터 서버에서 약 36초 걸린다.
+	UPROPERTY(EditAnywhere, Category = "길찾기", meta = (ClampMin = "10"))
+	float NavigationBuildTimeoutSeconds = 90.0f;
+
+	// ---------- 몬스터 (몬스터 담당 UMapEnemySpawner, 서버만) ----------
+	// 맵이 다 지어지고 길찾기 지도까지 구워지면, 몬스터 자리(AISpawn 지점)에 놓을 몬스터 BP 목록. 마리마다 이 중 하나를 고른다.
+	// 비어 있으면 몬스터를 하나도 안 놓는다(Error 로그). 채우는 스크립트: Tools/level/setup_enemy_spawns.py
+	UPROPERTY(EditAnywhere, Category = "몬스터")
+	TArray<TSoftClassPtr<APawn>> EnemyClasses;
+	// 판 전체 몬스터 최대 수. 데디 서버가 몬스터마다 AI·길찾기를 돌리므로 너무 많으면 서버가 느려진다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	int32 MaxEnemies = 16;
+	// 몬스터 자리 하나에 몇 마리를 같이 놓을지(최소~최대, 판마다 자리마다 굴림). 자리에 적힌 정원(보통 3)을 넘지 않는다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "1"))
+	int32 MinEnemiesPerPoint = 1;
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "1"))
+	int32 MaxEnemiesPerPoint = 2;
+	// 시작 구역(플레이어가 서는 자리)에서 이 거리(cm) 안의 몬스터 자리는 쓰지 않는다. 접속 직후 바로 죽지 않게.
+	// 몬스터가 보는 거리(EnemyTable, 약 25m)보다 멀게 둔다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	float MinDistanceFromPlayerStartCm = 3000.0f;
+	// 시작 구역마다 이 거리(cm) 안의 몬스터 자리 몇 곳을 먼저 채운다. 어느 구역에서 나와도 조금 걸으면 몬스터를 만나게.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	int32 NearStartPointsPerRegion = 2;
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	float NearStartSearchRadiusCm = 15000.0f;
+	// 플레이어가 한 명 들어올 때마다 워존 한가운데 근처에 놓을 몬스터 수(판 전체 MaxEnemies 를 넘지 않음).
+	// 왜: 싸우는 곳은 워존 중앙(공장)인데, 맵 곳곳 자리에 몬스터가 쫙 깔려 있었다(2026-10-19 사용자: 중앙 근처에 한 명당 4마리 정도).
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	int32 EnemiesPerPlayer = 4;
+	// 워존 칸들의 한가운데에서 이 거리(cm) 안의 칸 바닥에만 놓는다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "500"))
+	float CenterSpawnRadiusCm = 6000.0f;
+	// 워존 밖(들판·시작 구역 근처 몬스터 자리)에 판 시작 때 놓을 최대 수. 0 이면 안 놓는다.
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "0"))
+	int32 MaxEnemiesOutsideWarZone = 0;
+	// 몬스터 자리의 땅 높이와 이만큼(cm) 넘게 다른 길 위 점(담·지붕 꼭대기)에는 놓지 않는다.
+	// 왜: 길찾기 지도가 담 꼭대기에도 생겨, 거기 놓인 몬스터가 끼어 못 움직이고 공중에 떠 보였다(2026-10-18 시험).
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "10"))
+	float MaxSpawnHeightDiffCm = 150.0f;
+	// 길찾기 지도가 다 구워지길 기다리는 시간(초). 넘으면 Error 로그를 남기고 계속 기다린다(늦게라도 구워지면 그때 놓음).
+	UPROPERTY(EditAnywhere, Category = "몬스터", meta = (ClampMin = "10"))
+	float EnemyNavigationWaitTimeoutSeconds = 150.0f;
 };

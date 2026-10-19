@@ -20,6 +20,7 @@
 #include "Containers/Queue.h"   // 줄 세우기(먼저 넣은 칸부터 꺼냄) — 출구까지 길 찾을 때 씀
 #include "Misc/App.h"   // 이번 프레임에 걸린 시간(FApp::GetDeltaTime)
 #include "HAL/PlatformMemory.h"   // 메모리 사용량 읽기
+#include "GameFramework/Pawn.h"   // 캐릭터(플레이어·몬스터) 구분
 #include "EngineUtils.h"   // 월드의 모든 액터를 하나씩 돌기(TActorIterator)
 #include "Components/InstancedStaticMeshComponent.h"   // 같은 메시를 여러 장 찍은 묶음(땅판 수백 장 등)
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"   // 땅판·길판 묶음(맵 액터의 GroundHISM·RoadSurfaceHISM)
@@ -30,7 +31,7 @@
 //     이름 상자에 넣고 이 파일에서는 MapVerifierConst::DesignCellSize 처럼 상자 이름까지 붙여 쓰면 안 헷갈린다.
 namespace MapVerifierConst
 {
-// 칸 크기 (2000cm). 맵 cpp206줄과 같은 값이어야 한다.
+// 칸 크기 (2000cm). 맵 cpp 의 같은 이름 값과 같아야 한다.
 // constexpr : 절대 안바뀌는 숫자. 
 // const랑 차이는 빌드할때 이미아는 숫자냐. 게임 도는 도중에 정해지냐 차이. 
 constexpr float DesignCellSize = 2000.0f;
@@ -54,6 +55,39 @@ UWorld* UMapVerifier::GetWorld()const
 {
 	return Map ? Map->GetWorld() : nullptr;
 }
+
+// 상자까지 놓인 뒤 한 번. 기다릴 것이 없는 검사들(시설 레벨·끼임 정리는 이미 끝났다).
+void UMapVerifier::RunFinalChecks()
+{
+	VerifyDesignLevelSeparation();
+	VerifyWorldCollision();
+	VerifyTacticalLayoutQuality();
+	VerifyTravelCoverDensity();
+	VerifyGameplayPointDistribution();
+	VerifyTraversableElevation();
+	VerifyCoplanarSurfaces();
+}
+
+// 0.1초마다 맵이 부른다. 길찾기 검사가 끝나야(bLoggedNavigation 이 켜져야) 출구 길·성능 검사가 시작한다.
+bool UMapVerifier::RunTimedChecks(bool bGiveUp)
+{
+	VerifyPCGDressing();
+	VerifyNavigation();
+	VerifyCriticalRoutes();
+	VerifyLocalPerformance(0.0f);
+	const bool bDone = bLoggedPCGDressing && bLoggedNavigation && bLoggedCriticalRoutes && PerformanceSampleCount >= 50;
+	if (bDone || !bGiveUp)
+		return bDone;
+
+	TArray<FString> Pending;
+	if (!bLoggedPCGDressing) Pending.Add(TEXT("PCGDressing"));
+	if (!bLoggedNavigation) Pending.Add(TEXT("Navigation"));
+	if (!bLoggedCriticalRoutes) Pending.Add(TEXT("CriticalRoutes"));
+	if (PerformanceSampleCount < 50) Pending.Add(FString::Printf(TEXT("LocalPerformance(%d/50)"), PerformanceSampleCount));
+	UE_LOG(LogTemp, Error, TEXT("Map timed checks gave up: pending=[%s]"), *FString::Join(Pending, TEXT(", ")));
+	return true;
+}
+
 void UMapVerifier::VerifyPCGDressing()
 {
 	if (bLoggedPCGDressing || !IsValid(Map->DressingPCGComponent) || Map->DressingPCGComponent->IsGenerating())
@@ -78,7 +112,7 @@ void UMapVerifier::VerifyPCGDressing()
 void UMapVerifier::VerifyWorldCollision()
 {
 	if (bLoggedWorldCollision
-		|| !Map->AreAllFacilityLevelsLoaded())
+		|| !Map->bFacilityLevelsSettled)
 	{
 		return;
 	}
@@ -122,13 +156,13 @@ void UMapVerifier::VerifyWorldCollision()
 
 void UMapVerifier::VerifyDesignLevelSeparation()
 {
-	// 시설 조각이 다 끼워질때까지 기다린다. 
-	// AreAllFacilityLevelsLoaded : 시설 조각 다 끼워졌나? 
-	if (bLoggedDesignLevelSeparation || !Map->AreAllFacilityLevelsLoaded())
+	// 시설 조각 기다리기가 끝난 뒤에만(bFacilityLevelsSettled: 다 왔거나, 실패·시간 제한으로 포기).
+	// 못 온 조각이 있으면 그 조각은 빼고 잰다(어느 조각인지는 맵이 Error 로 이미 남겼다).
+	if (bLoggedDesignLevelSeparation || !Map->bFacilityLevelsSettled)
 	{
 		return;
 	}
-	//큰 건물마다 딱맞는 투명상자를 하나씩 씌운다?
+	// 큰 건물마다 딱 맞는 투명 상자를 하나씩 씌워서 크기를 잰다.
 	auto GetLoadedLevelBounds = [](const ULevel* Level)
 	{
 		FBox Bounds(EForceInit::ForceInit);
@@ -155,7 +189,7 @@ void UMapVerifier::VerifyDesignLevelSeparation()
 		return Bounds;
 	};
 	
-	// bUseRuntimeBlueprintTiles : 스티커: 건물을 블프 액터로 만드는 방식이니? 
+	// bUseRuntimeBlueprintTiles : 건물을 블루프린트 액터로 만드는 방식인가?
 	TArray<FBox> BoundsByFacility;
 	if (Map->bUseRuntimeBlueprintTiles)
 	{
@@ -196,8 +230,8 @@ void UMapVerifier::VerifyDesignLevelSeparation()
 				- BoundsByFacility[A].GetExtent().X - BoundsByFacility[B].GetExtent().X;
 			const float PairGapY = FMath::Abs(Delta.Y)
 				- BoundsByFacility[A].GetExtent().Y - BoundsByFacility[B].GetExtent().Y;
-			// 축에 맞춘 시설 범위 상자는 한 축에서만 떨어져 있어도 안 겹친다.
-			// 예전의 반지름 기준 계산은 Intersect() 가 '안 겹침'이라고 제대로 답했는데도
+			// 가로·세로로 반듯한 상자는 한 방향에서만 떨어져 있어도 안 겹친다. 그래서 두 방향 중 큰 간격을 쓴다.
+			// 예전의 반지름 기준 계산은 Intersect()(겹침 확인)가 '안 겹침'이라고 제대로 답했는데도
 			// 간격을 음수로 보고하기도 했다.
 			const float PairGapCm = FMath::Max(PairGapX, PairGapY);
 			MinimumGapCm = bMeasuredGap ? FMath::Min(MinimumGapCm, PairGapCm) : PairGapCm;
@@ -216,7 +250,7 @@ void UMapVerifier::VerifyDesignLevelSeparation()
 
 // Tactical(전투용) + Layout(배치) + Quality(품질) = "전투하기 좋게 타일이 제대로 놓였니?"
 void UMapVerifier::VerifyTacticalLayoutQuality()
-// 타일과건물이 예정된 개수만큼 다 생길때 까지 기다린다. 
+// 예정된 시설 개수를 세 둔다(아래에서 타일·시설 수가 예정과 맞는지 비교할 때 쓴다).
 {
 	int32 ExpectedRuntimeFacilityCount = 0;
 	for (const FFacilityPlacement& Placement : Map->FacilityPlacements)
@@ -226,13 +260,18 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 	if (bLoggedTacticalLayoutQuality
 		// 타일 배치 목록이 비었나?
 		|| Map->TileDesignPlacements.IsEmpty()
-		// 만들어진 개수가 "타일 개수+방금 센 개수와 다른가?"
-		|| Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount
-		// 시설 레벨이 아직 다 안불려 왔나?
-		|| !Map->AreAllFacilityLevelsLoaded())
+		// 시설 레벨 기다리기가 아직 안 끝났나?
+		|| !Map->bFacilityLevelsSettled)
 		return;
-	// 스티커 붙이기: 이 검사 로그를 이제 찍는다고 표시. 다음 프레임부턴 위 if 에서 바로 return.
+	// "했음" 표시를 켠다. 한 번만 부르므로 아래에서 건너뛰고 나가도 켜 둔다.
 	bLoggedTacticalLayoutQuality = true;
+	// 타일 액터가 남아 있나. 보통은 없다: 타일은 만들자마자 묶음 메시로 합치고 지운다(MapTileSpawner).
+	// 왜 이걸 보나: 예전엔 액터 수가 맞을 때까지 기다렸는데 한 번도 안 맞아(타일 6 / 예정 797) 이 검사가 9/17 부터 안 돌았다.
+	//   - 액터가 있음 → 예전처럼 액터로 1~3번 검사
+	//   - 액터가 없음 → 1·3번은 배치 목록(TileDesignPlacements)으로, 2번(칸 밖으로 삐져나옴)은 잴 부품이 없어 건너뜀
+	// 4번(사람이 설 자리 겹침)은 월드 충돌로 재므로 어느 쪽이든 돈다.
+	const bool bTileActorsPacked =
+		Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount;
 
 	// int32 = 정수 하나(4바이트). 0부터 세는 칸들.
 	int32 GridMisalignments = 0;        // 칸 한가운데에 안 맞거나, 한 칸에 타일 두 장 겹친 타일 수
@@ -251,7 +290,20 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 
 	// SpawnedRuntimeTiles(만들어 둔 타일 액터 목록)에서 하나씩 꺼내 Actor 라고 부르며 끝까지 돈다.
 	// AActor* = 타일 액터의 주소 쪽지.
-	for (AActor* Actor : Map->SpawnedRuntimeTiles)
+	if (bTileActorsPacked)
+	{
+		// 1. 한 칸에 타일 두 장 / 3. 길 번호(0~15)·모양 번호(0~3)·회전(0~3) 범위 — 배치 목록으로.
+		for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
+		{
+			if (OccupiedCells.Contains(Placement.GridCell))
+				++GridMisalignments;
+			OccupiedCells.Add(Placement.GridCell);
+			if (Placement.ConnectionMask > 15 || Placement.LayoutVariant > 3
+				|| Placement.RotationQuarterTurns < 0 || Placement.RotationQuarterTurns > 3)
+				++InvalidMasks;
+		}
+	}
+	for (AActor* Actor : bTileActorsPacked ? TArray<TObjectPtr<AActor>>() : Map->SpawnedRuntimeTiles)
 	{
 		if (!IsValid(Actor) || Actor->ActorHasTag(TEXT("RuntimeTacticalFacility")))
 			continue;
@@ -272,8 +324,8 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 		FVector Origin;
 		FVector Extent;
 		Actor->GetActorBounds(false, Origin, Extent, true);
-		// 에디터 전용 연결 화살표와 긴 디버그 화살표는 무시한다. 이웃과 겹칠 수 있는 건
-		// 충돌이 있는 부품의 범위뿐이라 그것만 검사한다.
+		// 에디터 전용 연결 화살표와 긴 디버그 화살표는 무시한다.
+		// 이웃 칸과 겹칠 수 있는 건 충돌이 있는 부품의 범위뿐이라, 그것만 검사한다.
 		TArray<UPrimitiveComponent*> PrimitiveComponents;
 		Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
 		bool bActorOverflow = false;
@@ -298,9 +350,9 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 				continue;
 			}
 			const FBoxSphereBounds Bounds = Primitive->Bounds;
-			// 이음새 꾸미기와 비스듬한 CQB 엄폐물은 기준 반 칸(10 m)보다 살짝 삐져나올 수 있다.
-			// 공업 소품은 일부러 이웃한 WarZone 칸 사이를 잇는 다리처럼 쓰므로,
-			// 더 크지만 여전히 한계가 있는 여유를 준다. 구조용 벽은 더 엄격한 한계를 유지한다.
+			// 이음새 꾸미기와 비스듬한 근접전용 엄폐물은 기준인 반 칸(10 m)보다 살짝 삐져나올 수 있다.
+			// 공업 소품은 일부러 이웃한 WarZone 칸 사이에 걸쳐 놓기도 해서, 더 크지만 한계가 있는 여유를 준다.
+			// 건물 벽은 더 엄격한 한계를 유지한다.
 			const bool bIndustrialSeamProp = ComponentName.Contains(TEXT("Container"))
 				|| ComponentName.Contains(TEXT("Crane"))
 				|| ComponentName.Contains(TEXT("Tank"))
@@ -364,6 +416,8 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 				const UPrimitiveComponent* HitComponent = Result.GetComponent();
 				return IsValid(HitActor) && HitActor != Map
 					&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
+					// 캐릭터(플레이어·몬스터)는 뺀다: 맵의 벽·물체에 막혔는지 보는 검사라서. 접속한 사람이 근처에 서 있어도 실패로 셌다.
+					&& !HitActor->IsA<APawn>()
 					&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
 					&& IsValid(HitComponent)
 					&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
@@ -380,6 +434,7 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 						const UPrimitiveComponent* HitComponent = Result.GetComponent();
 						return IsValid(HitActor) && HitActor != Map
 							&& !HitActor->ActorHasTag(TEXT("LevelDesignPoint"))
+							&& !HitActor->IsA<APawn>()
 							&& !(Map->bUseRuntimeBlueprintTiles && HitActor->IsA<ALandscapeProxy>())
 							&& IsValid(HitComponent)
 							&& HitComponent->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
@@ -394,11 +449,12 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 	const FString UnsafeSummary = FString::Join(UnsafeAnchorSamples, TEXT(","));
 	// 5. 로그 남기기.
 	UE_LOG(LogTemp, Display,
-		TEXT("Tactical layout quality: single_cell_tiles=%d facilities=%d grid_or_duplicate=%d bounds_overflow=%d invalid_specs=%d unsafe_anchors=%d pass=%s overflow_sample=[%s] unsafe_sample=[%s]"),
+		TEXT("Tactical layout quality: source=%s single_cell_tiles=%d facilities=%d grid_or_duplicate=%d bounds_overflow=%s invalid_specs=%d unsafe_anchors=%d pass=%s overflow_sample=[%s] unsafe_sample=[%s]"),
+		bTileActorsPacked ? TEXT("placements") : TEXT("actors"),
 		Map->TileDesignPlacements.Num(),
 		ExpectedRuntimeFacilityCount,
 		GridMisalignments,
-		OutOfBoundsComponents,
+		bTileActorsPacked ? TEXT("skipped") : *FString::FromInt(OutOfBoundsComponents),
 		InvalidMasks,
 		UnsafeAnchorOverlaps,
 		GridMisalignments == 0 && OutOfBoundsComponents == 0 && InvalidMasks == 0 && UnsafeAnchorOverlaps == 0
@@ -409,17 +465,14 @@ void UMapVerifier::VerifyTacticalLayoutQuality()
 // Travel(이동) + Cove(엄폐물, 몸을 숨길 것) + Density(촘촘함) 
 // = 돌아다니는 길에 숨을 곳이 충분히 있나?
 void UMapVerifier::VerifyTravelCoverDensity()
-{//타일,건물이 다 생길때까지 기다린다. 
-	int32 ExpectedRuntimeFacilityCount = 0;
-	for (const FFacilityPlacement& Placement : Map->FacilityPlacements)
-		if (Placement.VisualSet != EFacilityVisualSet::Checkpoint)
-			++ExpectedRuntimeFacilityCount;
+{
 	if (bLoggedTravelCoverDensity
-		|| Map->TileDesignPlacements.IsEmpty()
-		|| Map->SpawnedRuntimeTiles.Num() != Map->TileDesignPlacements.Num() + ExpectedRuntimeFacilityCount)
+		|| Map->TileDesignPlacements.IsEmpty())
 		return;
 
 	bLoggedTravelCoverDensity = true;
+	// 타일 액터 수는 보지 않는다. 이 검사는 월드에 선을 쏴서 재므로 액터 목록이 필요 없다.
+	// 왜: 예전엔 "타일 액터 수 = 예정 수" 를 기다렸는데, 타일은 만들자마자 묶음 메시로 합치고 지워서 한 번도 안 맞았다(이 검사가 9/17 부터 안 돌았음).
 	int32 SampleCount = 0;
 	int32 FullyExposedSamples = 0;
 	float LongestExposedRunCm = 0.0f;//맵을 두 줄 걸러 한줄씩, 왼쪽에서 오른쪽으로 칸마다 걸어가 본다.
@@ -429,8 +482,8 @@ void UMapVerifier::VerifyTravelCoverDensity()
 		for (int32 X = -22; X <= 22; ++X)
 		{
 			++SampleCount;
-			// 엄폐물은 웅크린 플레이어를 가려 주면 쓸모 있다. 예전의 1.4m 선 눈높이 트레이스는
-			// 일부러 놓은 가슴 높이 엄폐물을 잘못 걸러냈다.
+			// 엄폐물은 웅크린 플레이어를 가려 주면 쓸모 있다. 예전에는 선 사람 눈높이(1.4 m)에서 선을 쏘았는데,
+			// 그러면 일부러 놓은 가슴 높이 엄폐물이 걸리지 않았다.
 			const FVector EyeLocation(X * MapVerifierConst::DesignCellSize, Y * MapVerifierConst::DesignCellSize, 90.0f);//각 칸 가운데 쪼그려 앉은 사람 눈높이를 정한다.(90cm)
 			bool bHasNearbyCover = false;
 			FCollisionQueryParams Query(SCENE_QUERY_STAT(TravelCoverDensity), true);//거기서 8방향(45도씩)9m 짜리 막대기를 뻗어 본다. 
@@ -482,11 +535,11 @@ void UMapVerifier::VerifyTravelCoverDensity()
 // Distribution(퍼진모양)= "게임 지점들이 골고루 알맞게 퍼져있나?"
 void UMapVerifier::VerifyGameplayPointDistribution()
 {
-	// 아래 셋 중 하나라도 맞으면 이번 프레임은 그냥 끝낸다.
-	//  - 스티커가 붙어 있다 (이미 검사함)
+	// 아래 셋 중 하나라도 맞으면 이번엔 검사하지 않고 그냥 나간다.
+	//  - 이미 검사했다
 	//  - 게임 지점 목록이 비었다 (아직 안 만들어짐)
 	//  - 지점 끼임 정리(벽·물건 속에 박힌 자리를 빈 곳으로 옮기기)가 아직 안 끝났다
-	//    (bResolvedGameplayPointSafety = "끼임 정리 끝났음?" 스티커. 몬스터랑은 상관없음)
+	//    (bResolvedGameplayPointSafety = "끼임 정리 끝났음?" 표시. 몬스터랑은 상관없음)
 
 	if (bLoggedGameplayPointDistribution || Map->LevelDesignPoints.IsEmpty() || !Map->bResolvedGameplayPointSafety)
 		return;
@@ -524,7 +577,7 @@ void UMapVerifier::VerifyGameplayPointDistribution()
 		}
 		// 호수가 있는 판이면(호수는 맵 가장자리 한 모서리), 호숫가 시골 은신처(배 타고 내리는 마을)에서
 		// 3칸 미만도 몬스터 금지. 이 마을엔 시작 타일 표시가 없지만 시작 구역으로 친다.
-		// 지점 만드는 쪽에도 똑같은 규칙이 있어서, 둘이 다르면 멀쩡한 맵을 불합격 처리하게 된다.
+		// 지점 만드는 쪽에도 똑같은 규칙이 있다. 둘이 다르면 멀쩡한 맵을 불합격으로 처리하게 된다.
 		if (Map->bHasBorderLake)
 		{
 			for (const FFacilityPlacement& Facility :Map->FacilityPlacements)
@@ -573,9 +626,7 @@ void UMapVerifier::VerifyGameplayPointDistribution()
 
 	// ⑤⑥ 맵을 100m마다(칸 번호가 5의 배수인 곳) 찍어서, 거기서 가장 가까운 상자·몬스터까지 거리를 잰다.
 	// 그중 제일 먼 값이 기준을 넘으면 "한참 걸어도 줍을 게 없다(250m)" / "싸울 게 없다(300m)".
-	// 플레이 가능한 칸 영역을 100m 마다 찍어 본다. 루트 슈터에 트인 이동 공간은 있어도 되지만,
-	// 찍은 어느 곳도 전리품 기회와 교전 가능 지점 둘 다에서
-	// 너무 멀면 안 된다.
+	// 트인 이동 공간은 있어도 되지만, 찍은 어느 곳도 상자와 몬스터 둘 다에서 너무 멀면 안 된다.
 	float MaximumLootGapCm = 0.0f;
 	float MaximumAIGapCm = 0.0f;
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
@@ -610,7 +661,7 @@ void UMapVerifier::VerifyGameplayPointDistribution()
 				return Facility.OccupiedCells.Contains(Point->GridCell);
 			});
 		if (!bHasLoot) ++FacilitiesMissingLoot;
-		// 시작 지점 안전 띠 안의 시설에는 일부러 상주 AI 를 두지 않는다.
+		// 시작 자리 주변 몬스터 금지 구역 안의 시설에는 일부러 몬스터를 두지 않는다.
 		if (!bHasAI && !Facility.OccupiedCells.ContainsByPredicate(IsProtectedFromAI))
 			++FacilitiesMissingAI;
 	}
@@ -667,8 +718,8 @@ void UMapVerifier::VerifyNavigation()
 	const FVector QueryExtent(180.0f, 180.0f, 650.0f);
 	for (const FLevelDesignPoint& Point : Map->LevelDesignPoints)
 	{
-		// 길찾기는 가운데 invoker 주변에서만 만들어진다. 그 120 m 생성 반지름 밖의 지점은
-		// 나중에 플레이어/AI invoker 가 다가갈 때 검사한다.
+		// 길찾기 지도는 맵 가운데의 생성 담당(invoker) 주변 120 m 안에서만 만들어진다.
+		// 그 밖의 지점은 나중에 플레이어·몬스터 쪽 생성 담당이 다가갈 때 검사한다.
 		if (FVector::DistSquared2D(Point.WorldLocation, Map->GetActorLocation()) > FMath::Square(10000.0f))
 			continue;
 
@@ -677,9 +728,9 @@ void UMapVerifier::VerifyNavigation()
 		if (NavigationSystem->ProjectPointToNavigation(Point.WorldLocation, ProjectedLocation, QueryExtent))
 		{
 			++ProjectedCount;
-			// 투영만으로는 떨어진 외딴 폴리곤에서도 성공할 수 있다. 동서남북 어느 쪽으로든
-			// 움직일 공간이 있으면 통과시킨다. 예전의 +X 방향만 보는 검사는
-			// 좁은 방이나 회전한 위층 바닥을 잘못 걸러냈다.
+			// 길 위로 옮겨 보는 것만으로는, 떨어져 있는 외딴 조각 위에서도 성공할 수 있다.
+			// 그래서 동서남북 중 한 방향으로라도 움직일 공간이 있으면 통과시킨다.
+			// 예전에는 +X 방향만 봤는데, 그러면 좁은 방이나 돌려 놓은 위층 바닥이 잘못 걸러졌다.
 			const FVector NeighborOffsets[] = {
 				FVector(350.0f, 0.0f, 0.0f), FVector(-350.0f, 0.0f, 0.0f),
 				FVector(0.0f, 350.0f, 0.0f), FVector(0.0f, -350.0f, 0.0f)
@@ -704,8 +755,8 @@ void UMapVerifier::VerifyNavigation()
 			FailedPointIds.Add(Point.PointId);
 	}
 
-	// 동적 Recast 생성기가 아직 폴리곤을 하나도 안 내놨으면 조금 더 기다린 뒤,
-	// 매번 똑같은 통과/실패 결과를 알린다.
+	// 길찾기 지도(Recast)가 아직 걸을 수 있는 면을 하나도 안 만들었으면 20초까지 더 기다린다.
+	// 그래야 매번 똑같은 통과/실패 결과를 알릴 수 있다.
 	if (ProjectedCount == 0 && ElapsedSeconds < 20.0)
 		return;
 
@@ -737,8 +788,8 @@ void UMapVerifier::VerifyNavigation()
 //       칠해진 칸에 출구·큰 건물이 들어 있으면 "갈 수 있음".
 void UMapVerifier::VerifyCriticalRoutes()
 {
-	// 이미 보고서 썼거나, 길찾기 지도 검사가 아직 안 끝났거나(맵 쪽 스티커), 칸 목록이 비었으면 이번엔 그냥 끝.
-	// bLoggedNavigation(길찾기 지도 검사 끝남) 은 이제 검사기 자기 스티커다.
+	// 이미 보고서를 썼거나, 길찾기 지도 검사가 아직 안 끝났거나, 칸 목록이 비었으면 이번엔 그냥 나간다.
+	// bLoggedNavigation(길찾기 지도 검사 끝남)은 이제 검사기가 직접 들고 있는 표시다.
 	if (bLoggedCriticalRoutes || !bLoggedNavigation || Map->TileDesignPlacements.IsEmpty())
 		return;
 
@@ -750,12 +801,10 @@ void UMapVerifier::VerifyCriticalRoutes()
 		return;
 
 	// 걸을 수 있는 칸 목록 만들기: 물 칸만 빼고 전부 + 큰 건물이 차지한 칸들.
-	// (길찾기 지도는 플레이어·몬스터 주변에만 깔려서 600m 맵 전체를 한 번에 못 물어본다.
-	//  그래서 칸 바둑판으로 "이어져 있나" 만 따진다 — 원래 영어 주석의 뜻.)
-	// 판 전체에서 갈 수 있는지는 논리 그래프 문제다. 런타임 Recast 는 invoker 주변에서만
-	// 만들어지므로, 900m 길찾기 질의 하나를 시도하면 가짜 실패가 나온다. BFS 로
-	// 만들어진 걸을 수 있는 칸들이 서로 이어져 있음을 확인하고,
-	// 지역 Recast 와 AI 이동은 아래에서 따로 검사한다.
+	// 길찾기 지도는 플레이어·몬스터 주변에만 깔려서, 900m 맵 전체를 한 번에 물어볼 수 없다.
+	// 물어보면 길이 있는데도 없다고 나오는 가짜 실패가 생긴다.
+	// 그래서 칸 바둑판으로 "걸을 수 있는 칸끼리 이어져 있나" 만 따진다(칸에서 칸으로 퍼져 나가는 방식).
+	// 길찾기 지도와 몬스터 이동은 다른 검사에서 따로 본다.
 	TSet<FIntPoint> WalkableCells;
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
 	{
@@ -813,7 +862,7 @@ void UMapVerifier::VerifyCriticalRoutes()
 		else FailedRoutes.Add(FString::Printf(TEXT("Facility_%d_%d"), Facility.AnchorCell.X, Facility.AnchorCell.Y));
 	}
 
-	// 보고서 썼음 스티커 붙이고 로그 한 줄. 출구·건물 전부 갈 수 있으면 pass=true, 못 가는 곳은 sample 에 이름.
+	// "보고서 썼음" 표시를 켜고 로그 한 줄. 출구·건물 전부 갈 수 있으면 pass=true, 못 가는 곳은 sample 에 이름.
 	bLoggedCriticalRoutes = true;
 	UE_LOG(LogTemp, Display,
 		TEXT("Critical logical route audit: from=%s visited_cells=%d/%d targets=%d reachable=%d failed=%d pass=%s sample=[%s]"),
@@ -841,11 +890,9 @@ void UMapVerifier::VerifyTraversableElevation()
 
 	bLoggedTraversableElevation = true;
 
-	// 출구 검사는 "칸이 이어졌나" 만 보고 높이는 안 본다. 그래서 거기서 "갈 수 있음" 이어도
-	// 캐릭터가 못 넘는 턱에 막힐 수 있다. 이 검사는 같은 칸들을 실제 바닥 높이를 넣고 다시 본다.
-	// VerifyCriticalRoutes 는 "칸들이 이어져 있나"만 답하고 높이는 모른다. 그래서 갈 수 있다고
-	// 한 경로도 캐릭터가 못 넘는 턱에 막혀 있을 수 있다. 이 검사는 같은 칸 영역을
-	// 손작업 표면 높이를 적용해서 다시 걷는다.
+	// 출구 검사(VerifyCriticalRoutes)는 "칸이 이어졌나" 만 보고 높이는 안 본다.
+	// 그래서 거기서 "갈 수 있음" 이어도 캐릭터가 못 넘는 턱에 막힐 수 있다.
+	// 이 검사는 같은 칸들을 실제 바닥 높이(손으로 만든 높이)까지 넣어서 다시 걸어 본다.
 
 	// 칸마다 바닥 높이 적기(물 칸은 빼고 개수만 센다).
 	TMap<FIntPoint, float> SurfaceByCell;
@@ -853,11 +900,8 @@ void UMapVerifier::VerifyTraversableElevation()
 	int32 WaterCellCount = 0;
 	for (const FTileDesignPlacement& Placement : Map->TileDesignPlacements)
 	{
-		// 호수 칸은 일부러 못 가게 만든 곳(호숫가가 벽 역할). 걷는 칸으로 치면
-		// 모든 호숫가가 "못 넘는 턱" 으로 잡혀서 맵 전체가 실패로 나온다.
-		// 호수 칸은 일부러 못 가게 했다 - 둑이 기획서가 말하는 미로의 벽이다.
-		// 이걸 걸을 수 있는 칸으로 세면 물가마다 못 넘는 턱으로 잡혀서
-		// 맵 전체가 못 가는 곳으로 나온다.
+		// 호수 칸은 일부러 못 가게 만든 곳이다(둑이 기획서에서 말하는 미로의 벽).
+		// 걷는 칸으로 치면 모든 호숫가가 "못 넘는 턱" 으로 잡혀서 맵 전체가 실패로 나온다.
 		if (Placement.Visual == ETileDesignVisual::Water)
 		{
 			++WaterCellCount;
@@ -878,10 +922,7 @@ void UMapVerifier::VerifyTraversableElevation()
 
 	// 건물 받침대로 올라가는 차량 경사로·사람 계단 자리 목록.
 	// 경사로·계단은 "건물 안 입구 칸" 과 "바로 바깥 칸" 사이 한 군데에만 있고, 받침대 나머지 가장자리는 일부러 벽이다.
-	// 지형을 만든 함수(GetFacilityAccessEdges)와 같은 목록을 써야 검사와 실제가 어긋나지 않는다.
-	// 차량 경사로와 보병 계단은 각각 딱 한 칸 경계를 잇는다: 차지 칸 안의 입구 칸과
-	// 그 바로 바깥 칸. 단상의 나머지 가장자리는 일부러 만든 벽이다. 진입 지점은 지형 빌더가
-	// 쓰는 것과 같은 함수에서 읽어서, 검사가 실제로 만든 것과 어긋나지 않게 한다.
+	// 땅을 만든 쪽과 같은 함수(GetFacilityAccessEdges)로 읽어야 검사와 실제가 어긋나지 않는다.
 	TArray<TPair<FIntPoint, FIntPoint>> RampBridgedEdges;
 	TArray<TPair<FIntPoint, FIntPoint>> AccessEdges;
 	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
@@ -912,10 +953,8 @@ void UMapVerifier::VerifyTraversableElevation()
 		return RampBridgedEdges.Contains(TPair<FIntPoint, FIntPoint>(From, To));
 	};
 
-	// 못 넘는 턱 세기: 건물 받침대 쪽(일부러 만든 벽)과 들판 한가운데(항상 버그)로 나눠서 센다.
+	// 못 넘는 턱 세기: 건물 받침대 쪽(일부러 만든 것이고 경사로가 있음)과 들판 한가운데(항상 버그)로 나눠서 센다.
 	// 들판 쪽은 가장 높은 턱과 그 칸도 기억해 둔다.
-	// 못 넘는 턱 개수 세기. 시설 단상에 속한 것(의도한 것이고 경사로가 있음)과
-	// 빈 땅에 있는 것(항상 결함)을 나눠서 센다.
 	int32 OpenGroundHardEdges = 0;
 	int32 FacilityWallEdges = 0;
 	float WorstOpenGroundStepCm = 0.0f;
@@ -963,8 +1002,7 @@ void UMapVerifier::VerifyTraversableElevation()
 		}
 	}
 
-	// 워존 한가운데 큰 공장 구역(3×5칸)은 이 판의 핵심 목적지라, 따로 이름 붙여 "걸어서 갈 수 있나" 를 적는다.
-	// WarZone 중심은 판의 대표 목적지라, 시설 합계에 섞지 않고 이름으로 따로 알린다.
+	// 워존 한가운데 큰 공장 구역(3×5칸)은 이 판의 핵심 목적지라, 시설 합계에 섞지 않고 따로 "걸어서 갈 수 있나" 를 적는다.
 	FIntPoint WarZoneCoreCell = FIntPoint::ZeroValue;
 	bool bHasWarZoneCore = false;
 	for (const FFacilityPlacement& Facility : Map->FacilityPlacements)
@@ -1039,33 +1077,21 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 
 	// 깜빡임은 두 면이 같은 깊이에 있을 때 생긴다. 땅판·길판·건물 받침대·타일·지형을 서로 다른 코드가 만들어서
 	// 누구도 서로를 모르니, 다 지어진 월드를 직접 들여다보는 수밖에 없다.
-	// 예전엔 선을 12만 3천 개 아래로 쏴서 "0개" 라고 했는데 엉터리였다: 선은 부딪히는 판정이 있는 것에만 멈추는데,
-	// 그림만 있고 판정이 없는 판도 화면에선 깜빡인다. 그래서 선 대신 판의 크기 상자를 비교한다(더 싸고 정확).
-	// z-fighting 은 두 면이 같은 깊이에 놓이는 것이다. 런타임 세계는 여러 독립된 곳에서 만든 것
-	// - 공통 땅판, 도로 HISM, 시설 단상, 담아 둔 타일 모양, 땅 모양 - 을 모아 만든다.
-	// 어느 빌더도 다른 빌더를 볼 수 없으므로, 같은 높이로 겹친 면을 잡는 유일한 방법은
-	// 완성된 세계를 살펴보는 것이다.
-	//
-	// 예전 버전은 광선 123,000 개를 아래로 쏘고 자신 있게 0 을 보고했다.
-	// 쓸모없는 결과였다: 광선은 충돌에서만 멈추는데, 담아 둔 타일 모양은 원본 메시의
-	// 충돌을 그대로 물려받는다. 보이기만 하는 표시나 판은 광선이 그냥 통과하는데 화면에선
-	// 여전히 깜빡인다. 그래서 인스턴스 범위 상자를 비교한다 - 충돌과 상관없고 훨씬 싸다.
+	// 예전엔 선을 12만 3천 개 아래로 쏴서 "0개" 라고 했는데 엉터리였다.
+	// 선은 부딪히는 판정이 있는 것에만 멈추는데, 그림만 있고 판정이 없는 판도 화면에선 깜빡인다.
+	// 그래서 선 대신 판의 크기 상자를 비교한다(충돌과 상관없고, 더 싸고 정확하다).
 
 	// 높이 차가 이것(5cm) 이하면 "같은 높이" 로 본다.
 	constexpr float CoplanarToleranceCm = 5.0f;
-	// 겹치는 넓이가 이것(0.25㎡) 이상이어야 센다. 옆 땅판끼리는 모서리만 닿고 넓이는 안 겹치니 빼려고.
-	// 0.25 m^2. 이웃 땅판은 가장자리끼리 붙게 만들어져서 경계선은 같이 써도 넓이는 같이 쓰지 않는다.
-	// 실제로 넓이를 같이 써야 두 면이 같은 화면 픽셀에 그려진다.
+	// 겹치는 넓이가 이것(0.25㎡) 이상이어야 센다. 이웃 땅판은 가장자리끼리 붙어 있어서 선은 같이 써도 넓이는 안 겹친다.
+	// 넓이가 실제로 겹쳐야 두 면이 같은 화면 픽셀에 그려진다.
 	constexpr float MinimumSharedAreaCm2 = 2500.0f;
 	// 판을 이것(6만 장)보다 많이 모으면 멈추고 "너무 많음(truncated)" 표시.
 	constexpr int32 MaxTrackedSurfaces = 60000;
-	// 150m 안에서 사라지는 것(풀 등)은 뺀다. 깜빡임은 멀리서 보일 때 생기는데, 그 전에 안 그려지는 건 원인이 될 수 없다.
-	// 풀 무더기는 수만 개씩 겹쳐 있어서 넣으면 진짜 문제가 묻힌다.
-	// 이 문제가 생기는 이유는 전부 깊이 정밀도다: 2 cm 간격은 가까이선 멀쩡해 보이고
-	// 멀리선 깜빡임으로 무너진다. 그러니 그 거리 전에 렌더러가 안 그리는 것은
-	// 맵 건너편에서 보이는 깜빡임의 원인일 수 없다. 풀 덩어리는 80 m 에서 안 그려지고
-	// 수만 개가 서로 겹쳐 있어서, MaxTrackedSurfaces 를 넘겨 버리고
-	// 먼 거리의 진짜 겹침을 잡음 속에 묻어 버렸다. 계속 그려지는 것만 검사한다.
+	// 150m 안에서 사라지는 것(풀 등)은 뺀다.
+	// 깜빡임은 멀리서 볼 때 생긴다(2 cm 간격은 가까이선 멀쩡해 보이고 멀리선 깜빡임으로 무너진다). 그 전에 안 그려지는 건 원인이 될 수 없다.
+	// 풀 덩어리는 80 m 에서 안 그려지는데 수만 개가 겹쳐 있어서, 넣으면 MaxTrackedSurfaces 를 넘겨 버리고
+	// 먼 거리의 진짜 겹침이 잡음 속에 묻힌다. 그래서 계속 그려지는 것만 검사한다.
 	constexpr float MinAuditDrawDistanceCm = 15000.0f;
 
 	// 납작한 판 하나의 기록: 위에서 본 네모 범위(Min~Max), 윗면 높이, 이름.
@@ -1093,9 +1119,7 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 		const FVector Size = WorldBounds.GetSize();
 		const float MinHorizontal = FMath::Min(Size.X, Size.Y);
 		// 판처럼 납작한 것만(가로세로 1m 이상, 높이는 짧은 변의 절반 이하). 벽·컨테이너는 뺀다.
-		// 판 모양만 본다. 벽이나 컨테이너도 윗면은 있지만, 플레이어 눈에 보이게
-		// 다른 면과 깜빡일 면은 아니다. 넣으면 진짜 겹침이
-		// 잡음에 묻힌다.
+		// 벽이나 컨테이너도 윗면은 있지만 다른 면과 깜빡일 면은 아니다. 넣으면 진짜 겹침이 잡음에 묻힌다.
 		if (MinHorizontal < 100.0f || Size.Z > MinHorizontal * 0.5f)
 			return;
 		if (++FlatSurfaceCount > MaxTrackedSurfaces)
@@ -1176,10 +1200,8 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 		}
 	}
 
-	// 판끼리 비교: 각 칸을 자기 자신 + 오른쪽·위쪽·대각선 칸과만 비교한다(칸 경계에 걸친 판도 잡고, 같은 짝을 두 번 세지 않게).
-	// 판은 칸 경계에 걸칠 수 있으므로, 각 칸을 자기 자신과 + 방향의 이웃 세 칸과 비교한다.
-	// 그러면 이웃한 쌍을 양쪽에서 두 번 찾지 않고
-	// 딱 한 번씩만 본다.
+	// 판끼리 비교: 각 칸을 자기 자신 + 오른쪽·위쪽·대각선 칸과만 비교한다.
+	// 판은 칸 경계에 걸칠 수 있어서 이웃 칸과도 봐야 하고, 한쪽 방향만 보면 같은 짝을 두 번 세지 않는다.
 	const FIntPoint CompareOffsets[] = {
 		FIntPoint(0, 0), FIntPoint(1, 0), FIntPoint(0, 1), FIntPoint(1, 1)
 	};
@@ -1274,11 +1296,11 @@ void UMapVerifier::VerifyCoplanarSurfaces()
 // Local(이 컴퓨터) Performance(성능) = "게임이 너무 버벅이지 않나?"
 // 게임에서: 맵이 다 깔린 뒤 50프레임 동안 한 프레임에 걸린 시간을 재서 평균 fps(1초에 몇 장 그리나)를 로그에 남긴다.
 //           같이 액터 수, 땅판·길판 수, 풀 개수, 메모리 사용량도 적어서 "왜 느린지" 단서를 남긴다.
-//           pass/fail 은 없고 숫자만 적는다(사람이 보고 판단). 마지막의 layout_hash 는 같은 시드면 같은 맵인지 확인하는 번호.
-// DeltaSeconds 는 받기만 하고 안 쓴다 — 실제 시간은 FApp::GetDeltaTime() 으로 읽는다(원래 코드 그대로).
+//           합격/불합격은 없고 숫자만 적는다(사람이 보고 판단). 마지막의 layout_hash 는 같은 시드면 같은 맵인지 확인하는 번호.
+// DeltaSeconds 는 받기만 하고 안 쓴다. 실제 시간은 FApp::GetDeltaTime() 으로 읽는다(원래 코드 그대로).
 void UMapVerifier::VerifyLocalPerformance(float DeltaSeconds)
 {
-	// 길찾기 지도 검사가 끝나기 전(맵이 아직 다 안 깔림)이거나, 50프레임을 이미 다 쟀으면 끝.
+	// 길찾기 지도 검사가 아직 안 끝났거나(맵이 아직 다 안 깔림), 50프레임을 이미 다 쟀으면 이번엔 그냥 나간다.
 	if (!bLoggedNavigation || PerformanceSampleCount >= 50)
 		return;
 

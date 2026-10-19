@@ -1,4 +1,5 @@
 ﻿// 절차 맵의 화면 담당: 논리 칸(AMapTile) 격자를 보고 타일·시설·가장자리 호수를 실제로 깔아 준다.
+// 전체 흐름: Source/ProjectPG/Private/Actors/MapBuilder/README.md
 
 #include "Actors/MapBuilder.h"
 #include "Actors/TacticalTileActor.h"
@@ -43,6 +44,7 @@
 #include "HAL/PlatformMemory.h"
 #include "Materials/MaterialInterface.h"
 #include "Actors/MapBuilder/MapVerifier.h"
+#include "Actors/MapBuilder/MapNavigationBuilder.h"
 // 같이 쓰는 숫자·경로·작은 계산은 MapBuildShared.h 한 곳에 있다(일꾼들도 같은 것을 본다).
 #include "Actors/MapBuilder/MapBuildShared.h"
 #include "Actors/MapBuilder/MapAssetSet.h"
@@ -54,6 +56,9 @@
 #include "Actors/MapBuilder/MapSpawnRegionPlanner.h"
 #include "Actors/MapBuilder/MapPointPlanner.h"
 #include "Actors/MapBuilder/MapItemSpawner.h"
+#include "Actors/MapBuilder/MapEnemySpawner.h"
+#include "Actors/MapBuilder/PGLoadingScreenSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Actors/MapManifestActor.h"
 #include "Components/MapGeneratorComponent.h"
 using namespace MapBuild;
@@ -61,14 +66,16 @@ using namespace MapBuild;
 
 AMapBuilder::AMapBuilder()
 {
+	// Tick(정해진 간격마다 불리는 함수)을 켠다: 판 내내 바뀌는 두 가지를 본다(이유는 Tick 함수 안 주석).
+	// 매 프레임일 필요는 없어서 0.1초마다.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickInterval = 0.1f;
 	bReplicates = false;
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
-	// 숨겨 둔 길찾기(navigation) 바닥판은 Static 이다. 붙는 부모 쪽도 Static 으로 맞춰야
-	// PIE 가 Recast 가 읽기 전에 붙이기(attachment)를 거부하지 않는다.
+	// 숨겨 둔 길찾기 바닥판은 Static(안 움직임)이다. 붙는 부모 쪽도 Static 으로 맞춰야,
+	// 에디터 안 시험 실행(PIE)이 길찾기 지도(Recast)가 읽기 전에 붙이기를 거부하지 않는다.
 	SceneRoot->SetMobility(EComponentMobility::Static);
 
 	GroundHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("GroundHISM"));
@@ -104,8 +111,8 @@ AMapBuilder::AMapBuilder()
 		Component->SetMobility(EComponentMobility::Movable);
 	}
 
-	// 분지를 둘러싼 산 고리. 일부러 충돌이 없다: 맵 끝은 여전히 떨어지는 곳이어야 하고,
-	// Recast 가 몇 km 밖 배경 위로 길을 내면 안 되기 때문이다.
+	// 분지를 둘러싼 산 고리. 일부러 충돌이 없다. 맵 끝은 여전히 떨어지는 곳이어야 하고,
+	// 길찾기 지도(Recast)가 몇 km 밖 배경 위로 길을 내면 안 되기 때문이다.
 	// 산 메시는 판 시작 때 ApplyMapAssets 가 DA_MapAssets 에서 끼운다.
 	MountainHISM->SetupAttachment(SceneRoot);
 	MountainHISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -118,16 +125,16 @@ AMapBuilder::AMapBuilder()
 	RoadSurfaceHISM->SetCanEverAffectNavigation(false);
 	LakeBedHISM->SetCanEverAffectNavigation(false);
 	// 물 표면은 보이기만 하는 판이다. 충돌을 주면 플레이어가 호수 위에 서고,
-	// 길찾기를 주면 AI 가 호수를 가로질러 길을 잡는다.
+	// 길찾기에 넣으면 AI 가 호수를 가로질러 길을 잡는다.
 	LakeWaterHISM->SetCanEverAffectNavigation(false);
 	LakeWaterHISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	// 손으로 깎은 땅 모양(언덕·구덩이 등): 모양 하나 * 땅 종류(band) 하나마다 HISM 하나.
-	// 메시는 같이 쓰고 컴포넌트 머티리얼만 바꾼다. 그래야 WarZone 안에 놓인 언덕도
+	// 손으로 깎은 땅 모양(언덕·구덩이 등): 모양 하나 × 땅 종류(들판/경계/워존) 하나마다 HISM(묶음 부품) 하나.
+	// 메시는 같이 쓰고 부품의 머티리얼만 바꾼다. 그래야 WarZone 안에 놓인 언덕도
 	// 주변 평평한 칸과 같은 흙으로 보이고, 공장 마당 한가운데 초록 풀밭처럼 튀지 않는다.
-	// 인덱스는 Band * ShapeCount + Shape.
+	// 번호는 (땅 종류 번호 × 모양 수) + 모양 번호.
 	{
-		// 띠별 머티리얼(들판/경계/워존)은 ApplyMapAssets 가 DA_MapAssets 에서 끼운다.
+		// 땅 종류별 머티리얼(들판/경계/워존)은 ApplyMapAssets 가 DA_MapAssets 에서 끼운다.
 		const TCHAR* BandNames[] = { TEXT("Nature"), TEXT("Transition"), TEXT("WarZone") };
 		const TArray<FTerrainFeatureMesh>& FeatureMeshes = GetTerrainFeatureMeshes();
 		for (int32 BandIndex = 0; BandIndex < UE_ARRAY_COUNT(BandNames); ++BandIndex)
@@ -164,9 +171,8 @@ AMapBuilder::AMapBuilder()
 		{ TEXT("TerrainRockHISM"), true },
 		{ TEXT("TerrainTreeHISM"), true },
 		{ TEXT("TerrainBushHISM"), false },
-		// 호숫가 꾸미기. 물가 선은 20 m 칸마다 정해지므로 그대로 두면 격자 따라
-		// 계단처럼 보인다. 얕은 물에 바위·갈대를 세워 그 선을 흐트러뜨린다
-		// - 디오라마 맵이 자기 물가에서 쓰는 것과 같은 방법.
+		// 호숫가 꾸미기. 물가 선은 20 m 칸마다 정해지므로 그대로 두면 격자를 따라 계단처럼 보인다.
+		// 얕은 물에 바위·갈대를 세워 그 선을 흐트러뜨린다(호숫가 마을 레벨이 자기 물가에서 쓰는 것과 같은 방법).
 		{ TEXT("ShoreRockHISM"), true },
 		{ TEXT("ShoreReedHISM"), false }
 	};
@@ -191,10 +197,9 @@ AMapBuilder::AMapBuilder()
 	ShoreRockHISM = DressingComponents[3];
 	ShoreReedHISM = DressingComponents[4];
 
-	// 물가 이어 붙이는 메시, 모양마다 HISM 하나. PG.BuildShoreMeshes 로 만든다.
-	// 땅 쪽 가장자리는 공통 높이 Z=20 에 평평하게 맞춰져 있어 보통 칸 옆에 그냥 붙고,
-	// 안쪽은 물 아래로 휘어져 내려간다. 20 m 계단을 실제로 없애는 건 이 메시다
-	// - 돌린 박스나 흩뿌린 바위는 계단을 가리기만 했다.
+	// 물가를 이어 붙이는 메시, 모양마다 HISM 하나. PG.BuildShoreMeshes 로 만든다.
+	// 땅 쪽 가장자리는 공통 높이 Z=20 에 평평하게 맞춰져 있어 보통 칸 옆에 그냥 붙고, 안쪽은 물 아래로 휘어져 내려간다.
+	// 20 m 계단을 실제로 없애 주는 건 이 메시다(돌린 박스나 흩뿌린 바위는 계단을 가리기만 했다).
 	const TCHAR* ShoreMeshPaths[] = {
 		TEXT("/Game/PG/LevelDesign/Tiles/Terrain/SM_Shore_Corner1.SM_Shore_Corner1"),
 		TEXT("/Game/PG/LevelDesign/Tiles/Terrain/SM_Shore_Corner2Adjacent.SM_Shore_Corner2Adjacent"),
@@ -211,9 +216,10 @@ AMapBuilder::AMapBuilder()
 			CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(
 				ShoreComponentNames[ShoreIndex]);
 		Component->SetupAttachment(SceneRoot);
-		// 일부러 ConstructorHelpers 를 쓰지 않는다: 이 메시들은 PG.BuildShoreMeshes 로 만들어지므로
-		// 새로 받은 직후나 막 다시 만든 직후에는 에디터 시작 때 CDO 를 만들 시점에 아직 없다.
-		// 생성자에서 찾으면 조용히 실패해서 다음 재시작까지 물가가 안 보인다.
+		// 일부러 ConstructorHelpers(생성자에서 에셋을 찾는 도구)를 쓰지 않는다.
+		// 이 메시들은 PG.BuildShoreMeshes 로 만들어서, 새로 받은 직후나 막 다시 만든 직후에는
+		// 에디터가 시작하며 기본 객체(CDO)를 만들 때 아직 없다.
+		// 생성자에서 찾으면 조용히 실패해서 다음에 에디터를 다시 켤 때까지 물가가 안 보인다.
 		// 그래서 BuildLightweightWorldVisuals 에서 불러온다.
 		Component->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		Component->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
@@ -242,7 +248,7 @@ AMapBuilder::AMapBuilder()
 
 // 보이는 것 목록 읽기. 처음 부를 때 DA_MapAssets 를 불러 둔다.
 // 게임에서: 팀원이 DA_MapAssets 에서 숲 타일을 바꾸면 다음 판부터 그 숲이 깔린다(코드·빌드 필요 없음).
-// 못 찾으면 빈 목록(C++ 기본값엔 경로가 없다)이라 타일·시설·상자가 안 나온다 — 그래서 Error 로 크게 남긴다.
+// 못 찾으면 빈 목록(C++ 기본값엔 경로가 없다)이라 타일·시설·상자가 안 나온다. 그래서 Error 로그로 크게 남긴다.
 const UMapAssetSet& AMapBuilder::GetMapAssets()
 {
 	if (!LoadedMapAssets)
@@ -262,8 +268,8 @@ const UMapAssetSet& AMapBuilder::GetMapAssets()
 	return *LoadedMapAssets;
 }
 
-// 그릇에 메시·머티리얼 끼우기. 예전엔 생성자에서 경로 글자로 끼웠다.
-// 그릇들은 Movable 이라 판 중에도 바꿀 수 있다. 칸이 비어 있으면(못 불러오면) 그 그릇은 건드리지 않는다.
+// 맵에 붙은 묶음 부품(HISM)에 메시·머티리얼 끼우기. 예전엔 생성자에서 경로 글자로 끼웠다.
+// 부품들은 Movable(움직임 가능)이라 판 중에도 바꿀 수 있다. 목록 칸이 비어 있으면(못 불러오면) 그 부품은 건드리지 않는다.
 void AMapBuilder::ApplyMapAssets()
 {
 	const UMapAssetSet& Assets = GetMapAssets();
@@ -291,7 +297,7 @@ void AMapBuilder::ApplyMapAssets()
 	SetMaterial(RoadSurfaceHISM, Assets.RoadMaterial);
 	SetMaterial(LakeWaterHISM, Assets.LakeWaterMaterial);
 	SetMaterial(LakeBedHISM, Assets.LakeBedMaterial);
-	// 언덕: 그릇 순서가 [띠 0 들판 × 모양 4개][띠 1 경계 × 4][띠 2 워존 × 4] 라서 번호 ÷ 모양 수 = 띠.
+	// 언덕: 부품 순서가 [들판 × 모양 4개][경계 × 4][워존 × 4] 라서, 번호 ÷ 모양 수 = 땅 종류(0 들판, 1 경계, 2 워존).
 	const TSoftObjectPtr<UMaterialInterface>* BandMaterials[] = {
 		&Assets.NatureGroundMaterial, &Assets.TransitionGroundMaterial, &Assets.WarZoneGroundMaterial };
 	const int32 ShapeCount = FMath::Max(1, GetTerrainFeatureMeshes().Num());
@@ -306,10 +312,21 @@ void AMapBuilder::ApplyMapAssets()
 void AMapBuilder::BeginPlay()
 {
 	Super::BeginPlay();
-	// 땅판·산·돌·풀 그릇에 DA_MapAssets 의 메시·머티리얼을 먼저 끼운다(타일을 세우기 전에).
+	// 땅판·산·돌·풀 부품에 DA_MapAssets 의 메시·머티리얼을 먼저 끼운다(타일을 세우기 전에).
 	ApplyMapAssets();
+	// 화면이 있는 쪽(들어온 사람·방장·혼자)은 로딩 창부터 띄운다. 시작 구역 자리에 서면 닫힌다(UMapSeatStatus).
+	// 왜: 자리에 서기 전엔 아무 데나 생겨 멈춰 있는 모습이라, 그 동안은 가린다. 전용 서버는 화면이 없어 건너뜀.
+	if (GetNetMode() != NM_DedicatedServer && GetGameInstance() && GetGameInstance()->GetFirstGamePlayer())
+		if (UPGLoadingScreenSubsystem* Loading = UPGLoadingScreenSubsystem::Get(this))
+			Loading->ShowLoading(GetWorld(), GetMapAssets().LoadingScreenClass);
 	//부모거 다 진행하고 다음 검사기 진행
-	if (!Verifier)
+	// 검사기는 맵이 다 지어진 순간 한 프레임에 무거운 검사를 몰아서 한다. 그래서 개발할 때만 만든다.
+	//   - 에디터 안 시험 실행(PIE) → 만든다
+	//   - 명령줄에 -PGMapVerify (Tools/test/MapSeedCheck.ps1 가 붙인다) → 만든다
+	//   - 그 밖(패키지 게임·전용 서버 시연) → 안 만든다. 검사기가 없으면 CheckFacilityDesignLevels 가 검사를 건너뛴다.
+	const bool bRunMapVerifier = GetWorld()->IsPlayInEditor()
+		|| FParse::Param(FCommandLine::Get(), TEXT("PGMapVerify"));
+	if (!Verifier && bRunMapVerifier)
 	//1. 아직 없으면	
 	{
 		//2.만들어서 칸에 담고
@@ -360,12 +377,24 @@ void AMapBuilder::BeginPlay()
 		ItemSpawner = NewObject<UMapItemSpawner>(this, TEXT("ItemSpawner"));
 		ItemSpawner->Init(this);
 	}
-	// (10/4 리슨 서버) 예전엔 여기서 "서버가 아니면 끝" 이었다. 이제 들어온 사람도 맵 설계도(AMapManifestActor)로
-	// 칸 쪽지를 받아 같은 맵을 직접 세우므로 양쪽 다 기다린다. 쪽지가 생길 때까지 TryReserveFootprint 가 빈손으로 돌아온다.
-	// 서버만 해야 하는 일(설계도 만들기·아이템 놓기·플레이어 세우기)은 각자 넷 모드로 거른다.
+	if (!NavigationBuilder)
+	{
+		NavigationBuilder = NewObject<UMapNavigationBuilder>(this, TEXT("NavigationBuilder"));
+		NavigationBuilder->Init(this);
+	}
+	if (!EnemySpawner)
+	{
+		EnemySpawner = NewObject<UMapEnemySpawner>(this, TEXT("EnemySpawner"));
+		EnemySpawner->Init(this);
+	}
+	// 예전엔 여기서 "서버가 아니면 끝" 이었다. 이제 들어온 사람도 맵 설계도(AMapManifestActor)로
+	// 칸 쪽지를 받아 같은 맵을 직접 세우므로, 서버든 들어온 사람이든 둘 다 기다린다.
+	// 쪽지가 생길 때까지는 TryReserveFootprint 가 아무것도 안 하고 돌아온다.
+	// 서버만 해야 하는 일(설계도 만들기·아이템 놓기·플레이어 세우기)은 각자 서버인지 확인해서 거른다.
 
-	// GameMode 가 BeginPlay 중에 논리 격자를 만든다. 잠깐씩 다시 시도해서
-	// 액터들의 BeginPlay 순서에 기대지 않게 한다.
+	// 게임 모드가 시작되는 중에 칸 격자를 만든다. 0.2초마다 다시 시도해서,
+	// 액터들이 시작되는 순서가 어떻든 상관없게 한다. 끝내 못 지으면 TryReserveFootprint 가 60초 뒤 Error 로그를 남기고 멈춘다.
+	FootprintRetryStartSeconds = FPlatformTime::Seconds();
 	GetWorldTimerManager().SetTimer(
 		RetryTimer,
 		this,
@@ -379,83 +408,84 @@ void AMapBuilder::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	for (int32 Index = 0; Index < FacilityDesignLevelInstances.Num(); ++Index)
+	// ── 0.1초마다 하는 일은 2가지만 남았다. 나머지는 "~했을 때" 방식으로 옮겼다 → CheckFacilityDesignLevels ──
+	// 1) 새로 들어온 플레이어를 시작 구역에 세운다 (서버만)
+	//    왜 아직 여기서: 한 번에 안 끝날 때가 있다.
+	//      - 캐릭터가 아직 없음 → 2초 뒤 다시
+	//      - 세울 자리 없음 → 2초 뒤 다시
+	//      - 캐릭터가 바뀜 → 같은 자리에 다시
+	//    나중에 바꿀 것: 매번 확인 대신 "누가 들어왔을 때 / 캐릭터가 생겼을 때 / 2초 뒤 다시"에만 세우기.
+	//                   바꾸면 서버+2명으로 다시 시험해야 해서 이번엔 그대로 둠.
+	//    부담: 기다리는 사람이 없으면 확인 한 번 하고 바로 끝남.
+	SpawnRegionPlanner->PlaceJoinedPlayers();
+
+	// 2) 플레이어마다 둘레 60 m 길찾기 "막힌 곳" 을 새로 고친다 (서버만)
+	//    왜 여기서: 캐릭터는 계속 움직이는데, 엔진에는 "다른 칸으로 넘어갔을 때" 불러 주는 기능이 없다. 40 m 칸이 바뀔 때만 일한다.
+	//    왜 서버만: 몬스터 길찾기 지도는 서버에만 있다(MapNavigationBuilder 도 서버에서만 굽는다). 들어온 사람 컴퓨터에서 돌리면 헛일.
+	if (GetNetMode() != NM_Client)
+		RefreshPlayerNavigationBlockers();
+}
+
+// 플레이어 한 명마다 막힘 부품을 하나씩 두고, 그 사람이 40 m 칸을 옮길 때 그 부품만 다시 계산한다.
+//   왜 한 부품에 모두 넣지 않나: 부품 하나는 영역을 통째로 덮어쓰고, 두 사람이 멀리 떨어져 있으면
+//   둘 사이 전체가 "다시 구울 곳" 이 되어 길찾기 지도를 크게 다시 굽는다. 사람마다 나누면 각자 둘레만 다시 굽는다.
+//   - 처음 보는 플레이어 → 부품을 만든다(첫 사람은 원래 있던 PlayerNavigationBlockers 를 쓴다)
+//   - 40 m 칸을 옮김 → 그 사람 부품만 다시 계산
+//   - 나간 플레이어 → 부품을 비우거나 지운다
+//   - 맵이 아직 안 지어짐 → 아무것도 안 함(지어진 뒤 첫 확인 때 계산된다)
+void AMapBuilder::RefreshPlayerNavigationBlockers()
+{
+	if (!Tags.Contains(ReservedTag) || !IsValid(PlayerNavigationBlockers))
+		return;
+
+	for (auto It = PlayerNavigationBlockersByController.CreateIterator(); It; ++It)
 	{
-		ULevelStreamingDynamic* Instance = FacilityDesignLevelInstances[Index];
-		if (LoggedFacilityDesignLevelIndices.Contains(Index)
-			|| !IsValid(Instance)
-			|| !Instance->IsLevelLoaded()
-			|| !Instance->IsLevelVisible())
-		{
+		if (It.Key().IsValid())
 			continue;
+		UTacticalTileNavModifierComponent* Modifier = It.Value().Modifier.Get();
+		// 원래 부품은 다음 사람이 다시 쓰므로 지우지 않고 비워만 둔다.
+		if (Modifier == PlayerNavigationBlockers)
+			Modifier->SetWorldBlockers({});
+		else if (IsValid(Modifier))
+			Modifier->DestroyComponent();
+		It.RemoveCurrent();
+	}
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* PlayerController = It->Get();
+		const APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+		if (!IsValid(PlayerPawn))
+			continue;
+
+		FPlayerNavigationBlocker& Blocker = PlayerNavigationBlockersByController.FindOrAdd(PlayerController);
+		if (!Blocker.Modifier.IsValid())
+		{
+			const bool bOriginalTaken = Algo::AnyOf(PlayerNavigationBlockersByController,
+				[this](const auto& Pair)
+				{
+					return Pair.Value.Modifier.Get() == PlayerNavigationBlockers;
+				});
+			UTacticalTileNavModifierComponent* Modifier = PlayerNavigationBlockers;
+			if (bOriginalTaken)
+			{
+				Modifier = NewObject<UTacticalTileNavModifierComponent>(this);
+				AddInstanceComponent(Modifier);
+				Modifier->RegisterComponent();
+			}
+			Blocker.Modifier = Modifier;
+			Blocker.LastCell = FIntPoint(MAX_int32, MAX_int32);
 		}
 
-		LoggedFacilityDesignLevelIndices.Add(Index);
-		const ULevel* LoadedLevel = Instance->GetLoadedLevel();
-		const int32 LoadedActorCount = IsValid(LoadedLevel) ? LoadedLevel->Actors.Num() : 0;
-		const double RequestedAt = FacilityLoadRequestTimeSeconds.IsValidIndex(Index)
-			? FacilityLoadRequestTimeSeconds[Index] : FPlatformTime::Seconds();
-		UE_LOG(LogTemp, Display,
-			TEXT("Facility design level loaded: index=%d type=%d actors=%d visible=true load_ms=%.2f package=%s"),
-			Index,
-			FacilityPlacements.IsValidIndex(Index) ? static_cast<int32>(FacilityPlacements[Index].VisualSet) : -1,
-			LoadedActorCount,
-			(FPlatformTime::Seconds() - RequestedAt) * 1000.0,
-			*Instance->GetWorldAssetPackageName());
-	}
-	if (!bLoggedAllFacilityDesignLevelsLoaded
-		&& !FacilityPlacements.IsEmpty()
-		&& AreAllFacilityLevelsLoaded())
-	{
-		bLoggedAllFacilityDesignLevelsLoaded = true;
-		int32 LoadedLevelCount = 0;
-		for (const ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
-			if (IsValid(Instance) && Instance->IsLevelLoaded() && Instance->IsLevelVisible())
-				++LoadedLevelCount;
-		UE_LOG(LogTemp, Display,
-			TEXT("All facility visuals ready: placements=%d runtime_blueprints=%d streamed_levels=%d"),
-			FacilityPlacements.Num(),
-			Algo::CountIf(SpawnedRuntimeTiles, [](const AActor* Actor)
-			{
-				return IsValid(Actor) && Actor->Tags.Contains(TEXT("RuntimeTacticalFacility"));
-			}),
-			LoadedLevelCount);
-	}
-
-	Verifier->VerifyDesignLevelSeparation();
-	Verifier->VerifyWorldCollision();
-	// 시설 레벨이 다 보이면 벽 속 지점을 빈 곳으로 옮긴다(한 번만).
-	PointPlanner->ResolveSafety();
-	// 끼임 정리가 끝나면 상자 자리마다 아이템을 놓는다(한 번만).
-	ItemSpawner->SpawnLootOnce();
-	// 들어온 플레이어를 시작 구역에 나눠 세운다(서버만, 새로 들어온 사람만). 시작 자리 정리가 끝난 뒤부터 일한다.
-	SpawnRegionPlanner->PlaceJoinedPlayers();
-	//Tactical(전투용)+Layout(배치)+Quality(품질) = 전투하기 좋게 타일이 제대로 놓였니? 
-	Verifier->VerifyTacticalLayoutQuality();
-	Verifier->VerifyTravelCoverDensity();
-	Verifier->VerifyGameplayPointDistribution();
-	Verifier->VerifyNavigation();
-	Verifier->VerifyCriticalRoutes();
-	Verifier->VerifyTraversableElevation();
-	Verifier->VerifyCoplanarSurfaces();
-	Verifier->VerifyPCGDressing();
-	Verifier->VerifyLocalPerformance(DeltaSeconds);
-
-	// 지금 조작 중인 플레이어 폰(팀 캐릭터) 주변 60 m 길찾기 차단을 갱신한다.
-	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
-	const APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
-	if (IsValid(PlayerPawn) && IsValid(PlayerNavigationBlockers))
-	{
 		const FVector PlayerLocation = PlayerPawn->GetActorLocation();
 		const FIntPoint PlayerCell(
 			FMath::FloorToInt(PlayerLocation.X / 4000.0f),
 			FMath::FloorToInt(PlayerLocation.Y / 4000.0f));
-		if (PlayerCell != LastPlayerNavigationBlockerCell)
-		{
-			LastPlayerNavigationBlockerCell = PlayerCell;
-			TileSpawner->RefreshNavigationBlockerRegion(PlayerNavigationBlockers, PlayerLocation, NavigationBlockerRadiusCm);
-			LastPlayerNavigationBlockerUpdateTimeSeconds = FPlatformTime::Seconds();
-		}
+		if (PlayerCell == Blocker.LastCell)
+			continue;
+		Blocker.LastCell = PlayerCell;
+		TileSpawner->RefreshNavigationBlockerRegion(Blocker.Modifier.Get(), PlayerLocation, NavigationBlockerRadiusCm);
+		LastPlayerNavigationBlockerUpdateTimeSeconds = FPlatformTime::Seconds();
 	}
 }
 
@@ -466,8 +496,8 @@ int64 AMapBuilder::GetRaidSeed() const
 	return ReplicatedRaidSeed;
 }
 
-// 형님 생성기의 시작 구역 상자 크기(_startPositionRangeSize). 형님 코드에 getter 를 더하지 않으려고 이름으로 찾아 읽는다(리플렉션).
-// 이름이 바뀌면 4 로 돌아간다.
+// 형님 생성기의 시작 구역 상자 크기(_startPositionRangeSize). 형님 코드를 건드리지 않으려고 변수 이름으로 찾아 읽는다(리플렉션).
+// 그 이름이 바뀌면 읽지 못해서 4 를 쓴다.
 int32 AMapBuilder::GetStartRangeSize() const
 {
 	if (const AGameModePG* GameMode = Cast<AGameModePG>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
@@ -490,6 +520,19 @@ void AMapBuilder::ApplyReplicatedManifest(int64 InSeed, int32 InStartRange)
 
 void AMapBuilder::TryReserveFootprint()
 {
+	// 0.2초마다 다시 불린다. 60초가 지나도 못 지었으면 마지막으로 무엇을 기다렸는지 Error 로 남기고 재시도를 끈다.
+	//   - 칸 정보가 안 옴 → 서버: 형님 생성기가 칸(AMapTile)을 안 만듦 / 들어온 사람: 맵 설계도(AMapManifestActor)를 못 받음
+	//   - 시설 자리를 못 찾음 → 워존이 너무 작은 맵
+	//   이대로면 맵이 비어 있으니, 그 판은 다시 시작해야 한다.
+	constexpr double FootprintRetryTimeoutSeconds = 60.0;
+	if (FPlatformTime::Seconds() - FootprintRetryStartSeconds > FootprintRetryTimeoutSeconds)
+	{
+		GetWorldTimerManager().ClearTimer(RetryTimer);
+		UE_LOG(LogTemp, Error, TEXT("Map build gave up: after=%.0fs net_mode=%d waiting_for=%s - the map stays empty this round"),
+			FootprintRetryTimeoutSeconds, static_cast<int32>(GetNetMode()), FootprintWaitReason);
+		return;
+	}
+
 	TArray<AMapTile*> AllTiles;
 	TArray<float> UniqueX;
 
@@ -500,9 +543,9 @@ void AMapBuilder::TryReserveFootprint()
 		UniqueX.AddUnique(Tile->GetActorLocation().X);
 	}
 
-	// 런타임 블루프린트 방식에서는 AMapTile 과 HISM 세계를 만들기용 데이터로만 쓴다.
-	// 비교적 무거운 배치 변환을 시작하기 전에 먼저 숨겨야
-	// PIE 시작 때 색칠된 metaball 미리보기가 한 프레임 번쩍 보이지 않는다.
+	// 게임 중에 블루프린트 타일을 세우는 방식에서는, AMapTile 과 땅판 묶음(HISM)을 맵 만들기용 데이터로만 쓴다.
+	// 비교적 무거운 배치 변환을 시작하기 전에 먼저 숨겨야,
+	// 에디터 시험 실행(PIE)을 켤 때 색칠된 미리보기(metaball)가 한 프레임 번쩍 보이지 않는다.
 	if (bUseRuntimeBlueprintTiles)
 	{
 		GroundHISM->SetVisibility(false, true);
@@ -524,7 +567,10 @@ void AMapBuilder::TryReserveFootprint()
 	}
 
 	if (AllTiles.Num() == 0)
+	{
+		FootprintWaitReason = TEXT("map tiles (AMapTile) - server: generator made none / client: no manifest yet");
 		return;
+	}
 
 	UniqueX.Sort();
 	GridStep = 0.0f;
@@ -536,9 +582,12 @@ void AMapBuilder::TryReserveFootprint()
 	}
 
 	if (GridStep <= 0.0f)
+	{
+		FootprintWaitReason = TEXT("grid step - all map tiles share one X position");
 		return;
+	}
 
-	// 서버: 칸 쪽지를 다 읽었으면 설계도(칸 위치·종류 + 시드)를 만들어 들어온 사람에게 보낸다(리슨 서버).
+	// 서버: 칸 쪽지를 다 읽었으면 설계도(칸 위치·종류 + 시드)를 만들어 들어온 사람에게 보낸다(서버 겸 플레이어 방식).
 	if (GetWorld()->GetNetMode() != NM_Client && !IsValid(Manifest))
 	{
 		TArray<FMapTileRecord> Records;
@@ -564,11 +613,14 @@ void AMapBuilder::TryReserveFootprint()
 	}
 
 	// 큰 건물(창고·마당·막사·참호·검문소·다운타운·공장·호숫가 마을) 자리는 건물 자리 담당이 고른다.
-	// 결과는 맵의 FacilityPlacements 목록에 들어간다. 자리를 못 찾으면(워존이 너무 작음) 다음 틱에 다시 시도.
+	// 결과는 맵의 FacilityPlacements 목록에 들어간다. 자리를 못 찾으면(워존이 너무 작음) 0.2초 뒤 다시 시도한다.
 	if (!FacilityPlanner->PlanFacilities(TileByCell, WarZoneByCell, AllTiles.Num()))
+	{
+		FootprintWaitReason = TEXT("facility placement - warzone too small for the facility set");
 		return;
+	}
 	// 길찾기 바닥판을 맵 크기(GridCellSpan, 건물 자리 담당이 재 둠)에 맞춘다.
-	// Recast 는 타일마다 모양을 뽑아 쓰지 않고 이 바닥판 하나만 읽는다.
+	// 길찾기 지도(Recast)는 타일마다 모양을 뽑아 쓰지 않고 이 바닥판 하나만 읽는다.
 	// 그래서 바닥판은 만들어진 격자만큼만 덮어야 한다. 예전에 900 m 로 고정했더니
 	// 맵이 작을 때 가장자리 밖에 걸어갈 수 있는 빈 공간이 생겼다.
 	if (IsValid(NavigationFloor) && GridCellSpan > 0)
@@ -577,6 +629,9 @@ void AMapBuilder::TryReserveFootprint()
 		NavigationFloor->SetRelativeScale3D(
 			FVector(NavigationFloorScale, NavigationFloorScale, 0.2f));
 	}
+	// 바닥판 크기가 정해졌으니 그 크기만큼 길찾기 지도를 뒤에서 굽기 시작한다(서버만).
+	if (IsValid(NavigationFloor))
+		NavigationBuilder->StartBuild(NavigationFloor->Bounds.GetBox());
 
 	// 칸마다 어떤 타일을 몇 도 돌려 놓을지는 칸 모양 담당이 정한다(흙길은 그 안에서 흙길 담당에게 묻는다).
 	TilePlanner->BuildTileDesignPlacements(TileByCell);
@@ -587,9 +642,8 @@ void AMapBuilder::TryReserveFootprint()
 	TileSpawner->SpawnRuntimeBlueprintTiles();
 	// 시작 자리·상자 자리·몬스터 자리·출구·퀘스트 자리는 지점 담당이 찍는다.
 	PointPlanner->BuildPoints();
-	// 런타임 블루프린트 타일과 같이 돈다: 타일별 소품은 그 타일의 HISM 꾸미기가 맡고,
-	// 이 단계는 풀밭·덤불·폐허·빈 땅 칸에 풀/덤불 덩어리를 흩뿌려
-	// 칸 사이 20 m 이음새를 흐리게 한다.
+	// 게임 중에 놓는 블루프린트 타일과 같이 돈다. 타일별 소품은 그 타일의 HISM 꾸미기가 맡고,
+	// 이 단계는 풀밭·덤불·폐허·빈 땅 칸에 풀/덤불 덩어리를 흩뿌려서 칸 사이 20 m 이음새를 흐리게 한다.
 	GroundBuilder->BuildPCGDressingGraph();
 	NavigationValidationStartTimeSeconds = FPlatformTime::Seconds();
 	FacilityDesignLevelInstances.Reset();
@@ -597,11 +651,12 @@ void AMapBuilder::TryReserveFootprint()
 	LoggedFacilityDesignLevelIndices.Reset();
 	for (int32 FacilityIndex = 0; FacilityIndex < FacilityPlacements.Num(); ++FacilityIndex)
 		TileSpawner->LoadFacilityDesignLevel(FacilityPlacements[FacilityIndex], FacilityIndex);
+	// 다음 단계(시설 기다리기 → 상자)는 "레벨이 다 보였을 때" 이어진다.
+	WatchFacilityDesignLevels();
 	GroundBuilder->BuildBorderMountains();
 
-	// 팀원이 만든 AMapTile 액터는 계속 논리 기록의 원본이다. 변환이 끝나면
-	// 보이는 것·충돌만 꺼서, 데이터는 지우지 않고 HISM 과 Level Instance 가
-	// 실제로 보이고 플레이하는 세계가 되게 한다.
+	// 팀원이 만든 AMapTile 액터는 계속 칸 정보의 원본이다. 변환이 끝나면 보이는 것·충돌만 끄고 데이터는 지우지 않는다.
+	// 그러면 HISM(묶음 부품)과 시설 레벨 복사본이 실제로 보이고 플레이하는 세계가 된다.
 	for (AMapTile* Tile : AllTiles)
 	{
 		if (!IsValid(Tile))
@@ -628,16 +683,17 @@ void AMapBuilder::BuildShoreTransitionMap(
 	if (LakeCells.IsEmpty())
 		return;
 
-	// 마칭 스퀘어(marching squares). 칸 모서리는 거기 모이는 네 칸 중 하나라도 물이면 '젖은' 것으로 본다.
-	// 그래서 물가 선이 칸 테두리를 따라가지 않고 칸을 가로지른다. 이웃한 두 칸은 모서리 두 개를
-	// 항상 같이 쓰고, 만들어진 메시는 각 변을 그 변의 두 모서리 높이만으로 이어 그리므로
-	// 양쪽에서 본 단면이 똑같다 - 둘 사이에 벽이 생길 수 없다.
+	// 칸의 모서리 4개를 각각 "젖었나" 로 보고 모양을 고른다(마칭 스퀘어 방식).
+	// 모서리 하나는 거기 모이는 네 칸 중 하나라도 물이면 '젖은' 것으로 본다.
+	// 그래서 물가 선이 칸 테두리를 따라가지 않고 칸을 가로지른다.
+	// 이웃한 두 칸은 모서리 두 개를 항상 같이 쓰고, 만들어진 메시는 각 변을 그 변의 두 모서리 높이만으로 이어 그린다.
+	// 그래서 양쪽에서 본 단면이 똑같고, 둘 사이에 벽이 생길 수 없다.
 	//
-	// 예전에는 *변* 기준으로 골랐던 게 실수였다: 모래사장 칸의 변은 길이 방향으로 -110 에서 +20 까지
-	// 내려가는데 옆 평지 칸은 내내 +20 이라, 물가 선이 끝나는 곳마다 130 cm 턱이 생겼다.
+	// 예전에는 *변* 기준으로 골랐는데 그게 실수였다. 모래사장 칸의 변은 길이 방향으로 -110 에서 +20 까지 내려가는데
+	// 옆 평지 칸은 내내 +20 이라서, 물가 선이 끝나는 곳마다 130 cm 턱이 생겼다.
 	auto IsCornerWet = [&LakeCells](const FIntPoint& Cell, int32 CornerIndex)
 	{
-		// 모서리 순서는 SW, SE, NE, NW - 만들어진 메시와 같은 순서.
+		// 모서리 순서는 남서, 남동, 북동, 북서. 만들어진 메시와 같은 순서다.
 		static const FIntPoint CornerOffsets[4][4] = {
 			{ FIntPoint(0, 0), FIntPoint(-1, 0), FIntPoint(0, -1), FIntPoint(-1, -1) },
 			{ FIntPoint(0, 0), FIntPoint(1, 0), FIntPoint(0, -1), FIntPoint(1, -1) },
@@ -650,7 +706,7 @@ void AMapBuilder::BuildShoreTransitionMap(
 		return false;
 	};
 
-	// 기본 마스크. 생성기가 에셋을 쓰는 순서와 같다.
+	// 모양별 기본 모서리 표시(비트 4개, 1 = 젖음). 물가 메시를 만든 도구가 에셋을 쓰는 순서와 같다.
 	static const uint8 BaseMasks[] = { 0b0001, 0b0011, 0b0101, 0b0111 };
 	auto RotateMask = [](uint8 Mask, int32 QuarterTurns)
 	{
@@ -668,9 +724,9 @@ void AMapBuilder::BuildShoreTransitionMap(
 			if (IsCornerWet(Placement.GridCell, CornerIndex))
 				CornerMask |= 1 << CornerIndex;
 
-		// 모서리가 다 마르면 보통 평지. 다 젖으면 완전히 물속이라 호수 바닥과 물 판이 이미 덮는다
-		// - 단, 생성기가 실제로 물로 정한 칸만 그렇다. 두 면 이상 물에 닿은 *땅* 칸도
-		// 네 모서리가 다 젖게 되는데, 예전엔 이게 양쪽 처리에서 다 빠졌다:
+		// 모서리가 다 마르면 보통 평지다.
+		// 다 젖으면 완전히 물속이라 호수 바닥과 물 판이 이미 덮는다(단, 생성기가 실제로 물로 정한 칸만 그렇다).
+		// 두 면 이상 물에 닿은 *땅* 칸도 네 모서리가 다 젖게 되는데, 예전엔 이 칸이 두 처리에서 모두 빠졌다.
 		// 물가 메시도 없고, 주변은 다 호수 바닥으로 내려갔는데 혼자 Z=20 평판으로 남았다.
 		// 물가를 따라 보이던 구멍이 이것이었다.
 		if (CornerMask == 0)
@@ -714,12 +770,11 @@ float AMapBuilder::GetSurfaceElevationForCell(const FIntPoint& Cell) const
 	}
 	// 시설 자리 밖은 모두 같은 땅 높이 하나를 쓴다.
 	//
-	// 예전에는 높이거나 낮춘 시설 바닥 둘레에 1~2칸짜리 '어깨' 고리를 섞어 경사를 만들었다.
-	// 문서상으로만 경사였다: 땅은 칸마다 20 m 평판 하나로 그려지므로 실제로는
-	// 30~90 cm 높이차의 20 m 계단이 쌓인 것이었다. MaxStepHeight 45 cm 기준으로는
-	// 빈 들판 한가운데 넘을 수 없는 턱이 생겼고 - 시설 2칸 안을 지나는 길 위에도 생겼다 -
-	// 이웃한 시설들의 고리가 겹치면 더 높은 턱이 됐다. 지금은 일부러 높이를 주는 곳은
-	// 시설 자리뿐이고, 그 시설이 BuildElevatedFacilityTerrain 이 만드는
+	// 예전에는 높이거나 낮춘 시설 바닥 둘레에 1~2칸짜리 '어깨' 고리를 섞어서 경사를 만들었다.
+	// 말로만 경사였다. 땅은 칸마다 20 m 평판 하나로 그려지므로, 실제로는 30~90 cm 높이 차의 20 m 계단이 쌓인 것이었다.
+	// 걸어서 넘는 최대 높이(MaxStepHeight)가 45 cm 라서, 빈 들판 한가운데나 시설 2칸 안을 지나는 길 위에도
+	// 넘을 수 없는 턱이 생겼다. 이웃한 시설들의 고리가 겹치면 턱이 더 높아졌다.
+	// 지금은 일부러 높이를 주는 곳이 시설 자리뿐이다. 그 시설이 BuildElevatedFacilityTerrain 이 만드는
 	// 차량 경사로와 보병 계단을 직접 갖는다.
 	return BaseGroundSurfaceZ;
 }
@@ -734,10 +789,10 @@ void AMapBuilder::GetFacilityAccessEdges(
 
 	OutAccessEdges.Emplace(Placement.EntranceCell, Placement.EntranceDirection);
 
-	// WarZone 중심은 판의 마지막 교전 장소이고 바닥이 3x3 칸이라, 경사로가 하나뿐이면
-	// 240 m 둘레 중 5% 정도만 올라갈 수 있어 공격하는 쪽이 전부 한 줄로 몰린다.
-	// 그래서 사방에 하나씩 올라가는 길을 준다. 바깥의 2x2·2x1 시설은 입구 하나를 유지한다:
-	// 그 크기에선 입구 하나가 병목이 아니라 '지키기 좋은 거점'으로 읽힌다.
+	// WarZone 중심은 판의 마지막 싸움 장소이고 바닥이 3x3 칸이다. 경사로가 하나뿐이면
+	// 240 m 둘레 중 5% 정도만 올라갈 수 있어서 공격하는 쪽이 전부 한 줄로 몰린다.
+	// 그래서 사방에 하나씩 올라가는 길을 준다.
+	// 바깥의 2x2·2x1 시설은 입구를 하나만 둔다. 그 크기에서는 입구 하나가 병목이 아니라 '지키기 좋은 거점'으로 읽힌다.
 	const bool bWarZoneCore = Placement.VisualSet == EFacilityVisualSet::Warehouse
 		&& Placement.Footprint == WarZoneCoreFootprint;
 	if (!bWarZoneCore)
@@ -764,7 +819,7 @@ void AMapBuilder::GetFacilityAccessEdges(
 	};
 	for (const TPair<FIntPoint, FIntPoint>& Candidate : SideCandidates)
 	{
-		// 직접 만든 입구가 이미 그 면을 맡고 있다. 같은 방향에 가운데 칸을 또 더하면
+		// 위에서 넣은 입구가 이미 그 면을 맡고 있다. 같은 방향에 가운데 칸을 또 더하면
 		// 첫 경사로 위에 두 번째 경사로가 겹친다.
 		if (Candidate.Value == Placement.EntranceDirection)
 			continue;
@@ -774,33 +829,132 @@ void AMapBuilder::GetFacilityAccessEdges(
 	}
 }
 
-bool AMapBuilder::AreAllFacilityLevelsLoaded() const
+// 시설 레벨마다 "레벨이 다 보였을 때 부를 함수" 를 걸고, 시간 제한 타이머를 켠다.
+// 처음 세기는 다음 프레임에 한 번 한다. 이미 보이는 레벨이 있거나 시설이 0개인 판도 거기서 바로 넘어간다.
+void AMapBuilder::WatchFacilityDesignLevels()
 {
-	if (FacilityPlacements.IsEmpty())
-		return false;
+	bFacilityLevelsSettled = false;
+	for (ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
+		if (IsValid(Instance))
+			Instance->OnLevelShown.AddUniqueDynamic(this, &AMapBuilder::HandleFacilityLevelShown);
+	GetWorldTimerManager().SetTimer(
+		FacilityLoadTimeoutTimer, this, &AMapBuilder::HandleFacilityLoadTimeout, FacilityLoadTimeoutSeconds, false);
+	GetWorldTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateUObject(this, &AMapBuilder::CheckFacilityDesignLevels, false));
+}
 
-	if (bUseRuntimeBlueprintTiles)
+// 레벨 하나가 다 보였을 때 엔진이 부른다.
+// 왜 바로 안 세고 다음 프레임에 세나: 레벨을 붙이는 도중에 불리므로, 충돌 검사·상자 만들기는 그게 끝난 뒤가 안전하다.
+void AMapBuilder::HandleFacilityLevelShown()
+{
+	GetWorldTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateUObject(this, &AMapBuilder::CheckFacilityDesignLevels, false));
+}
+
+void AMapBuilder::HandleFacilityLoadTimeout()
+{
+	CheckFacilityDesignLevels(true);
+}
+
+// 시설 레벨이 다 왔나 센다. 기다리기가 끝나면 끼임 정리 → 상자 → 검사기를 한 번 부른다.
+//   - 다 옴 → 진행
+//   - 못 불러옴(패키지에 안 담김 등) → Error 로그, 그 레벨 빼고 진행
+//   - 아직 안 옴 → 기다림. 시간 제한(bTimedOut)이 지났으면 Error 로그(안 온 레벨 이름)를 남기고 진행
+void AMapBuilder::CheckFacilityDesignLevels(bool bTimedOut)
+{
+	if (bFacilityLevelsSettled)
+		return;
+
+	TArray<FString> PendingLevels;
+	TArray<FString> FailedLevels;
+	int32 LoadedLevelCount = 0;
+	for (int32 Index = 0; Index < FacilityPlacements.Num(); ++Index)
 	{
-		for (int32 Index = 0; Index < FacilityPlacements.Num(); ++Index)
+		// 레벨 없이 블루프린트로만 세우는 시설은 기다릴 게 없다.
+		if (FacilityPlacements[Index].FacilityLevel.IsNull())
+			continue;
+		ULevelStreamingDynamic* Instance = FacilityDesignLevelInstances.IsValidIndex(Index)
+			? FacilityDesignLevelInstances[Index].Get() : nullptr;
+		// 불러오기 요청부터 실패했거나(패키지에 레벨이 안 담기면 이렇다), 불러오다가 실패했다.
+		if (!IsValid(Instance) || Instance->GetLevelStreamingState() == ELevelStreamingState::FailedToLoad)
 		{
-			if (FacilityPlacements[Index].VisualSet != EFacilityVisualSet::Checkpoint)
-				continue;
-			if (!FacilityDesignLevelInstances.IsValidIndex(Index))
-				return false;
-			const ULevelStreamingDynamic* Instance = FacilityDesignLevelInstances[Index];
-			if (!IsValid(Instance) || !Instance->IsLevelLoaded() || !Instance->IsLevelVisible())
-				return false;
+			FailedLevels.Add(FString::Printf(TEXT("%d:%s"), Index, *FacilityPlacements[Index].FacilityLevel.ToString()));
+			continue;
 		}
-		return true;
-	}
+		if (!Instance->IsLevelLoaded() || !Instance->IsLevelVisible())
+		{
+			PendingLevels.Add(FString::Printf(TEXT("%d:%s"), Index, *Instance->GetWorldAssetPackageName()));
+			continue;
+		}
 
-	if (FacilityDesignLevelInstances.Num() != FacilityPlacements.Num()
-		|| FacilityDesignLevelInstances.IsEmpty())
-		return false;
-	for (const ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
-		if (!IsValid(Instance) || !Instance->IsLevelLoaded() || !Instance->IsLevelVisible())
-			return false;
-	return true;
+		++LoadedLevelCount;
+		if (LoggedFacilityDesignLevelIndices.Contains(Index))
+			continue;
+		LoggedFacilityDesignLevelIndices.Add(Index);
+		const ULevel* LoadedLevel = Instance->GetLoadedLevel();
+		const int32 LoadedActorCount = IsValid(LoadedLevel) ? LoadedLevel->Actors.Num() : 0;
+		const double RequestedAt = FacilityLoadRequestTimeSeconds.IsValidIndex(Index)
+			? FacilityLoadRequestTimeSeconds[Index] : FPlatformTime::Seconds();
+		UE_LOG(LogTemp, Display,
+			TEXT("Facility design level loaded: index=%d type=%d actors=%d visible=true load_ms=%.2f package=%s"),
+			Index,
+			static_cast<int32>(FacilityPlacements[Index].VisualSet),
+			LoadedActorCount,
+			(FPlatformTime::Seconds() - RequestedAt) * 1000.0,
+			*Instance->GetWorldAssetPackageName());
+	}
+	if (!PendingLevels.IsEmpty() && !bTimedOut)
+		return;
+
+	bFacilityLevelsSettled = true;
+	GetWorldTimerManager().ClearTimer(FacilityLoadTimeoutTimer);
+	for (ULevelStreamingDynamic* Instance : FacilityDesignLevelInstances)
+		if (IsValid(Instance))
+			Instance->OnLevelShown.RemoveDynamic(this, &AMapBuilder::HandleFacilityLevelShown);
+
+	if (!FailedLevels.IsEmpty())
+		UE_LOG(LogTemp, Error,
+			TEXT("Facility design level failed to load: count=%d levels=[%s] - its walls and loot slots are missing; in a packaged build check the cook list"),
+			FailedLevels.Num(), *FString::Join(FailedLevels, TEXT(", ")));
+	if (!PendingLevels.IsEmpty())
+		UE_LOG(LogTemp, Error,
+			TEXT("Facility design level timed out: after=%.0fs count=%d levels=[%s] - spawning loot with what is loaded"),
+			FacilityLoadTimeoutSeconds, PendingLevels.Num(), *FString::Join(PendingLevels, TEXT(", ")));
+	UE_LOG(LogTemp, Display,
+		TEXT("All facility visuals ready: placements=%d runtime_blueprints=%d streamed_levels=%d failed=%d timed_out=%d"),
+		FacilityPlacements.Num(),
+		Algo::CountIf(SpawnedRuntimeTiles, [](const AActor* Actor)
+		{
+			return IsValid(Actor) && Actor->Tags.Contains(TEXT("RuntimeTacticalFacility"));
+		}),
+		LoadedLevelCount, FailedLevels.Num(), PendingLevels.Num());
+
+	// 시설 벽이 다 들어왔으니: 벽 속 지점을 빈 곳으로 옮기고 → 상자를 놓고 → 몬스터를 놓는다(서버만).
+	PointPlanner->ResolveSafety();
+	ItemSpawner->SpawnLootOnce();
+	// 몬스터는 길찾기 지도가 다 구워진 뒤에 놓는다(서버만). 이미 구워졌으면 바로, 아니면 다 구웠다는 알림을 기다린다.
+	EnemySpawner->SpawnWhenNavigationReady();
+
+	// 검사기: 바로 끝나는 검사는 지금 한 번, 시간이 걸리는 검사(길찾기 지도 등)는 0.1초마다 도는 타이머로.
+	// 검사기가 없으면(개발 중이 아니면, BeginPlay 주석) 여기서 끝.
+	if (!Verifier)
+		return;
+	Verifier->RunFinalChecks();
+	TimedChecksStartSeconds = GetWorld()->GetTimeSeconds();
+	GetWorldTimerManager().SetTimer(TimedChecksTimer, this, &AMapBuilder::RunTimedChecks, 0.1f, true);
+}
+
+// 서버: 길찾기 지도를 다 구웠나(길찾기 지도 담당에게 묻는다). 담당이 아직 없으면 아니다.
+bool AMapBuilder::IsNavigationReady() const
+{
+	return NavigationBuilder && NavigationBuilder->IsReady();
+}
+
+void AMapBuilder::RunTimedChecks()
+{
+	const bool bGiveUp = GetWorld()->GetTimeSeconds() - TimedChecksStartSeconds > 120.0;
+	if (Verifier->RunTimedChecks(bGiveUp))
+		GetWorldTimerManager().ClearTimer(TimedChecksTimer);
 }
 
 FVector AMapBuilder::GetDesignFootprintCenter(
@@ -816,9 +970,8 @@ FVector AMapBuilder::GetDesignFootprintCenter(
 		Center.Y += Cell.Y * DesignCellSize;
 	}
 	Center /= Placement.OccupiedCells.Num();
-	// 직접 만든 바닥 메시를 공통 땅 윗면보다 아주 살짝만 띄워 z-fighting(겹쳐서 깜빡임)을 막는다.
-	// 구조물이 떠 보이지는 않을 만큼만 띄운다.
-	// 겹친 면의 깜빡임은 없애면서 게임 중에 느껴지는 턱은 생기지 않는다.
+	// 직접 만든 바닥 메시를 공통 땅 윗면보다 아주 살짝(1 cm) 띄워서, 겹쳐서 깜빡이는 것(Z-파이팅)을 막는다.
+	// 구조물이 떠 보이지 않을 만큼만 띄우므로, 깜빡임은 없애면서 게임 중에 느껴지는 턱은 생기지 않는다.
 	const float SurfaceZ = Placement.ElevationProfile == EFacilityElevationProfile::Ground
 		? BaseGroundSurfaceZ : Placement.BaseElevationCm;
 	Center.Z = SurfaceZ + 1.0f;

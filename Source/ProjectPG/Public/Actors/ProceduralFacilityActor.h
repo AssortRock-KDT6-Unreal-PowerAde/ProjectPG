@@ -9,6 +9,7 @@
 class UArrowComponent;
 class UHierarchicalInstancedStaticMeshComponent;
 class USceneComponent;
+class UStaticMesh;
 
 UENUM(BlueprintType)
 enum class EProceduralFacilityKind : uint8
@@ -33,6 +34,9 @@ public:
 
 	void Configure(EProceduralFacilityKind InKind, int64 InSeed, uint8 InVariant);
 	FIntPoint GetFootprintCells() const;
+	// 부품 메시 목록을 받는다(열쇠 = 부품 이름, 예: Floors). 맵이 DA_MapAssets 의 "시설 부품" 칸을 Configure 전에 넘긴다.
+	// 왜: 메시 경로를 코드 글자로 두면 쿠킹이 못 봐서 패키지에서 빠졌다. 목록에 없는 부품은 큐브 같은 대신 모양으로 나온다.
+	void SetPartMeshes(const TMap<FName, TSoftObjectPtr<UStaticMesh>>& InPartMeshes);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Facility")
 	EProceduralFacilityKind FacilityKind = EProceduralFacilityKind::IndustrialRaid3x3;
@@ -45,6 +49,12 @@ public:
 
 private:
 	void Rebuild();
+	// 부품 이름(컴포넌트 이름)으로 목록에서 메시를 찾는다. 없거나 못 불러오면 Fallback.
+	UStaticMesh* GetPartMesh(const UHierarchicalInstancedStaticMeshComponent* Component, UStaticMesh* Fallback) const;
+
+	UPROPERTY(Transient)
+	TMap<FName, TSoftObjectPtr<UStaticMesh>> PartMeshes;
+
 	void BuildIndustrialRaid();
 	void BuildSatelliteCamp();
 	void BuildLongBarracks();

@@ -1,4 +1,6 @@
-#include "Characters/CustomCharacter.h"
+﻿#include "Characters/CustomCharacter.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/PlayerController.h"
 #include "Equipments/FirearmEquipment.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimInstance.h"
@@ -10,6 +12,10 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
+// [멀티 임시수정 2026-10-18] 쏠 때 달리기 어빌리티를 찾아 끄려고 넣음
+#include "AbilitySystemComponent.h"
+#include "GameplayAbilities/GA_Sprint.h"
+// [멀티 임시수정] 끝
 
 void ACustomCharacter::RegisterFirearm(AFirearmEquipment* Weapon)
 {
@@ -140,7 +146,75 @@ void ACustomCharacter::RefreshActiveWeaponPresentation()
 
 void ACustomCharacter::SetFireInput(bool bPressed)
 {
-	if (IsLocallyControlled()) OnReq_SetFireInput(bPressed);
+	if (!IsLocallyControlled()) return;
+	// [멀티 임시수정 2026-10-18 달리는 중 발사]
+	// 내 화면에서 발사를 누르면 → 먼저 달리기 어빌리티를 끈다(배그처럼 쏘면 달리기가 풀림).
+	// 끄는 소식은 발사 요청보다 먼저 서버로 간다(둘 다 이 캐릭터의 순서 보장 요청이라 순서가 안 바뀜).
+	// 다시 달리려면 달리기 키를 다시 눌러야 한다(달리기는 키를 누른 순간에만 켜짐).
+	if (bPressed)
+		if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+		{
+			FGameplayAbilitySpecHandle SprintHandle;
+			for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+				if (Spec.IsActive() && Spec.Ability && Spec.Ability->IsA<UGA_Sprint>()) SprintHandle = Spec.Handle;
+			if (SprintHandle.IsValid()) ASC->CancelAbilityHandle(SprintHandle);
+		}
+	// [멀티 임시수정] 끝
+	// 쏘는 동안 내 화면 조준을 서버로 보낸다. 발사 요청보다 먼저 보내서(둘 다 순서 보장) 첫 발부터 내 조준으로 판정된다.
+	// 놓으면 그만 보낸다 → 쏘지 않을 땐 네트워크를 안 쓴다.
+	if (bPressed)
+	{
+		SendAimViewToServer();
+		GetWorldTimerManager().SetTimer(AimViewSendTimer, this, &ThisClass::SendAimViewToServer, 0.1f, true);
+	}
+	else GetWorldTimerManager().ClearTimer(AimViewSendTimer);
+	OnReq_SetFireInput(bPressed);
+}
+
+void ACustomCharacter::SendAimViewToServer()
+{
+	if (!IsLocallyControlled() || HasAuthority()) return;  // 서버(혼자 하기·방장)는 자기 카메라를 그대로 쓴다
+	// 화면에 실제로 그려지는 카메라(카메라 관리자) 값을 보낸다 = 십자선이 가리키는 선.
+	// 왜: 카메라 부품 위치 + ControlRotation 을 따로 조립하면 어깨 오프셋·조준 카메라 때문에
+	//     십자선과 몇 도 어긋나 13m 에서 0.7~0.9m 씩 빗나갔다(2026-10-19 서버 기록으로 확인).
+	FVector Location; FRotator Rotation;
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	if (PC && PC->PlayerCameraManager) PC->PlayerCameraManager->GetCameraViewPoint(Location, Rotation);
+	else GetCombatViewPoint(Location, Rotation);
+	OnReq_UpdateAimView(Location, Rotation.Vector());
+}
+
+void ACustomCharacter::OnReq_UpdateAimView_Implementation(FVector_NetQuantize CameraLocation, FVector_NetQuantizeNormal CameraDirection)
+{
+	// 말이 되는 조준만 받는다(속임 방지):
+	// - 카메라가 내 몸에서 6m 넘게 떨어짐 → 버림
+	// - 방향이 서버가 아는 내 시선(ControlRotation)과 30도 넘게 다름 → 버림
+	// 버리면 서버 쪽 카메라로 판정(예전 방식)하고, 5초에 한 번만 Warning.
+	const FVector Direction = FVector(CameraDirection).GetSafeNormal();
+	const bool bNear = FVector::DistSquared(CameraLocation, GetActorLocation()) <= FMath::Square(600.f);
+	const bool bSameWay = FVector::DotProduct(Direction, GetControlRotation().Vector()) >= FMath::Cos(FMath::DegreesToRadians(30.f));
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (!bNear || !bSameWay || Direction.IsNearlyZero())
+	{
+		if (Now - LastBadAimWarningTime > 5.0)
+		{
+			LastBadAimWarningTime = Now;
+			UE_LOG(LogTemp, Warning, TEXT("[Aim] %s: 받은 화면 조준을 버림(몸과 거리 %.1fm, 시선과 같은 쪽=%d)"), *GetName(),
+				FVector::Dist(CameraLocation, GetActorLocation()) / 100.f, bSameWay ? 1 : 0);
+		}
+		return;
+	}
+	ClientAimLocation = CameraLocation;
+	ClientAimDirection = Direction;
+	ClientAimTime = Now;
+}
+
+bool ACustomCharacter::GetClientAimView(FVector& Location, FVector& Direction) const
+{
+	if (ClientAimTime < 0.0 || GetWorld()->GetTimeSeconds() - ClientAimTime > 0.5) return false;
+	Location = ClientAimLocation;
+	Direction = ClientAimDirection;
+	return true;
 }
 
 void ACustomCharacter::OnReq_SetFireInput_Implementation(bool bPressed)
@@ -166,6 +240,13 @@ void ACustomCharacter::TryStartFireMontage()
 {
 	if (!HasAuthority() || ReloadingFirearm.IsValid() || !bFireInputHeld || bPendingFire || !CanBeHit_Implementation()
 		|| !IsValid(ActiveFirearm) || !ActiveFirearm->CanFire()) return;
+	// [멀티 임시수정 2026-10-18 달리는 중 발사]
+	// 서버가 보기에 아직 달리는 중이면(State.Sprinting 표시) 이번 발사는 거절한다.
+	// - 소총을 누르고 있으면 → 반복 타이머가 곧 다시 불러서 달리기가 풀린 뒤 바로 쏜다.
+	// - 권총 한 발 → 이번 클릭은 버려진다(정상 클라는 위 SetFireInput 에서 달리기를 먼저 꺼서 거의 안 생김).
+	if (const UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+		if (ASC->HasMatchingGameplayTag(CustomGameplayTags::State_Sprinting)) return;
+	// [멀티 임시수정] 끝
 	const FWeaponAnimationSet* Set = GetCurrentWeaponAnimationSet();
 	UAnimMontage* Montage = Set ? Set->FindMontage(IsAiming()
 		? CustomGameplayTags::WeaponAnimation_Fire_Ironsights : CustomGameplayTags::WeaponAnimation_Fire_Hip) : nullptr;
@@ -302,6 +383,8 @@ void ACustomCharacter::Die()
 	bIsDead = true;
 	ApplyDeathState();
 	ForceNetUpdate();
+	// 죽었다고 알린다 → 플레이어면 컨트롤러가 몇 초 뒤 그 사람만 로비로 보낸다(몬스터는 받는 쪽이 없어 아무 일 없음).
+	OnDied.Broadcast(this);
 }
 
 UAnimMontage* ACustomCharacter::GetDeathMontage(int32& SectionIndex) const

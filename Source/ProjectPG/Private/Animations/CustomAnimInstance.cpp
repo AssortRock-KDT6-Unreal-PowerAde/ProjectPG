@@ -60,9 +60,30 @@ void UCustomAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		FRotator AimRotation = (character->GetControlRotation() - character->GetActorRotation()).GetNormalized();
 		AimRotation.Roll = 0.f;
 		SyncAim(AimRotation);
+		// [멀티 임시수정 2026-10-19 조준 방향 덜 자주]
+		// 예전: 화면마다(초당 60번쯤) 서버로 보내고, 서버는 받을 때마다 모두에게 방송했다.
+		// 지금: 0.1초에 한 번, 0.5도 넘게 바뀌었을 때만 보낸다.
+		//   - 가만히 있어도 1초에 한 번은 다시 보낸다(이 요청은 빠질 수 있어서, 마지막 값이 빠지면 남들 화면에서 계속 틀어져 보이므로)
 		if (auto* Player = Cast<ACustomPlayerCharacter>(character))
-			Player->OnReq_SyncAimRotation({AimRotation.Yaw, AimRotation.Pitch});
+		{
+			const FVector2D Aim(AimRotation.Yaw, AimRotation.Pitch);
+			const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+			const double SinceLastSend = Now - LastAimSendTime;
+			if (LastAimSendTime < 0.0 || SinceLastSend >= 1.0 || (SinceLastSend >= 0.1 && !Aim.Equals(LastSentAim, 0.5f)))
+			{
+				LastAimSendTime = Now;
+				LastSentAim = Aim;
+				Player->OnReq_SyncAimRotation(Aim);
+			}
+		}
+		// [멀티 임시수정] 끝
 	}
+	// [멀티 임시수정 2026-10-19 조준 방향 덜 자주] 다른 사람 캐릭터는 받은 목표 쪽으로 부드럽게 따라간다(0.1초 간격을 메움).
+	else if (bHasRemoteAimTarget)
+	{
+		AimOffset = FMath::Vector2DInterpTo(AimOffset, RemoteAimTarget, DeltaSeconds, 15.f);
+	}
+	// [멀티 임시수정] 끝
 	if (const auto* Enemy = Cast<ACustomEnemyCharacter>(character))
 		SyncAim(Enemy->GetEnemyAimOffset().X, Enemy->GetEnemyAimOffset().Y);
 
@@ -133,3 +154,11 @@ void UCustomAnimInstance::SyncAim(float Yaw, float Pitch)
 	AimOffset.X = Yaw;
 	AimOffset.Y = Pitch;
 }
+
+// [멀티 임시수정 2026-10-19 조준 방향 덜 자주] 받은 방향은 목표로만 적고, NativeUpdateAnimation 이 따라간다.
+void UCustomAnimInstance::SetRemoteAimTarget(float Yaw, float Pitch)
+{
+	RemoteAimTarget = FVector2D(Yaw, Pitch);
+	bHasRemoteAimTarget = true;
+}
+// [멀티 임시수정] 끝

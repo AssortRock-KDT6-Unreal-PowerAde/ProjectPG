@@ -12,6 +12,7 @@
 #include "Components/InventoryComponent.h"
 #include "Components/EquipComponent.h"
 #include "Server/WebSocketSubSystem.h"
+#include "Audio/PGSoundLibrary.h"
 namespace
 {
 	inline void SafeRemoveWidget(UWidget* Widget)
@@ -176,6 +177,7 @@ bool UEquipSlot::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 			if (ItemOp->WidgetReference)
 				ItemOp->WidgetReference->SetRenderOpacity(1.0f);
 
+			UPGSoundLibrary::PlayPGSound(this, TEXT("UI.ItemFail"), FVector::ZeroVector);
 			return false;
 		}
 
@@ -185,6 +187,7 @@ bool UEquipSlot::NativeOnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 			ItemOp->SourceInventoryComp.IsValid() ? ItemOp->SourceInventoryComp.Get() : nullptr);
 		if (ItemOp->WidgetReference)
 			ItemOp->WidgetReference->SetRenderOpacity(1.0f);
+		UPGSoundLibrary::PlayPGSound(this, bResult ? TEXT("UI.ItemDrop") : TEXT("UI.ItemFail"), FVector::ZeroVector);
 
 		if (const UInventoryComponent* Inventory = EquipComp->GetOwnerInventoryComponent())
 		{
@@ -370,6 +373,7 @@ void UEquipSlot::NativeOnDragDetected(
 		DragOp->bFromEquip ? 1 : 0
 	);
 
+	UPGSoundLibrary::PlayPGSound(this, TEXT("UI.ItemPick"), FVector::ZeroVector);
 	OutOperation = DragOp;
 }
 

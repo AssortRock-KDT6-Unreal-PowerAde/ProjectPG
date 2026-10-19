@@ -1,4 +1,4 @@
-#include "GameMode/PlayerController_InGame.h"
+﻿#include "GameMode/PlayerController_InGame.h"
 #include "Core/UIManagerSubSystem.h"
 #include "UI/InventoryWindow.h"
 #include "UI/ItemDragDropOperation.h"
@@ -14,6 +14,14 @@
 // For forwarding inventory messages
 #include "Server/InventorySubSystem.h"
 #include "Json.h"
+// 죽은 플레이어를 로비로 보낼 때 씀(파일 위 흐름: Source/ProjectPG/Private/GameMode/README.md)
+#include "Characters/CustomCharacter.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/GameSession.h"
+#include "GameMapsSettings.h"
+#include "Misc/PackageName.h"
+#include "GameMode/PGRaidStatsSubsystem.h"
+#include "UI/PGDeathStatsWidget.h"
 
 void APlayerController_InGame::BeginPlay()
 {
@@ -56,6 +64,8 @@ void APlayerController_InGame::BeginPlay()
 void APlayerController_InGame::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearTimer(InitialInventoryTimer);
+	GetWorldTimerManager().ClearTimer(DeathStatsTimer);
+	GetWorldTimerManager().ClearTimer(ForceKickTimer);
 	if (UInventorySubSystem* Subsystem = UInventorySubSystem::Get(GetWorld()))
 	{
 		Subsystem->OnInventoryReceived.RemoveDynamic(this, &APlayerController_InGame::HandleInitialInventory);
@@ -333,6 +343,12 @@ void APlayerController_InGame::OpenCharacterWidgetInGame()
 	{
 		if (UUIManagerSubSystem* UIMgr = GI->GetSubsystem<UUIManagerSubSystem>())
 		{
+			// I 키를 한 번 더 누르면 닫는다(열려 있을 때 = 화면에 붙어 있을 때). 마우스·입력 모드는 CloseUI 가 되돌린다.
+			if (UUserWidget* OpenWidget = UIMgr->GetUI(EUIType::Character); OpenWidget && OpenWidget->IsInViewport())
+			{
+				UIMgr->CloseUI(EUIType::Character);
+				return;
+			}
 			UUserWidget* CharacterWidget = UIMgr->OpenUI(EUIType::Character);
 			UE_LOG(LogTemp, Log, TEXT("OpenCharacterWidgetInGame: OpenUI returned widget=%s"), CharacterWidget ? TEXT("valid") : TEXT("null"));
 			if (UInventoryWindow* Win = Cast<UInventoryWindow>(CharacterWidget))
@@ -369,4 +385,120 @@ void APlayerController_InGame::OnRotateKey()
 	{
 		DragOp->RotateItem();
 	}
+}
+
+// ── 죽으면 통계표 → [확인] → 그 사람만 로비로 ──────────────────────────────
+// 흐름 그림: Source/ProjectPG/Private/GameMode/README.md
+
+void APlayerController_InGame::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	// 서버에서만 불린다. 플레이어 캐릭터가 죽으면 HandlePawnDied 가 불리게 걸고, 이번 판 기록을 시작한다.
+	if (ACustomCharacter* MyCharacter = Cast<ACustomCharacter>(InPawn))
+	{
+		MyCharacter->OnDied.AddUniqueDynamic(this, &APlayerController_InGame::HandlePawnDied);
+		if (UPGRaidStatsSubsystem* RaidStats = UPGRaidStatsSubsystem::Get(this)) RaidStats->StartLife(this);
+	}
+}
+
+void APlayerController_InGame::OnUnPossess()
+{
+	if (ACustomCharacter* MyCharacter = Cast<ACustomCharacter>(GetPawn()))
+	{
+		MyCharacter->OnDied.RemoveDynamic(this, &APlayerController_InGame::HandlePawnDied);
+	}
+	Super::OnUnPossess();
+}
+
+void APlayerController_InGame::PawnLeavingGame()
+{
+	// 죽어서 로비로 나간 사람의 캐릭터는 지우지 않고 손만 뗀다 → 시체가 그 자리에 남는다.
+	// 살아 있는데 나간 사람(창 닫음 등)은 원래대로 캐릭터를 지운다.
+	const ACustomCharacter* MyCharacter = Cast<ACustomCharacter>(GetPawn());
+	if (MyCharacter && MyCharacter->IsDead())
+	{
+		UnPossess();
+		return;
+	}
+	Super::PawnLeavingGame();
+}
+
+void APlayerController_InGame::HandlePawnDied(ACustomCharacter* DeadCharacter)
+{
+	// 서버: 생존 시간을 멈추고, 죽는 동작을 볼 시간만큼 기다렸다가 통계표를 보낸다. 이미 기다리는 중이면 다시 걸지 않는다.
+	if (!HasAuthority() || GetWorldTimerManager().IsTimerActive(DeathStatsTimer)) return;
+	if (UPGRaidStatsSubsystem* RaidStats = UPGRaidStatsSubsystem::Get(this)) RaidStats->MarkDied(this);
+	UE_LOG(LogTemp, Log, TEXT("[DeathToLobby] %s died. Showing stats in %.1fs."), *GetNameSafe(this), SecondsBeforeDeathStats);
+	GetWorldTimerManager().SetTimer(DeathStatsTimer, this, &APlayerController_InGame::SendDeathStats, FMath::Max(SecondsBeforeDeathStats, 0.1f), false);
+}
+
+void APlayerController_InGame::SendDeathStats()
+{
+	UPGRaidStatsSubsystem* RaidStats = UPGRaidStatsSubsystem::Get(this);
+	const FPGRaidStats Stats = RaidStats ? RaidStats->FinishLife(this) : FPGRaidStats();
+	UE_LOG(LogTemp, Log, TEXT("[DeathToLobby] Sending stats to %s: time=%.0fs kills=%d shots=%d hits=%d dealt=%.0f taken=%.0f by=%s"),
+		*GetNameSafe(this), Stats.SurvivalSeconds, Stats.Kills, Stats.ShotsFired, Stats.Hits, Stats.DamageDealt, Stats.DamageTaken, *Stats.KilledBy);
+	Client_ShowDeathStats(Stats);
+	// 확인을 끝내 안 누르면(자리 비움, 클라 멈춤) 일정 시간 뒤 서버가 내보낸다. 조용히 남아 있지 않게.
+	GetWorldTimerManager().SetTimer(ForceKickTimer, this, &APlayerController_InGame::ForceKickIfStillHere, FMath::Max(SecondsBeforeForceKick, 1.f), false);
+}
+
+void APlayerController_InGame::ForceKickIfStillHere()
+{
+	UE_LOG(LogTemp, Error, TEXT("[DeathToLobby] %s did not leave %.1fs after the death stats were sent. Kicking from server."), *GetNameSafe(this), SecondsBeforeForceKick);
+	AGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr;
+	if (GameMode && GameMode->GameSession)
+	{
+		// 쫓겨난 클라는 엔진이 알아서 게임 시작 맵(로비)으로 돌려보낸다.
+		GameMode->GameSession->KickPlayer(this, FText::FromString(TEXT("Returned to lobby after death")));
+	}
+}
+
+void APlayerController_InGame::ReleaseMouseForUI()
+{
+	SetShowMouseCursor(true);
+	if (UGameViewportClient* ViewportClient = GetWorld() ? GetWorld()->GetGameViewport() : nullptr)
+	{
+		if (FViewport* Viewport = ViewportClient->Viewport)
+		{
+			Viewport->LockMouseToViewport(false);
+			Viewport->CaptureMouse(false);
+		}
+	}
+}
+
+void APlayerController_InGame::Client_ShowDeathStats_Implementation(const FPGRaidStats& Stats)
+{
+	ReleaseMouseForUI();
+	if (DeathStatsWidget) return;  // 이미 떠 있음(같은 RPC 가 두 번 와도 창 하나)
+	// 열려 있던 가방·캐릭터 창은 닫는다. 통계표 위에 겹쳐 [확인]을 가리지 않게.
+	if (UUIManagerSubSystem* UIManager = UUIManagerSubSystem::Get(this)) UIManager->CloseAllUI();
+
+	UClass* WidgetClass = DeathStatsWidgetClass.LoadSynchronous();
+	DeathStatsWidget = WidgetClass ? CreateWidget<UPGDeathStatsWidget>(this, WidgetClass) : nullptr;
+	if (!DeathStatsWidget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[DeathToLobby] 통계표 WBP 를 못 만듦(DefaultGame.ini DeathStatsWidgetClass='%s'). 바로 로비로 감 - 패키지면 쿠킹 목록 확인"),
+			*DeathStatsWidgetClass.ToString());
+		ReturnToLobbyNow();
+		return;
+	}
+	DeathStatsWidget->AddToViewport(2000);  // HUD·가방 창보다 위
+	DeathStatsWidget->ShowStats(Stats);
+	FInputModeUIOnly InputMode;
+	InputMode.SetWidgetToFocus(DeathStatsWidget->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(InputMode);
+	UE_LOG(LogTemp, Log, TEXT("[DeathToLobby] Death stats shown"));
+}
+
+void APlayerController_InGame::ReturnToLobbyNow()
+{
+	if (!IsLocalController()) return;
+	ReleaseMouseForUI();
+	SetInputMode(FInputModeUIOnly());
+	// 로비 = 게임 시작 맵(DefaultEngine.ini GameDefaultMap). 맵 경로를 여기 따로 적지 않는다.
+	const FString LobbyMap = FPackageName::ObjectPathToPackageName(UGameMapsSettings::GetGameDefaultMap());
+	UE_LOG(LogTemp, Log, TEXT("[DeathToLobby] Leaving match, travelling to %s"), *LobbyMap);
+	ClientTravel(LobbyMap, TRAVEL_Absolute);
 }

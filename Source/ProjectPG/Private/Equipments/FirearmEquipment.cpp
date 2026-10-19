@@ -1,6 +1,9 @@
-#include "Equipments/FirearmEquipment.h"
+﻿#include "Equipments/FirearmEquipment.h"
 #include "Characters/CustomCharacter.h"
 #include "Combat/Hittable.h"
+#include "AI/EnemyNoiseTags.h"
+#include "GameMode/PGRaidStatsSubsystem.h"
+#include "Perception/AISense_Hearing.h"
 #include "Core/ItemSubSystem.h"
 #include "GameplayAbilities/WeaponAttributeSet.h"
 #include "Components/SceneComponent.h"
@@ -169,20 +172,31 @@ bool AFirearmEquipment::Fire()
 	TArray<AActor*> Attached;
 	Character->GetAttachedActors(Attached, true, true);
 	Params.AddIgnoredActors(Attached);
-	FHitResult CameraHit;
-	const FVector CameraEnd = ViewLocation + ViewRotation.Vector() * Range;
-	GetWorld()->LineTraceSingleByChannel(CameraHit, ViewLocation, CameraEnd, ECC_Visibility, Params);
-	const FVector AimPoint = CameraHit.bBlockingHit ? CameraHit.ImpactPoint : CameraEnd;
-	const FVector Direction = (AimPoint - Muzzle).GetSafeNormal();
+	// 총알 출발점과 방향 = 화면 조준선(카메라에서 십자선 쪽).
+	// 왜: 예전엔 총구에서 "카메라가 맞힌 점" 쪽으로 쐈다. 카메라는 어깨 위, 총구는 그보다 낮아서
+	//     화면엔 보이는 몬스터를 낮은 블록·담이 총구 높이에서 가려 대부분 빗나갔다(2026-10-18 서버 로그로 확인).
+	// 출발점은 조준선 위에서 총구와 가장 가까운 점 → 카메라와 내 몸 사이 물체(내 뒤 벽 등)는 맞히지 않는다.
+	// 서버 기준 조준(서버가 가진 카메라 위치·ControlRotation)이라 클라가 보낸 값은 믿지 않는 원칙은 그대로.
+	const FVector Direction = ViewRotation.Vector();
+	const FVector ShotStart = ViewLocation + Direction * FMath::Max(0.f, FVector::DotProduct(Muzzle - ViewLocation, Direction));
 	if (Direction.IsNearlyZero() || !ConsumeLoadedAmmo()) return false;
 	NextFireTime = GetWorld()->GetTimeSeconds() + GetFireInterval();
+	// [게임 흐름 연결 2026-10-19] 사망 통계표용 기록(플레이어가 쏜 것만 셈, 몬스터는 무시). 흐름: GameMode/README.md
+	UPGRaidStatsSubsystem* RaidStats = UPGRaidStatsSubsystem::Get(this);
+	if (RaidStats) RaidStats->RecordShot(Character);
+	// 총소리를 몬스터 귀에 알린다(서버에서만 여기까지 옴). 들리는 거리는 듣는 몬스터의 AIConfig.HearingRange.
+	// 몬스터가 쏜 총소리는 몬스터 AI 가 "같은 편"으로 보고 무시한다.
+	UAISense_Hearing::ReportNoiseEvent(GetWorld(), Muzzle, 1.f, Character, 0.f, EnemyNoiseTags::Gunshot);
 	const float HalfAngle = FMath::DegreesToRadians(FMath::Clamp(FirearmData.ConeHalfAngle, 0.f, 45.f));
 	// Broad phase: 원뿔을 감싸는 구로 후보를 얻은 뒤 원뿔 내부 여부를 검사합니다.
 	TArray<FOverlapResult> Overlaps;
-	const FVector Center = Muzzle + Direction * (Range * 0.5f);
+	const FVector Center = ShotStart + Direction * (Range * 0.5f);
 	const float Radius = Range * FMath::Sqrt(0.25f + FMath::Square(FMath::Tan(HalfAngle)));
+	// 후보는 Pawn 종류만 찾는다. 맞을 수 있는 것(IHittable)은 캐릭터뿐이고 그 캡슐이 Pawn 종류다.
+	// 왜: 모든 종류(AllObjects)로 찾으면 반경 수십 m 안의 나무·바위 인스턴스를 한 발마다 하나하나 돌려받았다
+	//     (몬스터 수십 마리가 연사하면 서버 프레임이 무거워짐, 2026-10-19 점검).
 	GetWorld()->OverlapMultiByObjectType(Overlaps, Center, FQuat::Identity,
-		FCollisionObjectQueryParams::AllObjects, FCollisionShape::MakeSphere(Radius), Params);
+		FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(Radius), Params);
 	bool bHasTarget = false;
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
@@ -190,7 +204,7 @@ bool AFirearmEquipment::Fire()
 		if (!IsValid(Target) || !Target->Implements<UHittable>() || !IHittable::Execute_CanBeHit(Target)) continue;
 		FVector Origin, Extent;
 		Target->GetActorBounds(true, Origin, Extent);
-		const FVector Offset = Origin - Muzzle;
+		const FVector Offset = Origin - ShotStart;
 		const float Along = FVector::DotProduct(Offset, Direction);
 		const float BoundRadius = Extent.Size();
 		if (Along + BoundRadius >= 0.f && Along - BoundRadius <= Range
@@ -203,10 +217,15 @@ bool AFirearmEquipment::Fire()
 	{
 		const FVector Ray = FMath::VRandCone(Direction, HalfAngle);
 		FHitResult HitResult;
-		if (!GetWorld()->LineTraceSingleByChannel(HitResult, Muzzle, Muzzle + Ray * Range, ECC_Visibility, Params)) continue;
+		if (!GetWorld()->LineTraceSingleByChannel(HitResult, ShotStart, ShotStart + Ray * Range, ECC_Visibility, Params)) continue;
 		AActor* Target = HitResult.GetActor();
 		if (IsValid(Target) && Target->Implements<UHittable>() && IHittable::Execute_CanBeHit(Target))
+		{
+			// [게임 흐름 연결 2026-10-19] 맞히기 전 체력을 재 두었다가 깎인 만큼·죽였는지를 통계에 남긴다.
+			const float HealthBefore = UPGRaidStatsSubsystem::GetHealthBeforeHit(Target);
 			IHittable::Execute_Hit(Target, WeaponAttributes->GetDamage() / Count, this, HitResult);
+			if (RaidStats) RaidStats->RecordHit(Character, Target, HealthBefore);
+		}
 	}
 	return true;
 }

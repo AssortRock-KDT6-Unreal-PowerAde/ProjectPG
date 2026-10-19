@@ -6,6 +6,7 @@
 #include "Actors/LootSlotComponent.h"
 #include "Actor/InteractActor.h"
 #include "Components/InventoryComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/LevelStreamingDynamic.h"
@@ -23,9 +24,11 @@ UWorld* UMapItemSpawner::GetWorld() const
 	return Map ? Map->GetWorld() : nullptr;
 }
 
-// 상자를 바닥에 붙인다: 상자 전체(몸통·뚜껑) 아래면과 바닥의 높이 차이만큼 올린다(+1cm: 바닥과 같은 높이면 깜빡거림).
-// 왜 C++ 상자 함수(ALootCrateActor::PlaceOnFloor)를 안 쓰나: 목록의 상자는 부모가 AInteractActor 면 무엇이든 되고,
-// 팩 BP 는 몸통이 MeshComp 가 아니라 따로 단 부품일 수 있어서 상자 전체 크기로 잰다.
+// 상자를 바닥에 붙인다. 상자 전체(몸통·뚜껑)의 아랫면과 바닥의 높이 차이만큼 올린다.
+// 1cm 를 더 올리는 이유: 바닥과 같은 높이면 면이 겹쳐서 깜빡거린다.
+// 왜 C++ 상자 함수(ALootCrateActor::PlaceOnFloor)를 안 쓰나:
+// 목록의 상자는 부모가 AInteractActor 면 무엇이든 되고, 팩에서 가져온 BP 는 몸통이 MeshComp 가 아니라 따로 단 부품일 수 있다.
+// 그래서 상자 전체 크기로 잰다.
 void UMapItemSpawner::PlaceOnFloor(AActor* Container, const FVector& FloorPoint)
 {
 	Container->SetActorLocation(FloorPoint);
@@ -34,8 +37,8 @@ void UMapItemSpawner::PlaceOnFloor(AActor* Container, const FVector& FloorPoint)
 		Container->AddActorWorldOffset(FVector(0.0f, 0.0f, FloorPoint.Z - Bounds.Min.Z + 1.0f));
 }
 
-// Start→End 선에서 처음 닿는 바닥. 눈에 보이고 사람이 밟는 것만 바닥으로 친다.
-// 보이는 표면(삼각형)으로 잰다: 시내 보도블록(SM_ground_mod_tile)은 충돌 상자가 보이는 면보다 높아서,
+// Start→End 선을 쏴서 처음 닿는 바닥을 찾는다. 눈에 보이고 사람이 밟는 것만 바닥으로 친다.
+// 보이는 표면(삼각형)으로 잰다. 시내 보도블록(SM_ground_mod_tile)은 충돌 상자가 보이는 면보다 높아서,
 // 충돌 상자 위에 올리면 상자가 떠 보였다.
 static bool TraceFloor(const UWorld* World, const FVector& Start, const FVector& End, const FCollisionQueryParams& Params, FHitResult& OutHit)
 {
@@ -64,17 +67,18 @@ static bool TraceFloor(const UWorld* World, const FVector& Start, const FVector&
 
 AInteractActor* UMapItemSpawner::SpawnContainer(UClass* ContainerClass, const FVector& FloorPoint, const FRotator& Rotation)
 {
-	// 주인(Owner)은 두지 않는다: F 상호작용(UInteractComponent)은 맞은 물체에 주인이 있으면 주인을 열려고 해서,
-	// 맵을 주인으로 두면 상자를 맞혀도 맵을 열려다 아무 일도 안 일어난다.
+	// 주인(Owner)은 두지 않는다. F 키 상호작용(UInteractComponent)은 겨냥한 물체에 주인이 있으면 그 주인을 열려고 한다.
+	// 맵을 주인으로 두면 상자를 겨냥해도 맵을 열려다가 아무 일도 안 일어난다.
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AInteractActor* Container = GetWorld()->SpawnActor<AInteractActor>(ContainerClass, FloorPoint, Rotation, SpawnParameters);
 	if (!IsValid(Container))
 		return nullptr;
 
-	// 팩에서 가져온 상자 BP 는 부품(뚜껑 등)이 스태틱으로 저장돼 있을 수 있다.
-	// 스태틱이면 게임 중에 못 움직여서 바닥 맞추기가 무시되고, 상자가 떠 있거나 바닥에 박힌다 → 전부 무버블로.
-	// 길찾기 그물은 안 바꾼다: 상자 수십 개가 판 시작 때 길찾기를 다시 굽게 만들면 멈칫한다.
+	// 팩에서 가져온 상자 BP 는 부품(뚜껑 등)이 "움직일 수 없음(Static)"으로 저장돼 있을 수 있다.
+	// 그러면 게임 중에 못 움직여서 바닥 맞추기가 무시되고, 상자가 떠 있거나 바닥에 박힌다.
+	// 그래서 전부 "움직일 수 있음(Movable)"으로 바꾼다.
+	// 길찾기 영역에는 영향을 주지 않게 한다. 상자 수십 개가 판 시작 때 길찾기를 다시 계산하게 만들면 멈칫한다.
 	TInlineComponentArray<USceneComponent*> SceneComponents(Container);
 	for (USceneComponent* Component : SceneComponents)
 	{
@@ -131,8 +135,22 @@ void UMapItemSpawner::AppendSlotsOf(AActor* Owner, TArray<FLootSlotRecord>& OutS
 	const bool bLevelSlot = Owner->IsA<ALootSlotActor>();
 	if (!bLevelSlot)
 	{
-		// BP 하나 = 타일 하나(또는 여러 칸짜리 시설). 가장자리 25% 를 깎아 옆 칸으로 삐져나온 소품은 빼고 센다.
-		const FBox Bounds = Owner->GetComponentsBoundingBox(true);
+		// BP 하나 = 타일 하나(또는 여러 칸짜리 시설). 가장자리 25% 는 빼고 센다(옆 칸으로 삐져나온 소품 때문에 칸 수가 늘지 않게).
+		// 크기가 0 인 부품(인스턴스가 하나도 없는 묶음 메시 등)은 빼고 잰다.
+		// 왜: 그런 부품의 상자는 맵 한가운데(0,0)에 찍혀서, 에디터에서는 타일 하나가 한가운데까지 수십 칸을 차지한 것으로 셌다.
+		//     패키지에서는 그 부품이 안 섞여 같은 시드인데 칸 수·상자 수가 달랐다(에디터 807칸·398개, 패키지 783칸·405개).
+		FBox Bounds(ForceInit);
+		Owner->ForEachComponent<UPrimitiveComponent>(false, [&Bounds](const UPrimitiveComponent* Primitive)
+		{
+			if (!Primitive->IsRegistered() || Primitive->Bounds.BoxExtent.IsNearlyZero())
+				return;
+			if (const UInstancedStaticMeshComponent* Instanced = Cast<UInstancedStaticMeshComponent>(Primitive))
+				if (Instanced->GetInstanceCount() == 0)
+					return;
+			Bounds += Primitive->Bounds.GetBox();
+		});
+		if (!Bounds.IsValid)
+			Bounds = FBox(Owner->GetActorLocation(), Owner->GetActorLocation());
 		const float Margin = MapBuild::DesignCellSize * 0.25f;
 		const FIntPoint MinCell = CellOf(Bounds.Min.X + Margin, Bounds.Min.Y + Margin);
 		const FIntPoint MaxCell = CellOf(Bounds.Max.X - Margin, Bounds.Max.Y - Margin);
@@ -140,8 +158,8 @@ void UMapItemSpawner::AppendSlotsOf(AActor* Owner, TArray<FLootSlotRecord>& OutS
 			for (int32 Y = MinCell.Y; Y <= MaxCell.Y; ++Y)
 				OutCells.Add(FIntPoint(X, Y));
 	}
-	// 묶음 = 표시가 달린 BP 하나(같은 SlotGroup 끼리), 또는 레벨에 놓인 Loot Slot 들(같은 레벨·같은 SlotGroup 끼리).
-	// BP 쪽에 위치를 붙이는 이유: 지워진 타일의 이름은 나중에 다른 타일이 다시 쓸 수 있다.
+	// 묶음 = 자리 표시가 달린 BP 하나(같은 SlotGroup 끼리), 또는 레벨에 놓인 Loot Slot 들(같은 레벨·같은 SlotGroup 끼리).
+	// BP 쪽 묶음 이름에 위치를 붙이는 이유: 지워진 타일의 이름은 나중에 다른 타일이 다시 쓸 수 있어서, 이름만으로는 구분이 안 된다.
 	const FString Owned = bLevelSlot
 		? Owner->GetLevel()->GetOutermost()->GetName()
 		: FString::Printf(TEXT("%s@%d,%d"), *Owner->GetClass()->GetName(),
@@ -173,30 +191,27 @@ void UMapItemSpawner::ResetRecordedLootSlots()
 
 // 상자 자리마다 상자 놓기.
 // ① 상자 BP 목록(DA_MapAssets 의 LootContainerClasses)을 읽는다. 못 읽는 칸은 빼고 로그로 알린다.
-// ② 사람이 타일·시설 BP 에 찍어 둔 상자 자리(LootSlot): 타일(묶음)마다 판 시드로 몇 개를 골라 그 자리에 놓는다.
-//    예: 자리 3개짜리 타일 → 어떤 판은 없음, 어떤 판은 그중 1개. 개수 범위는 DA_MapAssets 의 MinActive/MaxActiveSlotsPerGroup.
-//    왜 이렇게 바꿨나: 예전 지점은 코드가 칸 가운데에서 숫자로 정한 위치라, 언덕·소품이 있으면 상자가 묻히거나 떴다.
-// ③ 예전 방식(코드가 정한 Loot 지점): 자리를 아직 안 찍은 칸에만. 그 자리 씨앗으로 상자를 고르고 바로 아래 바닥에 놓는다.
-//    둘 다 아래로 선을 쏴서 바닥(창고 2층이면 2층 바닥)에 내려놓는다 — 벽 속이 아니라 손 닿는 바닥이어야
-//    형님 서버의 "거리·시야 검사" 를 통과해 열 수 있다.
+// ② 사람이 타일·시설 BP 에 찍어 둔 상자 자리(LootSlot): 타일(묶음)마다 판 시드로 몇 개를 골라서 그 자리에 놓는다.
+//    예) 자리 3개짜리 타일 → 어떤 판은 0개, 어떤 판은 그중 1개.
+//    개수 범위는 DA_MapAssets 의 MinActiveSlotsPerGroup / MaxActiveSlotsPerGroup 칸에 있다.
+//    왜 이렇게 바꿨나: 예전 지점은 코드가 칸 가운데에서 숫자로 정한 위치라, 언덕·소품이 있으면 상자가 묻히거나 떠 있었다.
+// ③ 예전 방식(코드가 정한 Loot 지점): 자리를 아직 안 찍은 칸에만 쓴다. 그 자리의 씨앗으로 상자를 고르고, 바로 아래 바닥에 놓는다.
+//    ②와 ③ 모두 아래로 선을 쏴서 바닥(창고 2층이면 2층 바닥)에 내려놓는다.
+//    벽 속이 아니라 손 닿는 바닥에 있어야, 형님 서버의 "거리·시야 검사"를 통과해서 상자를 열 수 있다.
 // 상자 안은 채우지 않는다. 안에 무엇이 들지는 형님 쪽(AInteractActor)이 정한다.
 // 결과를 지문(loot_hash)으로 남긴다. 같은 시드면 같은 값이어야 한다(검사 기준).
 void UMapItemSpawner::SpawnLootOnce()
 {
-	if (bSpawned || !Map->bResolvedGameplayPointSafety)
+	// 맵이 "시설 레벨 불러오기 끝남 → 끼임 정리 끝남" 이 된 다음에 한 번 부른다(AMapBuilder::CheckFacilityDesignLevels).
+	// 왜 그 뒤: 레벨에 놓은 상자 자리(Loot Slot)는 그 레벨이 다 불러와져야 찾을 수 있다.
+	if (bSpawned || !Map->bResolvedGameplayPointSafety || !Map->bFacilityLevelsSettled)
 		return;
-	// 시설 레벨이 다 들어올 때까지 기다린다. 레벨에 놓은 Loot Slot 은 레벨이 들어와야 찾을 수 있다.
-	// 왜 따로 보나: 지점 정리(bResolvedGameplayPointSafety)는 검문소 레벨만 기다려서, 큰 시설(시내 6x6 등)은
-	// 아직 불러오는 중일 수 있다. 그때 놓으면 그 시설의 자리는 통째로 빠진다.
-	for (const ULevelStreamingDynamic* Instance : Map->FacilityDesignLevelInstances)
-		if (IsValid(Instance) && (!Instance->IsLevelLoaded() || !Instance->IsLevelVisible()))
-			return;
 	bSpawned = true;
-	// 서버만 놓는다. 들어온 사람은 서버가 놓은 상자를 복제로 받는다(여기서 또 놓으면 두 벌이 된다).
-	// 확인용: 몇 초 뒤 받은 상자 수와 그 안의 아이템 수를 로그에 남긴다(가까운 것만 오므로 서버 수보다 적을 수 있다).
+	// 서버만 놓는다. 접속한 사람은 서버가 놓은 상자를 전달(복제)받는다. 여기서 또 놓으면 상자가 두 벌이 된다.
+	// 확인용: 몇 초 뒤 받은 상자 수와 그 안의 아이템 수를 로그에 남긴다(가까운 것만 오므로 서버가 놓은 수보다 적을 수 있다).
 	if (GetWorld()->GetNetMode() == NM_Client)
 	{
-		// 상자 종류(DA_MapAssets 목록)로 센다. 이름표(Tags)는 복제가 안 돼서 클라에서는 늘 비어 있다.
+		// 상자 종류(DA_MapAssets 목록)로 센다. 이름표(Tags)는 전달(복제)이 안 돼서 접속한 쪽에서는 늘 비어 있다.
 		TArray<UClass*> LootClasses;
 		for (const TSoftClassPtr<AInteractActor>& Entry : Map->GetMapAssets().LootContainerClasses)
 			if (UClass* Class = Entry.LoadSynchronous())
@@ -210,11 +225,11 @@ void UMapItemSpawner::SpawnLootOnce()
 			int32 ContainerCount = 0, Filled = 0, ItemsInside = 0;
 			for (TActorIterator<AInteractActor> It(WeakWorld.Get()); It; ++It)
 			{
-				// 서버에서 복제로 받은 것만(클라가 직접 가진 상자는 빼고).
+				// 서버에서 전달(복제)받은 상자만 센다(내가 직접 만든 상자는 뺀다).
 				if (It->HasAuthority() || !LootClasses.ContainsByPredicate([&It](const UClass* Class) { return It->IsA(Class); }))
 					continue;
 				++ContainerCount;
-				// 안 아이템 수: 형님 인벤토리 복제(OnRep)가 채워 준 이 상자 칸(MyActorGuid)의 아이템 수.
+				// 상자 안 아이템 수: 형님 쪽 인벤토리가 서버에서 전달받아(OnRep) 채워 준, 이 상자 칸(MyActorGuid)의 아이템 수.
 				const int32 Inside = It->InventoryComp && It->MyActorGuid.IsValid()
 					? It->InventoryComp->GetItems(It->MyActorGuid).Num() : 0;
 				ItemsInside += Inside;
@@ -248,7 +263,7 @@ void UMapItemSpawner::SpawnLootOnce()
 		return;
 	}
 
-	// 맵 액터는 빼면 안 된다: 타일 바닥(묶음 HISM)이 맵 액터의 부품이라, 빼면 들판 바닥을 못 찾는다.
+	// 바닥 찾기에서 맵 액터는 빼면 안 된다. 타일 바닥(HISM)이 맵 액터의 부품이라, 빼면 들판 바닥을 못 찾는다.
 	FCollisionQueryParams FloorQuery(SCENE_QUERY_STAT(MapItemFloor), false);
 
 	int32 LootPointCount = 0;
@@ -259,9 +274,10 @@ void UMapItemSpawner::SpawnLootOnce()
 	TMap<FString, int32> CountByClass;
 	uint32 LootHash = 0;
 
-	// 지점은 바닥보다 120cm 위에 찍혀 있다 → 정해 둔 바닥 = 지점 - 120cm.
-	// 그 높이 ±60cm 안에서만 바닥을 찾는다(바닥이 살짝 기울거나 턱이 있는 만큼만 맞춘다).
-	// 왜 끝까지 안 쏘나: 그러면 2층 바닥이 눈 선에 안 걸리는 건물에서 1층까지, 호수 칸에서 숨은 호수 바닥까지 떨어졌다.
+	// 지점은 바닥보다 120cm 위에 찍혀 있다. 그래서 정해 둔 바닥 = 지점 - 120cm.
+	// 그 높이 ±60cm 안에서만 바닥을 찾는다(바닥이 살짝 기울었거나 턱이 있는 만큼만 맞춘다).
+	// 왜 끝까지 안 쏘나: 그러면 2층 바닥이 선에 안 걸리는 건물에서는 1층까지 떨어지고,
+	// 호수 칸에서는 물속 호수 바닥까지 떨어졌다.
 	auto FindFloor = [&](const FLevelDesignPoint& Point)
 	{
 		const FVector Designed = Point.WorldLocation - FVector(0.0f, 0.0f, 120.0f);
@@ -288,6 +304,9 @@ void UMapItemSpawner::SpawnLootOnce()
 	for (const FLootSlotRecord& Slot : AllSlots)
 		SlotGroups.FindOrAdd(Slot.GroupKey).Add(&Slot);
 
+	// 묶음 순서를 이름순으로 고정한다.
+	// 왜: 액터를 찾는 순서가 판마다 달라서, 같은 상자인데도 loot_hash(결과 지문)가 판마다 달라졌다.
+	SlotGroups.KeySort(TLess<FString>());
 	int32 SlotContainerCount = 0;
 	const int64 RaidSeed = Map->GetRaidSeed();
 	for (TPair<FString, TArray<const FLootSlotRecord*>>& Group : SlotGroups)
@@ -364,8 +383,8 @@ void UMapItemSpawner::SpawnLootOnce()
 			continue;
 		}
 
-		// 자리 씨앗으로만 굴린다 → 시각·순서와 상관없이 같은 시드면 같은 자리에 같은 상자.
-		// 상자 종류: 씨앗을 한 번 섞어(CRC) 만든 주사위. 자리 씨앗끼리 비슷해서 그대로 쓰면 한쪽으로 쏠렸다.
+		// 이 자리의 씨앗으로만 주사위를 굴린다. 그러면 시각·순서와 상관없이 같은 시드면 같은 자리에 같은 상자가 나온다.
+		// 상자 종류: 씨앗을 한 번 섞어서(CRC) 만든 주사위. 자리 씨앗끼리 값이 비슷해서, 그대로 쓰면 한쪽으로 쏠렸다.
 		FRandomStream ChoiceStream(static_cast<int32>(FCrc::MemCrc32(&Point.PointSeed, sizeof(Point.PointSeed))));
 		UClass* ContainerClass = ContainerClasses[ChoiceStream.RandRange(0, ContainerClasses.Num() - 1)];
 		// 돌림 방향: 자리 씨앗(64비트)을 32비트로 접어 만든 주사위.
